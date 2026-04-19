@@ -1,0 +1,91 @@
+# Alertmanager Configuration
+global:
+  resolve_timeout: 5m
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+
+# 알림 템플릿
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# 알림 라우팅
+route:
+  receiver: 'slack-critical'
+  group_by: ['alertname', 'severity', 'component']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 3h
+
+  # 심각도별 라우팅
+  routes:
+    # 🔴 Critical → Slack + PagerDuty
+    - receiver: 'slack-critical'
+      match:
+        severity: critical
+      continue: true
+
+    # 🟡 Warning → Slack
+    - receiver: 'slack-warning'
+      match:
+        severity: warning
+
+    # 📊 Info → 로그만
+    - receiver: 'null'
+      match:
+        severity: info
+
+# 억제 규칙 (중복 알림 방지)
+inhibit_rules:
+  # Redis 다운 시 캐시 관련 알림 억제
+  - source_match:
+      alertname: 'RedisDown'
+    target_match_re:
+      alertname: '(LowCacheHitRate|RedisHighMemory)'
+    equal: ['component']
+
+  # API 서버 다운 시 다른 API 알림 억제
+  - source_match:
+      alertname: 'APIDown'
+    target_match_re:
+      alertname: '(HighErrorRate|SlowResponseTime)'
+    equal: ['instance']
+
+# Receivers (알림 채널)
+receivers:
+  # Slack - Critical
+  - name: 'slack-critical'
+    slack_configs:
+      - channel: '#valueup-alerts-critical'
+        username: 'VALUE-UP Alert Bot'
+        icon_emoji: ':rotating_light:'
+        title: '🔴 CRITICAL: {{ .GroupLabels.alertname }}'
+        text: |
+          *Summary:* {{ .CommonAnnotations.summary }}
+          *Description:* {{ .CommonAnnotations.description }}
+          *Action Required:* {{ .CommonAnnotations.action }}
+
+          *Details:*
+          {{ range .Alerts }}
+            • Alert: {{ .Labels.alertname }}
+            • Severity: {{ .Labels.severity }}
+            • Component: {{ .Labels.component }}
+            • Started: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ end }}
+        send_resolved: true
+        color: 'danger'
+
+  # Slack - Warning
+  - name: 'slack-warning'
+    slack_configs:
+      - channel: '#valueup-alerts'
+        username: 'VALUE-UP Alert Bot'
+        icon_emoji: ':warning:'
+        title: '🟡 WARNING: {{ .GroupLabels.alertname }}'
+        text: |
+          *Summary:* {{ .CommonAnnotations.summary }}
+          *Description:* {{ .CommonAnnotations.description }}
+          *Action Required:* {{ .CommonAnnotations.action }}
+        send_resolved: true
+        color: 'warning'
+
+  # Null (로그만)
+  - name: 'null'

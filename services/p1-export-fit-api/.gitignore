@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# 데이터 파일 (용량 큰 것들 - 필요시 주석 해제)
+# csv/TradeData_hscode.csv
+# csv/kotra_export_recommend_all.csv
+
+# OS
+.DS_Store
+Thumbs.db

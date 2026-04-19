@@ -1,0 +1,49 @@
+# Prometheus Configuration
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'valueup-production'
+    environment: 'production'
+
+# Alertmanager 설정
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'
+
+# Alert rules 파일
+rule_files:
+  - '/etc/prometheus/alerts.yml'
+
+# Scrape configs
+scrape_configs:
+  # Prometheus 자체 모니터링
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # VALUE-UP API 서버
+  - job_name: 'valueup-api'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['api:8001']
+        labels:
+          service: 'api'
+          tier: 'backend'
+
+  # Redis
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+        labels:
+          service: 'redis'
+          tier: 'cache'
+
+  # Node Exporter (시스템 메트릭)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'system'

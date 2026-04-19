@@ -1,0 +1,147 @@
+# Prometheus Alert Rules
+groups:
+  # API 서버 알림
+  - name: api_alerts
+    interval: 30s
+    rules:
+      # 🔴 높은 에러율
+      - alert: HighErrorRate
+        expr: |
+          rate(api_errors_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "높은 API 에러율 감지"
+          description: "에러율: {{ $value | humanizePercentage }}"
+          action: "Admin Dashboard 확인 → /config → 모델 상태 검증"
+          dashboard: "http://grafana:3000/d/api-overview"
+
+      # 🟡 느린 응답 시간
+      - alert: SlowResponseTime
+        expr: |
+          histogram_quantile(0.95, api_request_duration_ms_bucket) > 5000
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "느린 API 응답 시간"
+          description: "P95 응답 시간: {{ $value }}ms"
+          action: "Redis 연결 확인 → Comtrade API 상태 확인"
+
+      # 🟡 낮은 캐시 히트율
+      - alert: LowCacheHitRate
+        expr: |
+          cache_hit_rate_percent < 30
+        for: 10m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "캐시 효율성 저하"
+          description: "히트율: {{ $value }}%"
+          action: "캐시 TTL 조정 검토 → /cache/stats 확인"
+
+      # 🔴 모델 정확도 하락
+      - alert: ModelAccuracyDrop
+        expr: |
+          model_accuracy_score < 0.70
+        for: 1h
+        labels:
+          severity: critical
+          component: model
+        annotations:
+          summary: "모델 정확도 70% 미만"
+          description: "정확도: {{ $value | humanizePercentage }}"
+          action: "모델 재학습 필요 → /retrain POST"
+
+  # Redis 캐시 알림
+  - name: cache_alerts
+    interval: 30s
+    rules:
+      # 🔴 Redis 다운
+      - alert: RedisDown
+        expr: |
+          up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: redis
+        annotations:
+          summary: "Redis 서버 다운"
+          description: "Redis가 응답하지 않습니다"
+          action: "Docker 컨테이너 재시작 → docker-compose restart redis"
+
+      # 🟡 메모리 부족
+      - alert: RedisHighMemory
+        expr: |
+          redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: redis
+        annotations:
+          summary: "Redis 메모리 사용률 높음"
+          description: "메모리 사용률: {{ $value | humanizePercentage }}"
+          action: "캐시 만료 정책 확인 → maxmemory-policy 조정"
+
+  # 시스템 리소스 알림
+  - name: system_alerts
+    interval: 30s
+    rules:
+      # 🔴 CPU 과부하
+      - alert: HighCPU
+        expr: |
+          100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "높은 CPU 사용률"
+          description: "CPU: {{ $value }}%"
+          action: "프로세스 확인 → 스케일 아웃 검토"
+
+      # 🔴 메모리 부족
+      - alert: HighMemory
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "높은 메모리 사용률"
+          description: "메모리: {{ $value | humanizePercentage }}"
+          action: "메모리 누수 확인 → 로그 분석"
+
+  # 비즈니스 메트릭 알림
+  - name: business_alerts
+    interval: 1m
+    rules:
+      # 🟡 낮은 요청 수 (서비스 장애 의심)
+      - alert: LowRequestRate
+        expr: |
+          rate(api_requests_total[5m]) < 0.1
+        for: 10m
+        labels:
+          severity: warning
+          component: business
+        annotations:
+          summary: "비정상적으로 낮은 요청 수"
+          description: "분당 요청: {{ $value }}"
+          action: "프론트엔드 연결 확인 → 네트워크 상태 확인"
+
+      # 🟡 재학습 실패
+      - alert: RetrainingFailed
+        expr: |
+          increase(model_retraining_failures_total[1d]) > 0
+        labels:
+          severity: warning
+          component: model
+        annotations:
+          summary: "모델 재학습 실패"
+          description: "최근 24시간 내 {{ $value }}회 실패"
+          action: "학습 로그 확인 → 데이터 소스 검증"
