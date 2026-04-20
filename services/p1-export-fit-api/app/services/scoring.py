@@ -6,8 +6,9 @@ from app.models import PredictRequest
 from app.config import WEIGHTS, SOFT_RULES
 from app.services.data_loaders import (
     load_datastore,
-    kotra_candidates_iso3,
+    kotra_candidate_scores,
     get_trade_value_usd,
+    get_world_trade_value_usd,
     get_wb_value,
     get_distance_km,
 )
@@ -26,6 +27,30 @@ def _minmax_norm(values: List[float]) -> List[float]:
     return [float((x - mn) / (mx - mn)) for x in values]
 
 
+def _allocate_world_trade_proxy_value(
+    world_trade_value_usd: Optional[float],
+    partner_iso3: str,
+    candidate_score_map: Dict[str, float],
+) -> Optional[float]:
+    """
+    한국 2023 trade_data 처럼 partnerISO=W00 세계 합계만 있는 경우,
+    KOTRA 수출행동점수를 가중치로 사용해 후보국별 proxy trade를 만든다.
+    """
+    if world_trade_value_usd is None or world_trade_value_usd <= 0:
+        return None
+
+    weight = float(candidate_score_map.get(partner_iso3, 0.0))
+    if weight <= 0:
+        return None
+
+    total_weight = sum(max(float(v), 0.0) for v in candidate_score_map.values())
+    if total_weight <= 0:
+        total_weight = float(len(candidate_score_map) or 1)
+        return float(world_trade_value_usd) * (1.0 / total_weight)
+
+    return float(world_trade_value_usd) * (weight / total_weight)
+
+
 def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     ds = load_datastore()
 
@@ -38,12 +63,16 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
     min_trade = float(req.filters.min_trade_value_usd or 0.0) if req.filters else 0.0
 
     # 1) 후보군 로드: kotra csv 에서.
-    candidates = kotra_candidates_iso3(hs6, ds.mofa, ds.kotra)
+    candidate_score_map = kotra_candidate_scores(hs6, ds.mofa, ds.kotra)
+    candidates = sorted(candidate_score_map.keys())
+    world_trade_value_usd = get_world_trade_value_usd(ds.trade, year, exporter, hs6)
     filters_applied: List[str] = []
     if exclude:
         filters_applied.extend([f"exclude_{x}" for x in exclude])
     if min_trade > 0:
         filters_applied.append(f"min_trade_value_usd>={int(min_trade)}")
+    if world_trade_value_usd is not None:
+        filters_applied.append("trade_fallback=world_total_allocated_by_kotra_score")
 
     # 후보군이 비면 빈 결과 리턴할 것
     if not candidates:
@@ -67,6 +96,12 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
             reasons.append("USER_EXCLUDED")
 
         trade_val = get_trade_value_usd(ds.trade, year, exporter, p, hs6)
+        trade_signal_source = "partner_observed"
+        if trade_val is None:
+            trade_val = _allocate_world_trade_proxy_value(world_trade_value_usd, p, candidate_score_map)
+            if trade_val is not None:
+                trade_signal_source = "world_total_allocated"
+
         if trade_val is None:
             reasons.append("NO_TRADE_DATA")
         else:
@@ -98,6 +133,8 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
                 "gdp_usd": float(gdp) if gdp is not None else 0.0,
                 "gdp_growth_pct": float(growth) if growth is not None else 0.0,
                 "distance_km": float(dist_km),
+                "trade_signal_source": trade_signal_source,
+                "kotra_weight_score": float(candidate_score_map.get(p, 0.0)),
             }
         )
 
@@ -187,6 +224,8 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
                     "top_factors": top_factors,
                     "data_sources": ["KOTRA(csv)", "MOFA(csv)", "World Bank(csv)", "CEPII(csv)", "TradeData(csv)"],
                     "filters_applied": filters_applied,
+                    "trade_signal_source": r["trade_signal_source"],
+                    "kotra_weight_score": round(r["kotra_weight_score"], 4),
                 },
             }
         )
