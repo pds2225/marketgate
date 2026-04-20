@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional
 import pandas as pd
 
 from app.config import Files
@@ -93,56 +93,82 @@ def load_datastore() -> DataStore:
     return _DATASTORE
 
 
-def kotra_candidates_iso3(hs_code_6: str, mofa: pd.DataFrame, kotra: pd.DataFrame) -> List[str]:
-    df = kotra[kotra["HSCD"].astype(str).str.zfill(6) == hs_code_6]
-    if df.empty:
-        return []
-
-    nat_names = sorted(set(df["NAT_NAME"].dropna().astype(str).tolist()))
-    iso3_list: List[str] = []
-
+def _build_mofa_lookup(mofa: pd.DataFrame) -> Dict[str, List[str]]:
     mofa_local = mofa.copy()
     mofa_local["_k"] = mofa_local["한글명"].astype(str).map(strip_all_spaces)
     mofa_local["_iso3"] = mofa_local["국제표준화기구_3자리"].astype(str).str.strip().str.upper()
 
-    for nat in nat_names:
+    lookup: Dict[str, List[str]] = {}
+    for row in mofa_local[["_k", "_iso3"]].dropna().itertuples(index=False):
+        key = str(row[0])
+        iso3 = str(row[1])
+        if len(iso3) != 3:
+            continue
+        lookup.setdefault(key, []).append(iso3)
+
+    return {k: sorted(set(v)) for k, v in lookup.items()}
+
+
+def kotra_candidate_scores(hs_code_6: str, mofa: pd.DataFrame, kotra: pd.DataFrame) -> Dict[str, float]:
+    df = kotra[kotra["HSCD"].astype(str).str.zfill(6) == hs_code_6]
+    if df.empty:
+        return {}
+
+    mofa_lookup = _build_mofa_lookup(mofa)
+    iso3_scores: Dict[str, List[float]] = {}
+
+    for row in df[["NAT_NAME", "EXP_BHRC_SCR"]].itertuples(index=False):
+        nat = str(row.NAT_NAME)
         key = strip_all_spaces(nat)
-        hits = mofa_local[mofa_local["_k"] == key]["_iso3"].dropna().tolist()
-        hits = [h for h in hits if len(h) == 3]
+        hits = mofa_lookup.get(key, [])
 
         if not hits:
             logger.warning(f"[ISO3] NAT_NAME '{nat}' cannot be mapped via MOFA")
             continue
 
-        uniq = sorted(set(hits))
-        if len(uniq) > 1:
-            logger.warning(f"[ISO3] NAT_NAME '{nat}' mapped to multiple ISO3: {uniq}")
+        if len(hits) > 1:
+            logger.warning(f"[ISO3] NAT_NAME '{nat}' mapped to multiple ISO3: {hits}")
 
-        iso3_list.extend(uniq)
+        raw_score = pd.to_numeric(pd.Series([row.EXP_BHRC_SCR]), errors="coerce").iloc[0]
+        score = float(raw_score) if pd.notna(raw_score) else 0.0
 
-    return sorted(set(iso3_list))
+        for iso3 in hits:
+            iso3_scores.setdefault(iso3, []).append(score)
+
+    candidate_scores: Dict[str, float] = {}
+    for iso3, scores in iso3_scores.items():
+        valid_scores = [float(s) for s in scores if pd.notna(s)]
+        if not valid_scores:
+            candidate_scores[iso3] = 1.0
+            continue
+        candidate_scores[iso3] = max(float(sum(valid_scores) / len(valid_scores)), 0.1)
+
+    return candidate_scores
 
 
-def get_trade_value_usd(
+def kotra_candidates_iso3(hs_code_6: str, mofa: pd.DataFrame, kotra: pd.DataFrame) -> List[str]:
+    return sorted(kotra_candidate_scores(hs_code_6, mofa, kotra).keys())
+
+
+def _trade_rows_for_reporter_partner(
     trade: pd.DataFrame,
     year: int,
-    exporter_iso3: str,
+    reporter_iso3: str,
     partner_iso3: str,
-    hs_code_6: str,
-) -> Optional[float]:
-    """HS4 우선, 없으면 HS2 fallback. 중복행 합산."""
-    hs4 = hs_code_6[:4]
-    hs2 = hs_code_6[:2]
-
-    base = trade[
+) -> pd.DataFrame:
+    return trade[
         (trade["refYear"].astype(int) == int(year)) &
-        (trade["reporterISO"].astype(str).str.upper().str.strip() == exporter_iso3) &
+        (trade["reporterISO"].astype(str).str.upper().str.strip() == reporter_iso3) &
         (trade["partnerISO"].astype(str).str.upper().str.strip() == partner_iso3)
     ]
 
+
+def _match_trade_value_by_hs(base: pd.DataFrame, hs_code_6: str) -> Optional[float]:
     if base.empty:
         return None
 
+    hs4 = hs_code_6[:4]
+    hs2 = hs_code_6[:2]
     cmd = base["cmdCode"].astype(str).str.strip()
 
     df4 = base[cmd.str.startswith(hs4)]
@@ -156,6 +182,32 @@ def get_trade_value_usd(
         return float(df2["trade_value_usd"].fillna(0).sum())
 
     return None
+
+
+def get_trade_value_usd(
+    trade: pd.DataFrame,
+    year: int,
+    exporter_iso3: str,
+    partner_iso3: str,
+    hs_code_6: str,
+) -> Optional[float]:
+    """HS4 우선, 없으면 HS2 fallback. 중복행 합산."""
+    base = _trade_rows_for_reporter_partner(trade, year, exporter_iso3, partner_iso3)
+    return _match_trade_value_by_hs(base, hs_code_6)
+
+
+def get_world_trade_value_usd(
+    trade: pd.DataFrame,
+    year: int,
+    exporter_iso3: str,
+    hs_code_6: str,
+) -> Optional[float]:
+    """
+    partnerISO 가 W00(세계 합계)만 들어 있는 구조를 지원하기 위한 fallback.
+    한국 2023 데이터처럼 국가별 파트너가 빠진 경우 이 값을 후보국별 proxy trade의 기준치로 사용한다.
+    """
+    base = _trade_rows_for_reporter_partner(trade, year, exporter_iso3, "W00")
+    return _match_trade_value_by_hs(base, hs_code_6)
 
 
 def get_wb_value(wb: pd.DataFrame, year: int, iso3: str) -> Optional[float]:
