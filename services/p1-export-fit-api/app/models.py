@@ -97,3 +97,20 @@ class PredictResponse(BaseModel):
     status: str
     timestamp: str
     data: PredictData
+
+
+class LegacyPredictResult(BaseModel):
+    country: str
+    score: float
+    expected_export_usd: Optional[float] = None
+    explanation: Dict[str, Any]
+
+
+class LegacyPredictResponse(BaseModel):
+    request_id: str
+    status: str
+    timestamp: str
+    data_source: str
+    input: Dict[str, Any]
+    top_countries: List[LegacyPredictResult]
+    diagnostics: PredictDiagnostics

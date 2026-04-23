@@ -8,5 +8,11 @@ __pycache__/
 *.pyc
 *.log
 .pytest_cache/
+.pytest_cache
+pytest-cache-files-*/
+services/**/pytest-cache-files-*/
+services/**/.tmp/
+services/**/.tmp*/
+services/**/.test_artifacts/
 .env
 .DS_Store

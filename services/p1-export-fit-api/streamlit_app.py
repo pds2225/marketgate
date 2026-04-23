@@ -9,6 +9,9 @@ from typing import Any, Dict, List, Optional
 import requests
 import streamlit as st
 
+from app.services.api_config import get_api_base_url
+from app.services.project_snapshot import build_project_snapshot
+
 st.set_page_config(page_title="P1 수출 추천국 데모", layout="wide", page_icon="🌏")
 
 SAMPLE_DEMO_PAYLOAD = {
@@ -71,14 +74,41 @@ def render_summary_card(payload: Dict[str, Any], results: List[Dict[str, Any]], 
         st.write(f"KOTRA 가중치: `{kotra_weight_text}`")
 
 
+def render_project_status_card(snapshot: Dict[str, Any]) -> None:
+    with st.container(border=True):
+        st.markdown("### 🧭 프로젝트 상태")
+        st.caption("branch / HEAD / remote / dirty / non-git 문구를 같은 규칙으로 보여줍니다.")
+
+        st.write(snapshot.get("status_text") or "Git 저장소가 아닙니다.")
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("branch", snapshot.get("branch") or "-")
+        col2.metric("HEAD", snapshot.get("head") or "-")
+        col3.metric("remote", snapshot.get("remote") or "없음")
+        dirty_value = snapshot.get("dirty")
+        col4.metric("dirty", "-" if dirty_value is None else ("yes" if dirty_value else "no"))
+
+
+def render_diagnostics_card(diagnostics: Dict[str, Any]) -> None:
+    with st.container(border=True):
+        st.markdown("### 🩺 Diagnostics")
+        st.write(f"후보 수: `{diagnostics.get('candidate_count', '-')}`")
+        st.write(f"조건 충족: `{diagnostics.get('eligible_count', '-')}`")
+        st.write(f"반환 수: `{diagnostics.get('returned_count', '-')}`")
+        st.write(f"0건 사유: `{', '.join(diagnostics.get('zero_result_reasons') or []) or '없음'}`")
+        st.write(f"경고: `{', '.join(diagnostics.get('quality_warnings') or []) or '없음'}`")
+
+
 # ── 헤더 ──────────────────────────────────────────────
 st.title("🌏 수출 추천국 데모 (P1)")
 st.caption("HS Code와 수출국을 입력하면 AI가 최적 수출 대상국을 점수화하여 추천합니다.")
 
+render_project_status_card(build_project_snapshot())
+
 # ── 사이드바: API 설정 ────────────────────────────────
 with st.sidebar:
     st.header("⚙️ API 설정")
-    api_base = st.text_input("API Base URL", value="http://localhost:8000")
+    api_base = st.text_input("API Base URL", value=get_api_base_url())
     timeout_sec = st.number_input("Timeout (sec)", min_value=1, max_value=120, value=30)
 
     st.divider()
@@ -180,9 +210,19 @@ if sample_demo or submit:
 
         st.success("✅ 요청 성공")
 
-        results = (((data or {}).get("data") or {}).get("results")) or []
+        response_data = (data or {}).get("data") or {}
+        results = response_data.get("results") or []
+        diagnostics = response_data.get("diagnostics") or {}
+
+        if diagnostics:
+            render_diagnostics_card(diagnostics)
+
         if not results:
-            st.info("결과가 비어 있습니다. (후보 없음 또는 필터로 모두 제외)")
+            zero_reason_text = ", ".join(diagnostics.get("zero_result_reasons") or [])
+            if zero_reason_text:
+                st.info(f"결과가 비어 있습니다. 사유: {zero_reason_text}")
+            else:
+                st.info("결과가 비어 있습니다. (후보 없음 또는 필터로 모두 제외)")
             st.stop()
 
         render_summary_card(run_payload, results, run_mode_label)

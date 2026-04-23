@@ -1,7 +1,10 @@
-from fastapi import FastAPI
+from typing import Any, Dict, List
+
+from fastapi import Body, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from app.models import PredictRequest, PredictResponse
+from app.services.project_snapshot import build_project_snapshot
 from app.services.scoring import recommend_countries
 from app.utils import now_seoul_iso, new_request_id
 
@@ -49,6 +52,11 @@ def health():
     return {"status": "ok", "timestamp": now_seoul_iso()}
 
 
+@app.get("/health")
+def health_legacy():
+    return health()
+
+
 @app.post("/v1/predict", response_model=PredictResponse)
 def predict(req: PredictRequest):
     request_id = new_request_id()
@@ -63,4 +71,84 @@ def predict(req: PredictRequest):
             "results": results,
             "diagnostics": diagnostics,
         },
+    }
+
+
+@app.get("/v1/snapshot")
+def project_snapshot():
+    return {
+        "status": "ok",
+        "timestamp": now_seoul_iso(),
+        "data": build_project_snapshot(),
+    }
+
+
+def _legacy_explanation_from_p1(result: Dict[str, Any]) -> Dict[str, Any]:
+    score_components = result.get("score_components") or {}
+    explanation = result.get("explanation") or {}
+
+    trade_score = float(score_components.get("trade_volume_score") or 0.0)
+    growth_score = float(score_components.get("growth_score") or 0.0)
+    gdp_score = float(score_components.get("gdp_score") or 0.0)
+    distance_score = float(score_components.get("distance_score") or 0.0)
+    soft_adjustment = float(score_components.get("soft_adjustment") or 0.0)
+
+    return {
+        "gravity_baseline": round(gdp_score * 2.0 - 1.0, 4),
+        "growth_potential": round(growth_score * 2.0 - 1.0, 4),
+        "culture_fit": round(trade_score * 2.0 - 1.0, 4),
+        "regulation_ease": round(max(-1.0, min(1.0, 1.0 - abs(soft_adjustment) / 15.0)), 4),
+        "logistics": round(distance_score * 2.0 - 1.0, 4),
+        "tariff_impact": round(trade_score * 2.0 - 1.0, 4),
+        "top_factors": explanation.get("top_factors") or [],
+        "data_sources": explanation.get("data_sources") or [],
+        "filters_applied": explanation.get("filters_applied") or [],
+        "trade_signal_source": explanation.get("trade_signal_source"),
+        "kotra_weight_score": explanation.get("kotra_weight_score"),
+        "missing_indicators": explanation.get("missing_indicators") or {},
+        "p1_score_components": score_components,
+    }
+
+
+def _legacy_top_countries(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    legacy_results: List[Dict[str, Any]] = []
+    for result in results:
+        fit_score = float(result.get("fit_score") or 0.0)
+        legacy_results.append(
+            {
+                "country": result.get("partner_country_iso3"),
+                "score": round(fit_score / 100.0, 4),
+                "expected_export_usd": None,
+                "explanation": _legacy_explanation_from_p1(result),
+                "fit_score": fit_score,
+                "rank": result.get("rank"),
+            }
+        )
+    return legacy_results
+
+
+@app.post("/predict")
+def predict_legacy(payload: Dict[str, Any] = Body(...)):
+    request_id = new_request_id()
+    normalized_payload = dict(payload or {})
+    normalized_payload["hs_code"] = normalized_payload.get("hs_code", "").strip()
+    normalized_payload["exporter_country_iso3"] = (
+        normalized_payload.get("exporter_country_iso3")
+        or normalized_payload.get("exporter_country")
+        or "KOR"
+    )
+    normalized_payload["top_n"] = normalized_payload.get("top_n", 10)
+    normalized_payload["year"] = normalized_payload.get("year", 2023)
+
+    req = PredictRequest(**normalized_payload)
+    results, input_echo, diagnostics = recommend_countries(req)
+
+    return {
+        "request_id": request_id,
+        "status": "ok",
+        "timestamp": now_seoul_iso(),
+        "data_source": "p1",
+        "input": input_echo,
+        "top_countries": _legacy_top_countries(results),
+        "diagnostics": diagnostics,
     }

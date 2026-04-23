@@ -1,18 +1,66 @@
 import React, { useEffect, useState } from "react";
 import {
-  Server,
-  Database,
   Activity,
-  Settings,
+  AlertCircle,
+  BarChart3,
+  CheckCircle,
+  Database,
+  GitBranch,
   PlayCircle,
   RefreshCw,
-  CheckCircle,
-  XCircle,
-  AlertCircle,
+  Server,
+  Settings,
   TrendingUp,
-  Globe,
-  BarChart3,
+  XCircle,
 } from "lucide-react";
+import { API_BASE, ENDPOINTS } from "./config";
+
+const diagnosticLabels = {
+  NO_KOTRA_CANDIDATES_FOR_HS6: "이 HS 코드에는 후보 국가가 없습니다.",
+  NO_ELIGIBLE_CANDIDATES: "조건을 만족하는 국가가 없습니다.",
+  USER_EXCLUDED: "사용자 제외 목록에 포함된 국가입니다.",
+  MIN_TRADE_VALUE: "최소 무역액 기준에 미달했습니다.",
+  NO_TRADE_DATA: "무역 데이터가 없습니다.",
+  NO_DISTANCE_DATA: "거리 데이터가 없습니다.",
+  TRADE_SIGNAL_USES_WORLD_TOTAL_FALLBACK: "일부 무역값을 세계 합계로 보강했습니다.",
+  ALL_ELIGIBLE_RESULTS_USE_ALLOCATED_TRADE_SIGNAL: "모든 결과가 보강된 무역 신호를 사용합니다.",
+  GDP_DATA_PARTIALLY_MISSING: "일부 국가의 GDP 데이터가 비어 있습니다.",
+  GDP_GROWTH_DATA_PARTIALLY_MISSING: "일부 국가의 GDP 성장률 데이터가 비어 있습니다.",
+};
+
+function joinList(items, emptyText = "없음") {
+  const values = (items || []).filter(Boolean);
+  return values.length > 0 ? values.join(" · ") : emptyText;
+}
+
+function formatDiagnostics(items) {
+  const values = (items || []).map((item) => diagnosticLabels[item] || item).filter(Boolean);
+  return values.length > 0 ? values.join(" · ") : "없음";
+}
+
+function projectStatusTone(snapshot) {
+  if (!snapshot) return undefined;
+  if (!snapshot.is_git_repo) return false;
+  if (snapshot.status_key === "clean") return true;
+  if (snapshot.status_key === "non-git") return false;
+  return undefined;
+}
+
+function getResultsFromTest(testResult) {
+  if (!testResult) return [];
+  if (testResult.mode === "p1") {
+    return testResult.payload?.data?.results || [];
+  }
+  return testResult.payload?.top_countries || [];
+}
+
+function getDiagnosticsFromTest(testResult) {
+  if (!testResult) return null;
+  if (testResult.mode === "p1") {
+    return testResult.payload?.data?.diagnostics || null;
+  }
+  return testResult.payload?.diagnostics || null;
+}
 
 export default function AdminDashboard() {
   const [systemStatus, setSystemStatus] = useState(null);
@@ -24,116 +72,111 @@ export default function AdminDashboard() {
     setLogs((prev) => [...prev, { time: new Date().toLocaleTimeString(), msg, type }]);
   };
 
-  // 시스템 상태 확인
   const checkSystemStatus = async () => {
     setLoading(true);
     try {
-      pushLog("백엔드 서버 확인 중...", "info");
+      pushLog("백엔드와 프로젝트 상태를 확인 중...", "info");
 
-      const healthRes = await fetch("http://localhost:8000/health");
+      const [healthRes, snapshotRes] = await Promise.all([
+        fetch(ENDPOINTS.health),
+        fetch(ENDPOINTS.snapshot),
+      ]);
+
       const healthData = await healthRes.json();
-
-      const configRes = await fetch("http://localhost:8000/config");
-      const configData = await configRes.json();
-
-      // 캐시 통계(선택)
-      let cacheStats = null;
-      if (configData.cache_enabled) {
-        try {
-          const cacheRes = await fetch("http://localhost:8000/cache/stats");
-          cacheStats = await cacheRes.json();
-        } catch {
-          // 캐시 stats 엔드포인트가 없을 수 있으니 조용히 무시
-        }
-      }
+      const snapshotData = await snapshotRes.json();
 
       setSystemStatus({
         backend: healthRes.ok,
-        gravityModel: !!healthData.gravity_model,
-        xgbModel: !!healthData.xgb_model,
-        dataCollector: !!healthData.data_collector,
-        useRealData: !!configData.use_real_data,
-        comtradeConfigured: !!configData.comtrade_api_configured,
-        cacheEnabled: !!configData.cache_enabled,
-        modelVersion: configData.model_version || healthData.model_version || "unknown",
-        cacheStats,
+        backendTimestamp: healthData.timestamp ?? null,
+        projectSnapshot: snapshotData?.data ?? null,
+        apiBase: API_BASE,
       });
 
       pushLog("✓ 시스템 정상", "success");
     } catch (err) {
-      setSystemStatus({ backend: false });
+      setSystemStatus({ backend: false, projectSnapshot: null, apiBase: API_BASE });
       pushLog(`✗ 오류: ${err?.message || String(err)}`, "error");
     } finally {
       setLoading(false);
     }
   };
 
-  // API 테스트
-  const testAPI = async () => {
+  const testP1API = async () => {
     setLoading(true);
     try {
-      pushLog("API 테스트 시작...", "info");
+      pushLog("P1 스모크 테스트 시작...", "info");
 
-      const response = await fetch("http://localhost:8000/predict", {
+      const response = await fetch(ENDPOINTS.predict, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hs_code: "33", exporter_country: "KOR", top_n: 5 }),
+        body: JSON.stringify({
+          hs_code: "330499",
+          exporter_country_iso3: "KOR",
+          top_n: 5,
+          year: 2023,
+        }),
       });
 
       const data = await response.json();
-      setTestResult(data);
+      setTestResult({ mode: "p1", payload: data });
 
-      const n = Array.isArray(data?.top_countries) ? data.top_countries.length : 0;
-      pushLog(`✓ API 테스트 성공: ${n}개 국가 추천`, "success");
+      const n = data?.data?.results?.length ?? 0;
+      const diag = data?.data?.diagnostics;
+      const warn = diag?.quality_warnings?.length ? ` (경고 ${diag.quality_warnings.length}건)` : "";
+      pushLog(`✓ P1 테스트 성공: ${n}개 국가 추천${warn}`, "success");
     } catch (err) {
-      pushLog(`✗ API 테스트 실패: ${err?.message || String(err)}`, "error");
+      pushLog(`✗ P1 테스트 실패: ${err?.message || String(err)}`, "error");
     } finally {
       setLoading(false);
     }
   };
 
-  // 모델 재학습
-  const retrainModels = async () => {
-    const ok = window.confirm("모델을 재학습하시겠습니까? (시간이 소요될 수 있습니다)");
-    if (!ok) return;
-
+  const testLegacyAPI = async () => {
     setLoading(true);
     try {
-      pushLog("모델 재학습 시작...", "info");
+      pushLog("호환성 테스트 시작...", "info");
 
-      const response = await fetch("http://localhost:8000/retrain", { method: "POST" });
+      const response = await fetch(ENDPOINTS.legacyPredict, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          hs_code: "330499",
+          exporter_country: "KOR",
+          top_n: 5,
+          year: 2023,
+        }),
+      });
+
       const data = await response.json();
+      setTestResult({ mode: "legacy", payload: data });
 
-      const samples = data?.training_samples ?? data?.samples ?? "unknown";
-      pushLog(`✓ 재학습 완료: ${samples}개 샘플 사용`, "success");
-
-      // 재학습 후 상태 갱신
-      await checkSystemStatus();
+      const n = data?.top_countries?.length ?? 0;
+      pushLog(`✓ 호환성 테스트 성공: ${n}개 국가 추천`, "success");
     } catch (err) {
-      pushLog(`✗ 재학습 실패: ${err?.message || String(err)}`, "error");
+      pushLog(`✗ 호환성 테스트 실패: ${err?.message || String(err)}`, "error");
     } finally {
       setLoading(false);
     }
   };
 
-  // 초기 로드
   useEffect(() => {
     checkSystemStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const diagnostics = getDiagnosticsFromTest(testResult);
+  const results = getResultsFromTest(testResult);
+
   return (
     <div style={{ padding: 32, maxWidth: 1400, margin: "0 auto", fontFamily: "sans-serif" }}>
-      {/* 헤더 */}
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 32, fontWeight: "bold", marginBottom: 8 }}>
           <Settings style={{ display: "inline", marginRight: 12 }} />
           VALUE-UP AI 관리자 대시보드
         </h1>
-        <p style={{ color: "#666" }}>시스템 상태 모니터링 및 제어</p>
+        <p style={{ color: "#666" }}>시스템 상태 모니터링 및 P1 계약 점검</p>
       </div>
 
-      {/* 시스템 상태 카드 */}
       <div
         style={{
           display: "grid",
@@ -142,18 +185,22 @@ export default function AdminDashboard() {
           marginBottom: 32,
         }}
       >
-        <StatusCard title="백엔드 서버" icon={<Server />} status={systemStatus?.backend} details="FastAPI (port 8001)" />
-        <StatusCard title="중력모형" icon={<Globe />} status={systemStatus?.gravityModel} details="Gravity Model (베이스라인)" />
-        <StatusCard title="XGBoost 모델" icon={<TrendingUp />} status={systemStatus?.xgbModel} details="보정 모델 (SHAP 확장)" />
+        <StatusCard title="백엔드 서버" icon={<Server />} status={systemStatus?.backend} details="FastAPI /v1/health" />
         <StatusCard
-          title="데이터 수집기"
+          title="프로젝트 상태"
+          icon={<GitBranch />}
+          status={projectStatusTone(systemStatus?.projectSnapshot)}
+          details={systemStatus?.projectSnapshot?.status_text || "Git 상태 확인 중"}
+        />
+        <StatusCard title="P1 추천 API" icon={<TrendingUp />} status={!!(results.length > 0)} details="POST /v1/predict" />
+        <StatusCard
+          title="호환성 계약"
           icon={<Database />}
-          status={systemStatus?.dataCollector}
-          details={systemStatus?.useRealData ? "실데이터 모드" : "더미 데이터 모드"}
+          status={testResult?.mode === "legacy" ? results.length > 0 : undefined}
+          details="POST /predict"
         />
       </div>
 
-      {/* 설정 정보 */}
       <div
         style={{
           backgroundColor: "#f9fafb",
@@ -169,51 +216,33 @@ export default function AdminDashboard() {
         </h2>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 16 }}>
-          <ConfigItem label="데이터 소스" value={systemStatus?.useRealData ? "실데이터" : "더미 데이터"} />
-          <ConfigItem
-            label="UN Comtrade API"
-            value={systemStatus?.comtradeConfigured ? "설정됨" : "미설정"}
-            status={systemStatus?.comtradeConfigured}
-          />
-          <ConfigItem label="캐시" value={systemStatus?.cacheEnabled ? "활성화" : "비활성화"} />
-          <ConfigItem label="모델 버전" value={systemStatus?.modelVersion || "미상"} />
+          <ConfigItem label="API Base URL" value={systemStatus?.apiBase || API_BASE} />
+          <ConfigItem label="브랜치" value={systemStatus?.projectSnapshot?.branch || "non-git"} />
+          <ConfigItem label="HEAD" value={systemStatus?.projectSnapshot?.head || "-"} />
+          <ConfigItem label="remote" value={systemStatus?.projectSnapshot?.remote || "없음"} />
         </div>
 
-        {systemStatus?.cacheStats && (
-          <div
-            style={{
-              marginTop: 16,
-              padding: 16,
-              backgroundColor: "#fff",
-              borderRadius: 8,
-              border: "1px solid #e5e7eb",
-            }}
-          >
-            <h3 style={{ fontSize: 16, fontWeight: "600", marginBottom: 12 }}>캐시 통계</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
-              <Stat label="총 항목" value={systemStatus.cacheStats.total_entries} />
-              <Stat label="캐시 히트" value={systemStatus.cacheStats.hits} accent="#10b981" />
-              <Stat label="캐시 미스" value={systemStatus.cacheStats.misses} accent="#f59e0b" />
-              <Stat label="히트율" value={`${systemStatus.cacheStats.hit_rate_percent}%`} accent="#3b82f6" />
-            </div>
-          </div>
-        )}
+        <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 16 }}>
+          <ConfigItem
+            label="dirty"
+            value={systemStatus?.projectSnapshot?.dirty === null || systemStatus?.projectSnapshot?.dirty === undefined ? "-" : systemStatus.projectSnapshot.dirty ? "예" : "아니오"}
+          />
+          <ConfigItem label="상태 문구" value={systemStatus?.projectSnapshot?.status_text || "Git 저장소가 아닙니다."} />
+        </div>
       </div>
 
-      {/* 제어 버튼 */}
       <div style={{ display: "flex", gap: 12, marginBottom: 32, flexWrap: "wrap" }}>
         <Button onClick={checkSystemStatus} disabled={loading} icon={<RefreshCw />} variant="primary">
-          시스템 상태 새로고침
+          상태 새로고침
         </Button>
-        <Button onClick={testAPI} disabled={loading} icon={<PlayCircle />} variant="success">
-          API 테스트 실행
+        <Button onClick={testP1API} disabled={loading} icon={<PlayCircle />} variant="success">
+          P1 스모크 테스트
         </Button>
-        <Button onClick={retrainModels} disabled={loading} icon={<Activity />} variant="warning">
-          모델 재학습
+        <Button onClick={testLegacyAPI} disabled={loading} icon={<Activity />} variant="warning">
+          호환성 테스트
         </Button>
       </div>
 
-      {/* API 테스트 결과 */}
       {testResult && (
         <div
           style={{
@@ -231,8 +260,34 @@ export default function AdminDashboard() {
 
           <div style={{ fontSize: 14 }}>
             <div style={{ marginBottom: 12 }}>
-              <strong>데이터 소스:</strong> {testResult?.data_source ?? "unknown"}
+              <strong>데이터 소스:</strong> {testResult.mode === "p1" ? "P1 /v1/predict" : "/predict 호환"}
             </div>
+
+            {diagnostics && (
+              <div
+                style={{
+                  marginBottom: 16,
+                  padding: 16,
+                  borderRadius: 8,
+                  backgroundColor: "#fff",
+                  border: "1px solid #bae6fd",
+                }}
+              >
+                <h3 style={{ fontSize: 16, fontWeight: "600", marginBottom: 12 }}>진단 정보</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
+                  <Stat label="후보 수" value={diagnostics.candidate_count} />
+                  <Stat label="조건 충족" value={diagnostics.eligible_count} />
+                  <Stat label="반환 수" value={diagnostics.returned_count} />
+                  <Stat label="무역 신호" value={joinList(Object.entries(diagnostics.trade_signal_counts || {}).map(([key, value]) => `${key}: ${value}`))} />
+                </div>
+                <div style={{ marginTop: 12 }}>
+                  <strong>0건 사유:</strong> {formatDiagnostics(diagnostics.zero_result_reasons)}
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <strong>경고:</strong> {formatDiagnostics(diagnostics.quality_warnings)}
+                </div>
+              </div>
+            )}
 
             <div>
               <strong>추천 국가:</strong>
@@ -250,33 +305,38 @@ export default function AdminDashboard() {
               </thead>
 
               <tbody>
-                {(testResult?.top_countries ?? []).map((country, idx) => (
-                  <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? "#fff" : "#f0f9ff" }}>
-                    <td style={{ padding: 8, border: "1px solid #bae6fd" }}>{idx + 1}</td>
-                    <td style={{ padding: 8, border: "1px solid #bae6fd" }}>
-                      <strong>{country?.country ?? "-"}</strong>
-                    </td>
-                    <td style={{ padding: 8, border: "1px solid #bae6fd" }}>
-                      {typeof country?.score === "number" ? (country.score * 100).toFixed(1) : "-"}
-                    </td>
-                    <td style={{ padding: 8, border: "1px solid #bae6fd" }}>
-                      {typeof country?.expected_export_usd === "number"
-                        ? `$${Math.round(country.expected_export_usd).toLocaleString()}`
-                        : "-"}
-                    </td>
-                    <td style={{ padding: 8, border: "1px solid #bae6fd", fontSize: 12 }}>
-                      중력: {Number(country?.explanation?.gravity_baseline ?? 0).toFixed(2)}, 성장:{" "}
-                      {Number(country?.explanation?.growth_potential ?? 0).toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
+                {results.map((item, idx) => {
+                  const country = testResult.mode === "p1" ? item : item;
+                  const score = testResult.mode === "p1" ? country.fit_score : Number(country.score || 0) * 100;
+                  const explanation = country.explanation || {};
+                  return (
+                    <tr key={`${country?.country || country?.partner_country_iso3 || idx}`} style={{ backgroundColor: idx % 2 === 0 ? "#fff" : "#f0f9ff" }}>
+                      <td style={{ padding: 8, border: "1px solid #bae6fd" }}>{idx + 1}</td>
+                      <td style={{ padding: 8, border: "1px solid #bae6fd" }}>
+                        <strong>{country?.country || country?.partner_country_iso3 || "-"}</strong>
+                      </td>
+                      <td style={{ padding: 8, border: "1px solid #bae6fd" }}>
+                        {typeof score === "number" ? score.toFixed(1) : "-"}
+                      </td>
+                      <td style={{ padding: 8, border: "1px solid #bae6fd" }}>
+                        {typeof country?.expected_export_usd === "number"
+                          ? `$${Math.round(country.expected_export_usd).toLocaleString()}`
+                          : "-"}
+                      </td>
+                      <td style={{ padding: 8, border: "1px solid #bae6fd", fontSize: 12 }}>
+                        {testResult.mode === "p1"
+                          ? `무역: ${Number(country?.score_components?.trade_volume_score ?? 0).toFixed(2)}, 성장: ${Number(country?.score_components?.growth_score ?? 0).toFixed(2)}`
+                          : `중력: ${Number(explanation.gravity_baseline ?? 0).toFixed(2)}, 성장: ${Number(explanation.growth_potential ?? 0).toFixed(2)}`}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* 로그 */}
       <div style={{ backgroundColor: "#1f2937", color: "#fff", padding: 24, borderRadius: 12, maxHeight: 400, overflowY: "auto" }}>
         <h2 style={{ fontSize: 20, fontWeight: "bold", marginBottom: 16 }}>
           <Activity style={{ display: "inline", marginRight: 8, width: 20, height: 20 }} />
@@ -302,7 +362,6 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      {/* 도움말 */}
       <div style={{ marginTop: 32, padding: 24, backgroundColor: "#fffbeb", borderRadius: 12, border: "1px solid #fbbf24" }}>
         <h3 style={{ fontSize: 18, fontWeight: "bold", marginBottom: 12 }}>
           <AlertCircle style={{ display: "inline", marginRight: 8, width: 20, height: 20 }} />
@@ -310,16 +369,16 @@ export default function AdminDashboard() {
         </h3>
         <ul style={{ fontSize: 14, lineHeight: 2, color: "#78716c" }}>
           <li>
-            <strong>시스템 상태 새로고침:</strong> 백엔드 서버와 모델 상태를 확인합니다.
+            <strong>상태 새로고침:</strong> 백엔드와 Git 상태를 다시 읽습니다.
           </li>
           <li>
-            <strong>API 테스트 실행:</strong> HS 코드 33(화장품) 기준으로 상위 5개 국가를 추천받습니다.
+            <strong>P1 스모크 테스트:</strong> HS 코드 330499 기준으로 `/v1/predict`를 확인합니다.
           </li>
           <li>
-            <strong>모델 재학습:</strong> 새로운 데이터로 중력모형과 XGBoost를 다시 학습합니다.
+            <strong>호환성 테스트:</strong> `/predict` legacy 응답 규격을 확인합니다.
           </li>
           <li>
-            <strong>데이터 소스:</strong> .env 파일의 USE_REAL_DATA로 실데이터/더미 전환이 가능합니다.
+            <strong>프로젝트 상태:</strong> branch / HEAD / remote / dirty / non-git 문구를 같은 방식으로 보여줍니다.
           </li>
         </ul>
       </div>
@@ -327,7 +386,6 @@ export default function AdminDashboard() {
   );
 }
 
-// 상태 카드
 function StatusCard({ title, icon, status, details }) {
   return (
     <div
@@ -360,7 +418,6 @@ function StatusCard({ title, icon, status, details }) {
   );
 }
 
-// 설정 아이템
 function ConfigItem({ label, value, status }) {
   return (
     <div>
@@ -370,17 +427,15 @@ function ConfigItem({ label, value, status }) {
   );
 }
 
-// 통계 표시
-function Stat({ label, value, accent }) {
+function Stat({ label, value }) {
   return (
     <div>
       <div style={{ fontSize: 12, color: "#666" }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: "bold", color: accent || "#111827" }}>{value ?? "-"}</div>
+      <div style={{ fontSize: 16, fontWeight: "bold", color: "#111827" }}>{value ?? "-"}</div>
     </div>
   );
 }
 
-// 버튼
 function Button({ children, onClick, disabled, icon, variant = "primary" }) {
   const colors = {
     primary: { bg: "#2563eb", hover: "#1d4ed8" },
