@@ -74,9 +74,22 @@ class PredictResult(BaseModel):
     explanation: Dict[str, Any]
 
 
+class PredictDiagnostics(BaseModel):
+    candidate_count: int
+    eligible_count: int
+    returned_count: int
+    hard_filter_reason_counts: Dict[str, int]
+    missing_indicator_counts: Dict[str, int]
+    zero_result_reasons: List[str]
+    quality_warnings: List[str]
+    trade_signal_counts: Dict[str, int]
+    sample_countries_by_reason: Dict[str, List[str]]
+
+
 class PredictData(BaseModel):
     input: Dict[str, Any]
     results: List[PredictResult]
+    diagnostics: PredictDiagnostics
 
 
 class PredictResponse(BaseModel):

@@ -52,7 +52,7 @@ def health():
 @app.post("/v1/predict", response_model=PredictResponse)
 def predict(req: PredictRequest):
     request_id = new_request_id()
-    results, input_echo = recommend_countries(req)
+    results, input_echo, diagnostics = recommend_countries(req)
 
     return {
         "request_id": request_id,
@@ -61,5 +61,6 @@ def predict(req: PredictRequest):
         "data": {
             "input": input_echo,
             "results": results,
+            "diagnostics": diagnostics,
         },
     }
