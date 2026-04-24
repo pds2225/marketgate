@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import pytest
 
 from app.models import PredictRequest
 from app.services.buyer_shortlist import build_buyer_shortlist
@@ -10,7 +11,11 @@ from app.services.data_loaders import (
 from main import app
 from app.services.scoring import _allocate_world_trade_proxy_value, recommend_countries
 
-client = TestClient(app)
+
+@pytest.fixture
+def client():
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 def test_allocate_world_trade_proxy_value_respects_kotra_weights():
@@ -72,7 +77,7 @@ def test_recommend_countries_reports_zero_result_reasons_when_all_candidates_are
     assert diagnostics["sample_countries_by_reason"]["USER_EXCLUDED"]
 
 
-def test_v1_predict_contract_includes_diagnostics_for_kor_330499_2023():
+def test_v1_predict_contract_includes_diagnostics_for_kor_330499_2023(client):
     response = client.post(
         "/v1/predict",
         json={
@@ -103,7 +108,7 @@ def test_v1_predict_contract_includes_diagnostics_for_kor_330499_2023():
     assert "selected_opportunity_match_scores" in buyers["meta"]
 
 
-def test_predict_alias_returns_legacy_shape_with_diagnostics():
+def test_predict_alias_returns_legacy_shape_with_diagnostics(client):
     response = client.post(
         "/predict",
         json={
@@ -129,7 +134,7 @@ def test_predict_alias_returns_legacy_shape_with_diagnostics():
         assert "explanation" in first
 
 
-def test_v1_snapshot_exposes_normalized_git_state():
+def test_v1_snapshot_exposes_normalized_git_state(client):
     response = client.get("/v1/snapshot")
 
     assert response.status_code == 200
