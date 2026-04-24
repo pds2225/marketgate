@@ -74,9 +74,63 @@ class PredictResult(BaseModel):
     explanation: Dict[str, Any]
 
 
+class PredictDiagnostics(BaseModel):
+    candidate_count: int
+    eligible_count: int
+    returned_count: int
+    hard_filter_reason_counts: Dict[str, int]
+    missing_indicator_counts: Dict[str, int]
+    zero_result_reasons: List[str]
+    quality_warnings: List[str]
+    trade_signal_counts: Dict[str, int]
+    sample_countries_by_reason: Dict[str, List[str]]
+
+
+class BuyerShortlistItem(BaseModel):
+    buyer_name: str
+    source_dataset: Optional[str] = None
+    country_norm: Optional[str] = None
+    source_target_country_iso3: Optional[str] = None
+    source_target_country_name: Optional[str] = None
+    source_target_country_rank: Optional[int] = None
+    hs_code_norm: Optional[str] = None
+    keywords_norm: Optional[str] = None
+    has_contact: bool = False
+    contact_email: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_website: Optional[str] = None
+    final_score: float
+    decision: str
+    score_breakdown: Dict[str, Any]
+    recommendation_lines: List[str]
+    explanation_reasons: List[str]
+    matched_by: Optional[str] = None
+    matched_terms: List[str] = Field(default_factory=list)
+
+
+class BuyerShortlistSourceCountry(BaseModel):
+    rank: int
+    partner_country_iso3: str
+    target_country_name: Optional[str] = None
+    fit_score: float
+
+
+class BuyerShortlistData(BaseModel):
+    status: str
+    target_country_iso3: Optional[str] = None
+    target_country_name: Optional[str] = None
+    source_countries: List[BuyerShortlistSourceCountry] = Field(default_factory=list)
+    meta: Dict[str, Any] = Field(default_factory=dict)
+    items: List[BuyerShortlistItem] = Field(default_factory=list)
+    error: Optional[str] = None
+
+
 class PredictData(BaseModel):
     input: Dict[str, Any]
     results: List[PredictResult]
+    diagnostics: PredictDiagnostics
+    buyers: Optional[BuyerShortlistData] = None
 
 
 class PredictResponse(BaseModel):
@@ -84,3 +138,20 @@ class PredictResponse(BaseModel):
     status: str
     timestamp: str
     data: PredictData
+
+
+class LegacyPredictResult(BaseModel):
+    country: str
+    score: float
+    expected_export_usd: Optional[float] = None
+    explanation: Dict[str, Any]
+
+
+class LegacyPredictResponse(BaseModel):
+    request_id: str
+    status: str
+    timestamp: str
+    data_source: str
+    input: Dict[str, Any]
+    top_countries: List[LegacyPredictResult]
+    diagnostics: PredictDiagnostics

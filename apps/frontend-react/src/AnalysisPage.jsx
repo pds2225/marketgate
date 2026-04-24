@@ -9,8 +9,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-
-const API_BASE = "http://localhost:8000";
+import { API_BASE, buildApiUrl, ENDPOINTS } from "./config";
 
 const hsExamples = [
   { code: "330499", label: "화장품" },
@@ -139,6 +138,95 @@ function strongestLegacyFactors(explanation) {
     .map(([key]) => factorNames[key] || key);
 }
 
+const diagnosticLabels = {
+  NO_KOTRA_CANDIDATES_FOR_HS6: "이 HS 코드에는 후보 국가가 없습니다.",
+  NO_ELIGIBLE_CANDIDATES: "조건을 만족하는 국가가 없습니다.",
+  USER_EXCLUDED: "사용자 제외 목록에 포함된 국가입니다.",
+  MIN_TRADE_VALUE: "최소 무역액 기준에 미달했습니다.",
+  NO_TRADE_DATA: "무역 데이터가 없습니다.",
+  NO_DISTANCE_DATA: "거리 데이터가 없습니다.",
+  TRADE_SIGNAL_USES_WORLD_TOTAL_FALLBACK: "일부 무역값을 세계 합계로 보강했습니다.",
+  ALL_ELIGIBLE_RESULTS_USE_ALLOCATED_TRADE_SIGNAL: "모든 결과가 보강된 무역 신호를 사용합니다.",
+  GDP_DATA_PARTIALLY_MISSING: "일부 국가의 GDP 데이터가 비어 있습니다.",
+  GDP_GROWTH_DATA_PARTIALLY_MISSING: "일부 국가의 GDP 성장률 데이터가 비어 있습니다.",
+};
+
+function joinList(items, emptyText = "없음") {
+  const values = (items || []).filter(Boolean);
+  return values.length > 0 ? values.join(" · ") : emptyText;
+}
+
+function formatDiagnosticText(items) {
+  const values = (items || []).map((item) => diagnosticLabels[item] || item).filter(Boolean);
+  return values.length > 0 ? values.join(" · ") : "없음";
+}
+
+function DiagnosticsPanel({ diagnostics }) {
+  if (!diagnostics) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        marginTop: 16,
+        padding: 16,
+        borderRadius: 16,
+        border: "1px solid rgba(148, 163, 184, 0.35)",
+        background: "rgba(15, 23, 42, 0.35)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <p className="analysis-kicker">Diagnostics</p>
+          <h3 style={{ margin: "6px 0 0", fontSize: 18 }}>결과가 왜 나왔는지</h3>
+        </div>
+        <strong style={{ color: "#cbd5e1" }}>{diagnostics.returned_count ?? 0}개 반환</strong>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+          gap: 12,
+          marginTop: 14,
+        }}
+      >
+        <div className="analysis-detail-row">
+          <span>후보 수</span>
+          <strong>{diagnostics.candidate_count ?? "-"}</strong>
+        </div>
+        <div className="analysis-detail-row">
+          <span>조건 충족</span>
+          <strong>{diagnostics.eligible_count ?? "-"}</strong>
+        </div>
+        <div className="analysis-detail-row">
+          <span>반환 수</span>
+          <strong>{diagnostics.returned_count ?? "-"}</strong>
+        </div>
+        <div className="analysis-detail-row">
+          <span>무역 신호</span>
+          <strong>
+            {joinList(
+              Object.entries(diagnostics.trade_signal_counts || {}).map(([key, value]) => `${key}: ${value}`)
+            )}
+          </strong>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        <div style={{ fontSize: 13, color: "#cbd5e1", marginBottom: 6 }}>0건 사유</div>
+        <div style={{ fontSize: 14 }}>{formatDiagnosticText(diagnostics.zero_result_reasons)}</div>
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <div style={{ fontSize: 13, color: "#cbd5e1", marginBottom: 6 }}>경고</div>
+        <div style={{ fontSize: 14 }}>{formatDiagnosticText(diagnostics.quality_warnings)}</div>
+      </div>
+    </div>
+  );
+}
+
 function buildLegacyRecommendation(country, rank) {
   const meta = getCountryMeta(country.country);
   const explanation = country.explanation || {};
@@ -209,30 +297,135 @@ function buildP1Recommendation(entry) {
 }
 
 function normalizeLegacyResponse(payload, hsCode, topN) {
-  const countries = Array.isArray(payload?.top_countries) ? payload.top_countries : [];
+  const countries = Array.isArray(payload?.top_countries)
+    ? payload.top_countries
+    : Array.isArray(payload?.data?.top_countries)
+      ? payload.data.top_countries
+      : [];
 
   return {
     engine: "legacy",
     hint: "예전 실험형 추천 엔진 응답을 표시하고 있습니다.",
     request: { hsCode, topN },
     recommendations: countries.map((country, index) => buildLegacyRecommendation(country, index + 1)),
+    diagnostics: payload?.diagnostics || payload?.data?.diagnostics || null,
   };
 }
 
 function normalizeP1Response(payload) {
   const results = Array.isArray(payload?.data?.results) ? payload.data.results : [];
   const input = payload?.data?.input || {};
+  const diagnostics = payload?.data?.diagnostics ?? null;
+  const buyers = payload?.data?.buyers ?? null;
 
   return {
     engine: "p1",
     hint: "CSV 기반 P1 추천 점수를 표시하고 있습니다.",
-    request: {
-      hsCode: input.hs_code,
-      topN: input.top_n,
-      year: input.year,
-    },
+    request: { hsCode: input.hs_code, topN: input.top_n, year: input.year },
     recommendations: results.map((entry) => buildP1Recommendation(entry)),
+    diagnostics,
+    buyers,
   };
+}
+
+function BuyerShortlistPanel({ buyers }) {
+  if (!buyers) {
+    return null;
+  }
+
+  const sourceCountries = Array.isArray(buyers.source_countries) ? buyers.source_countries : [];
+  const sourceCountryLabel =
+    sourceCountries.length > 0
+      ? sourceCountries
+          .map((item) => item.target_country_name || item.partner_country_iso3)
+          .filter(Boolean)
+          .join(" · ")
+      : buyers.target_country_name || buyers.target_country_iso3 || "연결 국가 미확정";
+
+  return (
+    <div
+      style={{
+        marginTop: 20,
+        padding: 18,
+        borderRadius: 20,
+        border: "1px solid rgba(148, 163, 184, 0.28)",
+        background: "rgba(15, 23, 42, 0.42)",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+        <div>
+          <p className="analysis-kicker">Buyer Shortlist</p>
+          <h3 style={{ margin: "6px 0 0", fontSize: 20 }}>Top 3 국가 병합 바이어 후보</h3>
+          <p style={{ margin: "8px 0 0", color: "#94a3b8", fontSize: 14 }}>{sourceCountryLabel}</p>
+        </div>
+        <strong style={{ color: "#cbd5e1" }}>{buyers.items?.length || 0}개 후보</strong>
+      </div>
+
+      {buyers.status !== "ok" ? (
+        <div className="analysis-inline-alert" style={{ marginTop: 14 }}>
+          <CircleAlert size={16} />
+          <span>{buyers.error || "바이어 숏리스트를 아직 연결하지 못했습니다."}</span>
+        </div>
+      ) : null}
+
+      {buyers.status === "ok" && (buyers.items?.length || 0) === 0 ? (
+        <div className="analysis-empty analysis-empty--compact" style={{ marginTop: 14 }}>
+          <CircleAlert size={18} />
+          <h3>현재 조건에 맞는 바이어가 없습니다.</h3>
+          <p>HS 코드와 대상 국가 기준으로 연락 가능한 후보를 찾지 못했습니다.</p>
+        </div>
+      ) : null}
+
+      {buyers.status === "ok" && (buyers.items?.length || 0) > 0 ? (
+        <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
+          {buyers.items.map((item, index) => (
+            <div
+              key={`${item.buyer_name}-${index}`}
+              className="analysis-card"
+              style={{ cursor: "default", textAlign: "left" }}
+            >
+              <div className="analysis-card-rank">{index + 1}</div>
+              <div className="analysis-card-body">
+                <div className="analysis-card-title">
+                  <div>
+                    <strong>{item.buyer_name}</strong>
+                    <span>{item.country_norm || "국가 미상"} · {item.source_dataset || "출처 미상"}</span>
+                  </div>
+                  <span className="analysis-card-badge">{item.final_score?.toFixed?.(1) || item.final_score}점</span>
+                </div>
+                <p>{(item.explanation_reasons || []).join(" · ") || "추천 사유 없음"}</p>
+                <div className="analysis-detail-grid" style={{ marginTop: 12 }}>
+                  <div className="analysis-detail-row">
+                    <span>추천 국가</span>
+                    <strong>
+                      {item.source_target_country_name || item.source_target_country_iso3 || "-"}
+                      {item.source_target_country_rank ? ` (Top ${item.source_target_country_rank})` : ""}
+                    </strong>
+                  </div>
+                  <div className="analysis-detail-row">
+                    <span>이메일</span>
+                    <strong>{item.contact_email || "-"}</strong>
+                  </div>
+                  <div className="analysis-detail-row">
+                    <span>전화번호</span>
+                    <strong>{item.contact_phone || "-"}</strong>
+                  </div>
+                  <div className="analysis-detail-row">
+                    <span>홈페이지</span>
+                    <strong>{item.contact_website || "-"}</strong>
+                  </div>
+                  <div className="analysis-detail-row">
+                    <span>매칭 근거</span>
+                    <strong>{item.matched_by || "-"}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 async function fetchJson(url, body) {
@@ -272,7 +465,7 @@ async function requestAnalysis(hsCode, topN, year) {
 
   if (isP1ReadyHs) {
     try {
-      const p1Payload = await fetchJson(`${API_BASE}/v1/predict`, {
+      const p1Payload = await fetchJson(ENDPOINTS.predict, {
         hs_code: normalizedHs,
         exporter_country_iso3: "KOR",
         top_n: topN,
@@ -295,7 +488,7 @@ async function requestAnalysis(hsCode, topN, year) {
   }
 
   try {
-    const legacyPayload = await fetchJson(`${API_BASE}/predict`, {
+    const legacyPayload = await fetchJson(buildApiUrl("/predict", API_BASE), {
       hs_code: normalizedHs,
       exporter_country: "KOR",
       top_n: topN,
@@ -555,6 +748,8 @@ export default function AnalysisPage({ onBack }) {
                   </div>
                 </div>
 
+                <DiagnosticsPanel diagnostics={result.diagnostics} />
+
                 <div className="analysis-panels">
                   <div className="analysis-list">
                     {result.recommendations.map((item) => (
@@ -638,6 +833,12 @@ export default function AnalysisPage({ onBack }) {
                     )}
                   </div>
                 </div>
+
+                <BuyerShortlistPanel buyers={result.buyers} />
+
+                {result.diagnostics ? (
+                  <DiagnosticsPanel diagnostics={result.diagnostics} />
+                ) : null}
               </motion.div>
             ) : null}
           </AnimatePresence>

@@ -1,7 +1,7 @@
-# VALUE-UP Unified Workspace
+# MarketGate
 
-이 폴더는 `D:\valueup-mvp` 안에 섞여 있던 여러 개발 결과물 중에서, 실제로 다시 개발을 이어갈 기준 코드만 모아 둔 새 통합 작업본입니다.
-이 레포가 현재 기준본입니다.
+이 레포는 MarketGate의 현재 기준 코드입니다.
+기존 `D:\valueup-mvp\unified_workspace_20260418` 작업본을 `D:\marketgate`로 병합해, 로컬 폴더명과 GitHub 레포명을 `marketgate`로 통일했습니다.
 
 비개발자 기준으로 쉽게 말하면:
 
@@ -28,7 +28,7 @@
 ## 폴더 구성
 
 ```text
-unified_workspace_20260418/
+marketgate/
 ├─ apps/
 │  ├─ frontend-react/          현재 기준 React 화면
 │  └─ web-dig-landing/         정적 웹 시안
