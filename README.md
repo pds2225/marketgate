@@ -93,7 +93,7 @@ marketgate/
 ### P1 API 실행
 
 ```powershell
-cd D:\valueup-mvp\unified_workspace_20260418\services\p1-export-fit-api
+cd D:\marketgate\services\p1-export-fit-api
 pip install -r requirements.txt
 uvicorn main:app --reload
 ```
@@ -101,7 +101,7 @@ uvicorn main:app --reload
 ### React 화면 실행
 
 ```powershell
-cd D:\valueup-mvp\unified_workspace_20260418\apps\frontend-react
+cd D:\marketgate\apps\frontend-react
 npm install
 npm run dev
 ```
@@ -109,7 +109,7 @@ npm run dev
 ### 실험용 ML 엔진 실행
 
 ```powershell
-cd D:\valueup-mvp\unified_workspace_20260418\services\ml-export-engine
+cd D:\marketgate\services\ml-export-engine
 pip install -r requirements.txt
 uvicorn api:app --reload --port 8001
 ```
