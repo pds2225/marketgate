@@ -5,20 +5,110 @@ FastAPI 서버(uvicorn main:app --reload)와 별도로 실행:
 """
 
 import json
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 import requests
 import streamlit as st
 
+from app.services.api_config import get_api_base_url
+from app.services.project_snapshot import build_project_snapshot
+
 st.set_page_config(page_title="P1 수출 추천국 데모", layout="wide", page_icon="🌏")
+
+SAMPLE_DEMO_PAYLOAD = {
+    "hs_code": "330499",
+    "exporter_country_iso3": "KOR",
+    "top_n": 5,
+    "year": 2023,
+    "filters": {
+        "exclude_countries_iso3": None,
+        "min_trade_value_usd": 0.0,
+    },
+}
+
+
+def build_payload(
+    hs_code: str,
+    exporter_iso3: str,
+    top_n: int,
+    year: int,
+    min_trade_value_usd: float,
+    exclude_list: Optional[List[str]],
+) -> Dict[str, Any]:
+    return {
+        "hs_code": (hs_code or "").strip(),
+        "exporter_country_iso3": (exporter_iso3 or "").strip().upper(),
+        "top_n": int(top_n),
+        "year": int(year),
+        "filters": {
+            "exclude_countries_iso3": exclude_list,
+            "min_trade_value_usd": float(min_trade_value_usd),
+        },
+    }
+
+
+def render_summary_card(payload: Dict[str, Any], results: List[Dict[str, Any]], mode_label: str) -> None:
+    if not results:
+        return
+
+    top = results[0]
+    explanations = [(r.get("explanation") or {}) for r in results]
+    fallback_count = sum(1 for item in explanations if item.get("trade_signal_source") == "world_total_allocated")
+    avg_score = round(sum(float(r.get("fit_score") or 0.0) for r in results) / len(results), 1)
+    top_signal = str((top.get("explanation") or {}).get("trade_signal_source") or "-")
+    kotra_weight = (top.get("explanation") or {}).get("kotra_weight_score")
+    kotra_weight_text = f"{float(kotra_weight):.4f}" if kotra_weight is not None else "-"
+
+    with st.container(border=True):
+        st.markdown("### 📌 결과 요약 카드")
+        st.caption(
+            f"실행 모드: {mode_label} · 입력값: HS {payload['hs_code']} / {payload['exporter_country_iso3']} / {payload['year']}년 / TOP {payload['top_n']}"
+        )
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("1위 국가", str(top.get("partner_country_iso3") or "-"))
+        col2.metric("1위 점수", f"{float(top.get('fit_score') or 0.0):.1f}")
+        col3.metric("평균 점수", f"{avg_score:.1f}")
+        col4.metric("Fallback", f"{fallback_count}/{len(results)}")
+
+        st.write(f"대표 신호: `{top_signal}`")
+        st.write(f"KOTRA 가중치: `{kotra_weight_text}`")
+
+
+def render_project_status_card(snapshot: Dict[str, Any]) -> None:
+    with st.container(border=True):
+        st.markdown("### 🧭 프로젝트 상태")
+        st.caption("branch / HEAD / remote / dirty / non-git 문구를 같은 규칙으로 보여줍니다.")
+
+        st.write(snapshot.get("status_text") or "Git 저장소가 아닙니다.")
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("branch", snapshot.get("branch") or "-")
+        col2.metric("HEAD", snapshot.get("head") or "-")
+        col3.metric("remote", snapshot.get("remote") or "없음")
+        dirty_value = snapshot.get("dirty")
+        col4.metric("dirty", "-" if dirty_value is None else ("yes" if dirty_value else "no"))
+
+
+def render_diagnostics_card(diagnostics: Dict[str, Any]) -> None:
+    with st.container(border=True):
+        st.markdown("### 🩺 Diagnostics")
+        st.write(f"후보 수: `{diagnostics.get('candidate_count', '-')}`")
+        st.write(f"조건 충족: `{diagnostics.get('eligible_count', '-')}`")
+        st.write(f"반환 수: `{diagnostics.get('returned_count', '-')}`")
+        st.write(f"0건 사유: `{', '.join(diagnostics.get('zero_result_reasons') or []) or '없음'}`")
+        st.write(f"경고: `{', '.join(diagnostics.get('quality_warnings') or []) or '없음'}`")
+
 
 # ── 헤더 ──────────────────────────────────────────────
 st.title("🌏 수출 추천국 데모 (P1)")
 st.caption("HS Code와 수출국을 입력하면 AI가 최적 수출 대상국을 점수화하여 추천합니다.")
 
+render_project_status_card(build_project_snapshot())
+
 # ── 사이드바: API 설정 ────────────────────────────────
 with st.sidebar:
     st.header("⚙️ API 설정")
-    api_base = st.text_input("API Base URL", value="http://localhost:8000")
+    api_base = st.text_input("API Base URL", value=get_api_base_url())
     timeout_sec = st.number_input("Timeout (sec)", min_value=1, max_value=120, value=30)
 
     st.divider()
@@ -31,6 +121,7 @@ with st.sidebar:
         "배터리 (850650)": "850650",
     }
     preset = st.selectbox("프리셋 선택", ["직접 입력"] + list(presets.keys()))
+    st.caption("아래 샘플 버튼은 저장된 예시값으로 바로 호출합니다.")
 
 # ── 입력 폼 ───────────────────────────────────────────
 st.subheader("📋 요청 입력")
@@ -61,39 +152,47 @@ def parse_exclude_list(text: str) -> Optional[List[str]]:
 
 exclude_list = parse_exclude_list(exclude_iso3_text)
 
-payload = {
-    "hs_code": (hs_code or "").strip(),
-    "exporter_country_iso3": (exporter_iso3 or "").strip().upper(),
-    "top_n": int(top_n),
-    "year": int(year),
-    "filters": {
-        "exclude_countries_iso3": exclude_list,
-        "min_trade_value_usd": float(min_trade_value_usd),
-    },
-}
-
-with st.expander("🔍 요청 JSON 미리보기"):
-    st.code(json.dumps(payload, ensure_ascii=False, indent=2), language="json")
+form_payload = build_payload(
+    hs_code=hs_code,
+    exporter_iso3=exporter_iso3,
+    top_n=top_n,
+    year=year,
+    min_trade_value_usd=min_trade_value_usd,
+    exclude_list=exclude_list,
+)
 
 # ── 실행 버튼 ─────────────────────────────────────────
-submit = st.button("🚀 추천 요청 실행", type="primary", use_container_width=True)
+button_col1, button_col2 = st.columns(2)
+with button_col1:
+    sample_demo = st.button("🧪 샘플 데모 실행", use_container_width=True)
+with button_col2:
+    submit = st.button("🚀 추천 요청 실행", type="primary", use_container_width=True)
 st.divider()
 
+preview_payload = SAMPLE_DEMO_PAYLOAD if sample_demo else form_payload
+with st.expander("🔍 요청 JSON 미리보기"):
+    st.code(json.dumps(preview_payload, ensure_ascii=False, indent=2), language="json")
+
 # ── 응답 처리 ─────────────────────────────────────────
-if submit:
-    if len((hs_code or "").strip()) != 6 or not (hs_code or "").strip().isdigit():
+run_payload = SAMPLE_DEMO_PAYLOAD if sample_demo else form_payload
+run_mode_label = "샘플 데모" if sample_demo else "사용자 입력"
+
+if sample_demo or submit:
+    if not sample_demo and (len((hs_code or "").strip()) != 6 or not (hs_code or "").strip().isdigit()):
         st.error("❌ HS Code는 숫자 6자리여야 합니다.")
         st.stop()
-    if len((exporter_iso3 or "").strip()) != 3:
+    if not sample_demo and len((exporter_iso3 or "").strip()) != 3:
         st.error("❌ 수출국 ISO3는 영문 3자리여야 합니다.")
         st.stop()
 
     url = api_base.rstrip("/") + "/v1/predict"
     st.write(f"📡 요청 URL: `{url}`")
+    if sample_demo:
+        st.info("샘플 데모 입력값으로 즉시 실행합니다.")
 
     try:
         with st.spinner("API 호출 중..."):
-            resp = requests.post(url, json=payload, timeout=int(timeout_sec))
+            resp = requests.post(url, json=run_payload, timeout=int(timeout_sec))
 
         st.write(f"HTTP Status: **{resp.status_code}**")
 
@@ -111,10 +210,22 @@ if submit:
 
         st.success("✅ 요청 성공")
 
-        results = (((data or {}).get("data") or {}).get("results")) or []
+        response_data = (data or {}).get("data") or {}
+        results = response_data.get("results") or []
+        diagnostics = response_data.get("diagnostics") or {}
+
+        if diagnostics:
+            render_diagnostics_card(diagnostics)
+
         if not results:
-            st.info("결과가 비어 있습니다. (후보 없음 또는 필터로 모두 제외)")
+            zero_reason_text = ", ".join(diagnostics.get("zero_result_reasons") or [])
+            if zero_reason_text:
+                st.info(f"결과가 비어 있습니다. 사유: {zero_reason_text}")
+            else:
+                st.info("결과가 비어 있습니다. (후보 없음 또는 필터로 모두 제외)")
             st.stop()
+
+        render_summary_card(run_payload, results, run_mode_label)
 
         # ── 요약 테이블 ───────────────────────────────
         st.subheader(f"🏆 추천 결과 TOP {len(results)}")

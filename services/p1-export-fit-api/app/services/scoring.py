@@ -51,7 +51,70 @@ def _allocate_world_trade_proxy_value(
     return float(world_trade_value_usd) * (weight / total_weight)
 
 
-def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+def _summarize_reason_counts(hard_reasons: Dict[str, List[str]]) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for reasons in hard_reasons.values():
+        for reason in reasons:
+            counts[reason] = counts.get(reason, 0) + 1
+    return counts
+
+
+def _sample_countries_by_reason(hard_reasons: Dict[str, List[str]], limit: int = 3) -> Dict[str, List[str]]:
+    samples: Dict[str, List[str]] = {}
+    for iso3, reasons in hard_reasons.items():
+        for reason in reasons:
+            bucket = samples.setdefault(reason, [])
+            if len(bucket) < limit:
+                bucket.append(iso3)
+    return samples
+
+
+def _build_diagnostics(
+    candidate_count: int,
+    rows: List[Dict[str, Any]],
+    hard_reasons: Dict[str, List[str]],
+    missing_indicator_counts: Dict[str, int],
+) -> Dict[str, Any]:
+    hard_filter_reason_counts = _summarize_reason_counts(hard_reasons)
+    trade_signal_counts: Dict[str, int] = {}
+    for row in rows:
+        trade_signal = str(row.get("trade_signal_source", "unknown"))
+        trade_signal_counts[trade_signal] = trade_signal_counts.get(trade_signal, 0) + 1
+
+    zero_result_reasons: List[str] = []
+    if candidate_count == 0:
+        zero_result_reasons.append("NO_KOTRA_CANDIDATES_FOR_HS6")
+    elif not rows:
+        if hard_filter_reason_counts:
+            zero_result_reasons.extend(sorted(hard_filter_reason_counts.keys()))
+        else:
+            zero_result_reasons.append("NO_ELIGIBLE_CANDIDATES")
+
+    quality_warnings: List[str] = []
+    allocated_count = trade_signal_counts.get("world_total_allocated", 0)
+    if allocated_count > 0:
+        quality_warnings.append("TRADE_SIGNAL_USES_WORLD_TOTAL_FALLBACK")
+    if rows and allocated_count == len(rows):
+        quality_warnings.append("ALL_ELIGIBLE_RESULTS_USE_ALLOCATED_TRADE_SIGNAL")
+    if missing_indicator_counts["gdp_missing"] > 0:
+        quality_warnings.append("GDP_DATA_PARTIALLY_MISSING")
+    if missing_indicator_counts["growth_missing"] > 0:
+        quality_warnings.append("GDP_GROWTH_DATA_PARTIALLY_MISSING")
+
+    return {
+        "candidate_count": candidate_count,
+        "eligible_count": len(rows),
+        "returned_count": len(rows),
+        "hard_filter_reason_counts": hard_filter_reason_counts,
+        "missing_indicator_counts": missing_indicator_counts,
+        "zero_result_reasons": zero_result_reasons,
+        "quality_warnings": quality_warnings,
+        "trade_signal_counts": trade_signal_counts,
+        "sample_countries_by_reason": _sample_countries_by_reason(hard_reasons),
+    }
+
+
+def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]:
     ds = load_datastore()
 
     hs6 = req.hs_code
@@ -67,6 +130,12 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
     candidates = sorted(candidate_score_map.keys())
     world_trade_value_usd = get_world_trade_value_usd(ds.trade, year, exporter, hs6)
     filters_applied: List[str] = []
+    missing_indicator_counts = {
+        "trade_missing": 0,
+        "distance_missing": 0,
+        "gdp_missing": 0,
+        "growth_missing": 0,
+    }
     if exclude:
         filters_applied.extend([f"exclude_{x}" for x in exclude])
     if min_trade > 0:
@@ -82,7 +151,13 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
             "top_n": top_n,
             "year": year,
         }
-        return [], input_echo
+        diagnostics = _build_diagnostics(
+            candidate_count=0,
+            rows=[],
+            hard_reasons={},
+            missing_indicator_counts=missing_indicator_counts,
+        )
+        return [], input_echo, diagnostics
 
     # 2) Hard Filter 관련 사항
     rows = []
@@ -103,6 +178,7 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
                 trade_signal_source = "world_total_allocated"
 
         if trade_val is None:
+            missing_indicator_counts["trade_missing"] += 1
             reasons.append("NO_TRADE_DATA")
         else:
             if trade_val < min_trade:
@@ -110,16 +186,19 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
 
         dist_km = get_distance_km(ds.distance, exporter, p)
         if dist_km is None:
+            missing_indicator_counts["distance_missing"] += 1
             reasons.append("NO_DISTANCE_DATA")
 
         gdp = get_wb_value(ds.wb_gdp, year, p)
         if gdp is None:
+            missing_indicator_counts["gdp_missing"] += 1
             # 여기는 Hard filter 부분은 아님
             # (Hard Filter 목록에 GDP/WB 누락 내용은 없지만 개발 과정 중 missing 파악 중 - ************ 최종 개발 시 제거할 것!)
             logger.warning(f"[WB] GDP missing: {p} year={year}")
 
         growth = get_wb_value(ds.wb_growth, year, p)
         if growth is None:
+            missing_indicator_counts["growth_missing"] += 1
             logger.warning(f"[WB] GDP growth missing: {p} year={year}")
 
         if reasons:
@@ -135,6 +214,10 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
                 "distance_km": float(dist_km),
                 "trade_signal_source": trade_signal_source,
                 "kotra_weight_score": float(candidate_score_map.get(p, 0.0)),
+                "missing_indicators": {
+                    "gdp_missing": gdp is None,
+                    "growth_missing": growth is None,
+                },
             }
         )
 
@@ -145,7 +228,13 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
             "top_n": top_n,
             "year": year,
         }
-        return [], input_echo
+        diagnostics = _build_diagnostics(
+            candidate_count=len(candidates),
+            rows=[],
+            hard_reasons=hard_reasons,
+            missing_indicator_counts=missing_indicator_counts,
+        )
+        return [], input_echo, diagnostics
 
     # 3) Min-Max 정규화 부분
     trade_raw = [r["trade_value_usd"] for r in rows]
@@ -226,6 +315,7 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
                     "filters_applied": filters_applied,
                     "trade_signal_source": r["trade_signal_source"],
                     "kotra_weight_score": round(r["kotra_weight_score"], 4),
+                    "missing_indicators": r["missing_indicators"],
                 },
             }
         )
@@ -244,4 +334,11 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
         "top_n": top_n,
         "year": year,
     }
-    return results, input_echo
+    diagnostics = _build_diagnostics(
+        candidate_count=len(candidates),
+        rows=rows,
+        hard_reasons=hard_reasons,
+        missing_indicator_counts=missing_indicator_counts,
+    )
+    diagnostics["returned_count"] = len(results)
+    return results, input_echo, diagnostics

@@ -1,29 +1,17 @@
 import React, { useMemo, useState } from "react";
+import { Globe, ShieldAlert } from "lucide-react";
 import {
-  Globe,
-  Loader2,
-  TrendingUp,
-  ShieldAlert,
-  BadgeCheck,
-} from "lucide-react";
-import {
-  BarChart,
-  Bar,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  RadarChart,
-  PolarGrid,
   PolarAngleAxis,
+  PolarGrid,
   PolarRadiusAxis,
   Radar,
+  RadarChart,
+  ResponsiveContainer,
+  Tooltip,
 } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
+import { ENDPOINTS } from "./config";
 
-// 국가 코드 -> 한글 이름 매핑
 const COUNTRY_NAMES = {
   VNM: "베트남",
   USA: "미국",
@@ -37,6 +25,37 @@ const COUNTRY_NAMES = {
   GBR: "영국",
 };
 
+const diagnosticLabels = {
+  NO_KOTRA_CANDIDATES_FOR_HS6: "이 HS 코드에는 후보 국가가 없습니다.",
+  NO_ELIGIBLE_CANDIDATES: "조건을 만족하는 국가가 없습니다.",
+  USER_EXCLUDED: "사용자 제외 목록에 포함된 국가입니다.",
+  MIN_TRADE_VALUE: "최소 무역액 기준에 미달했습니다.",
+  NO_TRADE_DATA: "무역 데이터가 없습니다.",
+  NO_DISTANCE_DATA: "거리 데이터가 없습니다.",
+  TRADE_SIGNAL_USES_WORLD_TOTAL_FALLBACK: "일부 무역값을 세계 합계로 보강했습니다.",
+  ALL_ELIGIBLE_RESULTS_USE_ALLOCATED_TRADE_SIGNAL: "모든 결과가 보강된 무역 신호를 사용합니다.",
+  GDP_DATA_PARTIALLY_MISSING: "일부 국가의 GDP 데이터가 비어 있습니다.",
+  GDP_GROWTH_DATA_PARTIALLY_MISSING: "일부 국가의 GDP 성장률 데이터가 비어 있습니다.",
+};
+
+function joinList(items, emptyText = "없음") {
+  const values = (items || []).filter(Boolean);
+  return values.length > 0 ? values.join(" · ") : emptyText;
+}
+
+function formatDiagnostics(items) {
+  const values = (items || []).map((item) => diagnosticLabels[item] || item).filter(Boolean);
+  return values.length > 0 ? values.join(" · ") : "없음";
+}
+
+function renderStatusTone(snapshot) {
+  if (!snapshot) return "대기 중";
+  if (!snapshot.is_git_repo) return "Git 아님";
+  if (snapshot.status_key === "dirty") return "변경 있음";
+  if (snapshot.status_key === "remote-missing") return "remote 없음";
+  return "정상";
+}
+
 export default function ValueUpAIMvp() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -47,16 +66,16 @@ export default function ValueUpAIMvp() {
     setError(null);
 
     try {
-      // 백엔드 API 호출
-      const response = await fetch("http://localhost:8000/predict", {
+      const response = await fetch(ENDPOINTS.predict, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          hs_code: "33",
-          exporter_country: "KOR",
+          hs_code: "330499",
+          exporter_country_iso3: "KOR",
           top_n: 3,
+          year: 2023,
         }),
       });
 
@@ -65,17 +84,23 @@ export default function ValueUpAIMvp() {
       }
 
       const data = await response.json();
+      const topCountry = data?.data?.results?.[0];
 
-      // 첫 번째 추천 국가 사용
-      const topCountry = data.top_countries[0];
+      if (!topCountry) {
+        setResult({
+          empty: true,
+          diagnostics: data?.data?.diagnostics || null,
+        });
+        return;
+      }
 
-      // 결과 변환
       setResult({
-        country: topCountry.country,
-        name: COUNTRY_NAMES[topCountry.country] || topCountry.country,
-        score: topCountry.score,
-        expected_export_usd: topCountry.expected_export_usd,
-        explanation: topCountry.explanation,
+        country: topCountry.partner_country_iso3,
+        name: COUNTRY_NAMES[topCountry.partner_country_iso3] || topCountry.partner_country_iso3,
+        fit_score: topCountry.fit_score,
+        score_components: topCountry.score_components || {},
+        explanation: topCountry.explanation || {},
+        diagnostics: data?.data?.diagnostics || null,
       });
     } catch (err) {
       console.error("API 호출 오류:", err);
@@ -85,41 +110,29 @@ export default function ValueUpAIMvp() {
     }
   };
 
-  // explanation 필드를 레이더 차트 데이터로 변환
-  const radarData = result
-    ? [
-        {
-          axis: "중력모형 기준선",
-          value: Math.abs(result.explanation.gravity_baseline) * 20,
-        },
-        {
-          axis: "성장 잠재력",
-          value: Math.abs(result.explanation.growth_potential) * 20,
-        },
-        {
-          axis: "문화 적합성",
-          value: Math.abs(result.explanation.culture_fit) * 20,
-        },
-        {
-          axis: "규제 편의성",
-          value: Math.abs(result.explanation.regulation_ease) * 20,
-        },
-        {
-          axis: "물류 성과",
-          value: Math.abs(result.explanation.logistics) * 20,
-        },
-        {
-          axis: "관세 영향",
-          value: Math.abs(result.explanation.tariff_impact) * 20,
-        },
-      ]
-    : [];
+  const radarData = useMemo(() => {
+    if (!result?.score_components) return [];
+
+    const components = result.score_components;
+    const softAdjustment = Number(components.soft_adjustment ?? 0);
+
+    return [
+      { axis: "무역 실적", value: Math.round(Number(components.trade_volume_score ?? 0) * 100) },
+      { axis: "성장률", value: Math.round(Number(components.growth_score ?? 0) * 100) },
+      { axis: "GDP 규모", value: Math.round(Number(components.gdp_score ?? 0) * 100) },
+      { axis: "거리 이점", value: Math.round(Number(components.distance_score ?? 0) * 100) },
+      { axis: "보정 점수", value: Math.max(0, Math.min(100, Math.round(100 + softAdjustment * 5))) },
+    ];
+  }, [result]);
 
   return (
     <div style={{ padding: 32, maxWidth: 1200, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 32, fontWeight: "bold", marginBottom: 24 }}>
+      <h1 style={{ fontSize: 32, fontWeight: "bold", marginBottom: 12 }}>
         VALUE-UP AI : 수출 유망국 추천 MVP
       </h1>
+      <p style={{ color: "#6b7280", marginBottom: 24 }}>
+        현재 화면은 `/v1/predict`와 공통 API 베이스 URL 규칙을 사용합니다.
+      </p>
 
       <button
         onClick={analyze}
@@ -167,82 +180,150 @@ export default function ValueUpAIMvp() {
               border: "1px solid #e5e7eb",
             }}
           >
-            <h2 style={{ fontSize: 24, fontWeight: "bold", marginBottom: 16 }}>
-              추천 국가: {result.name} ({result.country})
-            </h2>
-
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ fontSize: 14, color: "#666", marginBottom: 8 }}>
-                <strong>종합 점수:</strong>{" "}
-                {(result.score * 100).toFixed(1)} / 100
+            {result.empty ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: 16,
+                  backgroundColor: "#fff7ed",
+                  border: "1px solid #fdba74",
+                  borderRadius: 8,
+                }}
+              >
+                <ShieldAlert size={24} color="#c2410c" />
+                <div>
+                  <strong>추천 결과가 비어 있습니다.</strong>
+                  <div style={{ color: "#7c2d12", marginTop: 4 }}>
+                    {formatDiagnostics(result.diagnostics?.zero_result_reasons || [])}
+                  </div>
+                </div>
               </div>
-              <div style={{ fontSize: 14, color: "#666" }}>
-                <strong>예상 수출액:</strong> $
-                {result.expected_export_usd.toLocaleString("en-US", {
-                  maximumFractionDigits: 0,
-                })}
-              </div>
-            </div>
+            ) : (
+              <>
+                <h2 style={{ fontSize: 24, fontWeight: "bold", marginBottom: 16 }}>
+                  추천 국가: {result.name} ({result.country})
+                </h2>
 
-            <h3 style={{ fontSize: 18, fontWeight: "bold", marginBottom: 16 }}>
-              AI 분석 근거 (SHAP 기반)
-            </h3>
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 14, color: "#666", marginBottom: 8 }}>
+                    <strong>종합 점수:</strong> {Number(result.fit_score || 0).toFixed(1)} / 100
+                  </div>
+                </div>
 
-            <div style={{ width: "100%", height: 400 }}>
-              <ResponsiveContainer>
-                <RadarChart data={radarData}>
-                  <PolarGrid />
-                  <PolarAngleAxis dataKey="axis" style={{ fontSize: 12 }} />
-                  <PolarRadiusAxis domain={[0, 100]} />
-                  <Radar
-                    name="특성 기여도"
-                    dataKey="value"
-                    stroke="#2563eb"
-                    fill="#2563eb"
-                    fillOpacity={0.4}
-                  />
-                  <Tooltip />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
+                <h3 style={{ fontSize: 18, fontWeight: "bold", marginBottom: 16 }}>
+                  P1 점수 분해
+                </h3>
 
-            <div
-              style={{
-                marginTop: 24,
-                padding: 16,
-                backgroundColor: "#fff",
-                borderRadius: 8,
-              }}
-            >
-              <h4 style={{ fontSize: 16, fontWeight: "bold", marginBottom: 12 }}>
-                주요 요인 분석
-              </h4>
-              <ul style={{ fontSize: 14, lineHeight: 1.8 }}>
-                <li>
-                  <strong>중력모형 기준선:</strong>{" "}
-                  {result.explanation.gravity_baseline > 0 ? "+" : ""}
-                  {result.explanation.gravity_baseline.toFixed(3)} (경제 규모 및 거리 기반)
-                </li>
-                <li>
-                  <strong>성장 잠재력:</strong>{" "}
-                  {result.explanation.growth_potential > 0 ? "+" : ""}
-                  {result.explanation.growth_potential.toFixed(3)} (GDP 성장률 반영)
-                </li>
-                <li>
-                  <strong>문화 적합성:</strong>{" "}
-                  {result.explanation.culture_fit > 0 ? "+" : ""}
-                  {result.explanation.culture_fit.toFixed(3)} (문화적 유사성)
-                </li>
-                <li>
-                  <strong>관세 영향:</strong>{" "}
-                  {result.explanation.tariff_impact > 0 ? "+" : ""}
-                  {result.explanation.tariff_impact.toFixed(3)} (관세율 영향)
-                </li>
-              </ul>
-            </div>
+                <div style={{ width: "100%", height: 360 }}>
+                  <ResponsiveContainer>
+                    <RadarChart data={radarData}>
+                      <PolarGrid />
+                      <PolarAngleAxis dataKey="axis" style={{ fontSize: 12 }} />
+                      <PolarRadiusAxis domain={[0, 100]} />
+                      <Radar
+                        name="특성 기여도"
+                        dataKey="value"
+                        stroke="#2563eb"
+                        fill="#2563eb"
+                        fillOpacity={0.4}
+                      />
+                      <Tooltip />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 24,
+                    padding: 16,
+                    backgroundColor: "#fff",
+                    borderRadius: 8,
+                  }}
+                >
+                  <h4 style={{ fontSize: 16, fontWeight: "bold", marginBottom: 12 }}>
+                    주요 요인
+                  </h4>
+                  <ul style={{ fontSize: 14, lineHeight: 1.8 }}>
+                    <li>
+                      <strong>무역 실적:</strong>{" "}
+                      {Number(result.score_components.trade_volume_score ?? 0).toFixed(3)}
+                    </li>
+                    <li>
+                      <strong>성장률:</strong>{" "}
+                      {Number(result.score_components.growth_score ?? 0).toFixed(3)}
+                    </li>
+                    <li>
+                      <strong>GDP 규모:</strong>{" "}
+                      {Number(result.score_components.gdp_score ?? 0).toFixed(3)}
+                    </li>
+                    <li>
+                      <strong>거리 이점:</strong>{" "}
+                      {Number(result.score_components.distance_score ?? 0).toFixed(3)}
+                    </li>
+                    <li>
+                      <strong>보정 점수:</strong>{" "}
+                      {Number(result.score_components.soft_adjustment ?? 0).toFixed(1)}
+                    </li>
+                  </ul>
+                </div>
+
+                {result.diagnostics && (
+                  <div
+                    style={{
+                      marginTop: 24,
+                      padding: 16,
+                      backgroundColor: "#eff6ff",
+                      border: "1px solid #bfdbfe",
+                      borderRadius: 8,
+                    }}
+                  >
+                    <h4 style={{ fontSize: 16, fontWeight: "bold", marginBottom: 12 }}>
+                      진단 정보
+                    </h4>
+                    <div style={{ fontSize: 14, lineHeight: 1.8 }}>
+                      <div>
+                        <strong>후보 수:</strong> {result.diagnostics.candidate_count ?? "-"}
+                      </div>
+                      <div>
+                        <strong>조건 충족:</strong> {result.diagnostics.eligible_count ?? "-"}
+                      </div>
+                      <div>
+                        <strong>반환 수:</strong> {result.diagnostics.returned_count ?? "-"}
+                      </div>
+                      <div>
+                        <strong>경고:</strong> {formatDiagnostics(result.diagnostics.quality_warnings)}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
+
+      <div
+        style={{
+          marginTop: 24,
+          padding: 16,
+          borderRadius: 12,
+          backgroundColor: "#f8fafc",
+          border: "1px solid #e2e8f0",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <Globe size={18} />
+          <strong>프로젝트 상태 예시</strong>
+        </div>
+        <div style={{ fontSize: 14, color: "#475569" }}>
+          이 화면은 브라우저에 직접 Git 정보를 읽지 않고, 같은 상태 문구 규칙을 다른 화면과 공유합니다.
+        </div>
+        <div style={{ marginTop: 8, fontSize: 13, color: "#64748b" }}>
+          상태 문구: {renderStatusTone(null)} · 대표 결과 수: {joinList([String(result?.fit_score ?? "")], "-")}
+        </div>
+      </div>
     </div>
   );
 }
