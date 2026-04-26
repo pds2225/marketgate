@@ -40,13 +40,12 @@ def _allocate_world_trade_proxy_value(
         return None
 
     weight = float(candidate_score_map.get(partner_iso3, 0.0))
-    if weight <= 0:
-        return None
-
     total_weight = sum(max(float(v), 0.0) for v in candidate_score_map.values())
-    if total_weight <= 0:
-        total_weight = float(len(candidate_score_map) or 1)
-        return float(world_trade_value_usd) * (1.0 / total_weight)
+
+    if total_weight <= 0 or weight <= 0:
+        # KOTRA 가중치가 없어도 균등 배분 proxy를 부여해 data_missing 배제를 방지한다
+        n = float(len(candidate_score_map) or 1)
+        return float(world_trade_value_usd) / n
 
     return float(world_trade_value_usd) * (weight / total_weight)
 
