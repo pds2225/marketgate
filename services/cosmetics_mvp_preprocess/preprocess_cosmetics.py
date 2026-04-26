@@ -206,6 +206,42 @@ NOISE_MARKER_RE = re.compile(
 )
 
 CONTACT_PHONE_BLACKLIST = {"번호"}
+COSMETICS_HS_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "330499",
+        (
+            "cosmetic",
+            "cosmetics",
+            "makeup",
+            "skin care",
+            "skincare",
+            "serum",
+            "cream",
+            "lotion",
+            "ampoule",
+            "mask",
+            "maskpack",
+            "sunscreen",
+            "sun care",
+            "toner",
+            "essence",
+            "beauty",
+            "페이셜",
+            "세럼",
+            "크림",
+            "로션",
+            "앰플",
+            "마스크",
+            "선크림",
+            "토너",
+            "에센스",
+            "스킨케어",
+            "화장품",
+            "메이크업",
+            "미용",
+        ),
+    ),
+)
 
 
 def setup_logger() -> logging.Logger:
@@ -348,6 +384,16 @@ def _normalize_hs_code(value: Any) -> str:
     if not digits:
         return ""
     return digits[:6]
+
+
+def _infer_hs_code_from_texts(*values: Any) -> str:
+    combined = " ".join(_normalize_text(value).casefold() for value in values if _normalize_text(value))
+    if not combined:
+        return ""
+    for hs_code, keywords in COSMETICS_HS_RULES:
+        if any(keyword in combined for keyword in keywords):
+            return hs_code
+    return ""
 
 
 def _normalize_valid_until(value: Any) -> str:
@@ -970,6 +1016,10 @@ def transform_source_dataframe(df: pd.DataFrame, spec: SourceSpec, source_file: 
         title_clean = _normalize_text(title_raw or company_raw)
         company_clean = _normalize_text(company_raw or title_raw)
 
+        hs_code_norm = _normalize_hs_code(hs_raw)
+        if not hs_code_norm:
+            hs_code_norm = _infer_hs_code_from_texts(title_raw, company_raw, keywords_sources)
+
         record = {
             "record_type": spec.target,
             "source_dataset": spec.label,
@@ -981,7 +1031,7 @@ def transform_source_dataframe(df: pd.DataFrame, spec: SourceSpec, source_file: 
             "country_norm": country_norm,
             "country_iso3": country_iso3,
             "hs_code_raw": hs_raw,
-            "hs_code_norm": _normalize_hs_code(hs_raw),
+            "hs_code_norm": hs_code_norm,
             "keywords_raw": " | ".join(keywords_sources),
             "keywords_norm": _join_keywords(keywords_sources),
             "contact_name": contact_name,

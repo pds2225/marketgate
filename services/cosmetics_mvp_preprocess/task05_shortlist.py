@@ -120,6 +120,93 @@ KEYWORD_MATCH_STOPWORDS = {
     "예시",
     "더미",
 }
+STRONG_COSMETICS_KEYWORDS: tuple[str, ...] = (
+    "skincare",
+    "skin care",
+    "serum",
+    "ampoule",
+    "essence",
+    "toner",
+    "lotion",
+    "sunscreen",
+    "cleanser",
+    "anti wrinkle",
+    "wrinkle patch",
+    "micro patch",
+    "mask pack",
+    "sheet mask",
+    "기초화장품",
+    "세럼",
+    "앰플",
+    "에센스",
+    "토너",
+    "로션",
+    "선크림",
+    "클렌저",
+    "마스크팩",
+    "시트마스크",
+)
+WEAK_COSMETICS_KEYWORDS: tuple[str, ...] = (
+    "beauty",
+    "cosmetic",
+    "cosmetics",
+    "beautycare",
+    "makeup",
+    "cream",
+    "moisturizer",
+    "moisturiser",
+    "emulsion",
+    "mask",
+    "sun block",
+    "sunblock",
+    "sun cream",
+    "sun care",
+    "cleansing foam",
+    "foam cleanser",
+    "facial cream",
+    "face cream",
+    "eye cream",
+    "페이셜",
+    "크림",
+    "보습",
+    "보습제",
+    "유액",
+    "에멀전",
+    "마스크",
+    "선블록",
+    "선블럭",
+    "썬크림",
+    "클렌징",
+    "클렌징폼",
+    "폼클렌저",
+    "페이스크림",
+    "아이크림",
+    "스킨케어",
+    "화장품",
+    "메이크업",
+    "미용",
+)
+BLOCKED_NON_COSMETICS_KEYWORDS: tuple[str, ...] = (
+    "equipment",
+    "device",
+    "machine",
+    "tool",
+    "hardware",
+    "medicine",
+    "medical",
+    "pharma",
+    "drug",
+    "supplement",
+    "food",
+    "industrial",
+    "supplies",
+)
+COSMETICS_HS_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "330499",
+        STRONG_COSMETICS_KEYWORDS + WEAK_COSMETICS_KEYWORDS,
+    ),
+)
 
 ENCODINGS = ("utf-8-sig", "utf-8", "cp949", "euc-kr")
 KEYWORD_SPLIT_RE = re.compile(r"[,\|;/\n\r\t·•]+")
@@ -151,6 +238,100 @@ def normalize_hs_code(value: Any) -> str:
         return ""
     digits = re.sub(r"\D", "", text)
     return digits[:6] if digits else ""
+
+
+def infer_hs_code_from_texts(*values: Any) -> str:
+    return infer_hs_code_with_score(*values)["hs_code"]
+
+
+def _normalized_keyword_forms(keywords: Iterable[str]) -> dict[str, str]:
+    forms: dict[str, str] = {}
+    for keyword in keywords:
+        normalized = normalize_text(keyword).casefold()
+        searchable = WHITESPACE_RE.sub(" ", re.sub(r"[^0-9a-z가-힣]+", " ", normalized)).strip()
+        if searchable:
+            forms[searchable] = keyword
+    return forms
+
+
+STRONG_COSMETICS_KEYWORD_FORMS = _normalized_keyword_forms(STRONG_COSMETICS_KEYWORDS)
+WEAK_COSMETICS_KEYWORD_FORMS = _normalized_keyword_forms(WEAK_COSMETICS_KEYWORDS)
+BLOCKED_NON_COSMETICS_KEYWORD_FORMS = _normalized_keyword_forms(BLOCKED_NON_COSMETICS_KEYWORDS)
+
+
+def _collect_keyword_matches(
+    segments: Iterable[str],
+    keyword_forms: Mapping[str, str],
+) -> list[str]:
+    matched: set[str] = set()
+    for searchable, original in keyword_forms.items():
+        if any(searchable in segment for segment in segments):
+            matched.add(original)
+    return sorted(matched)
+
+
+def _is_blocked_medical_hs(hs_code: str) -> bool:
+    return hs_code.startswith("3004")
+
+
+def _build_inference_segments(*values: Any) -> list[str]:
+    segments: list[str] = []
+    for value in values:
+        text = normalize_text(value).casefold()
+        if not text:
+            continue
+        parts = _split_keywords(text)
+        if len(parts) > 1:
+            source_values = parts
+        else:
+            source_values = [text]
+        for source in source_values:
+            searchable = WHITESPACE_RE.sub(" ", re.sub(r"[^0-9a-z가-힣]+", " ", source)).strip()
+            if searchable:
+                segments.append(searchable)
+    return segments
+
+
+def infer_hs_code_with_score(*values: Any) -> dict[str, Any]:
+    combined = " ".join(normalize_text(value).casefold() for value in values if normalize_text(value))
+    if not combined:
+        return {
+            "hs_code": "",
+            "match_score": 0.0,
+            "matched_keywords": [],
+        }
+    searchable_segments = _build_inference_segments(*values)
+    blocked_keywords = _collect_keyword_matches(searchable_segments, BLOCKED_NON_COSMETICS_KEYWORD_FORMS)
+    if blocked_keywords:
+        return {
+            "hs_code": "",
+            "match_score": 0.0,
+            "matched_keywords": [],
+        }
+    best_match = {
+        "hs_code": "",
+        "match_score": 0.0,
+        "matched_keywords": [],
+    }
+    for hs_code, keywords in COSMETICS_HS_RULES:
+        matched_strong_keywords = _collect_keyword_matches(searchable_segments, STRONG_COSMETICS_KEYWORD_FORMS)
+        matched_weak_keywords = _collect_keyword_matches(searchable_segments, WEAK_COSMETICS_KEYWORD_FORMS)
+        matched_keywords = sorted({
+            keyword
+            for keyword in keywords
+            if keyword in matched_strong_keywords or keyword in matched_weak_keywords
+        })
+        if not matched_strong_keywords or not matched_keywords:
+            continue
+        score = min(0.8, 0.6 + 0.05 * (len(matched_keywords) - 1))
+        candidate = {
+            "hs_code": hs_code,
+            "match_score": round(score, 2),
+            "matched_keywords": matched_keywords[:5],
+        }
+        if candidate["match_score"] > best_match["match_score"]:
+            best_match = candidate
+    return best_match
 
 
 def _split_keywords(value: Any) -> list[str]:
@@ -195,6 +376,51 @@ def _first_non_empty(record: Mapping[str, Any], keys: Iterable[str]) -> str:
         if value:
             return value
     return ""
+
+
+def enrich_text_signal_fields(record: Mapping[str, Any]) -> dict[str, Any]:
+    enriched = dict(record)
+    product_name = normalize_text(
+        _first_non_empty(
+            enriched,
+            ("product_name_norm", "product_name_raw", "normalized_name", "product_name"),
+        )
+    )
+    category = normalize_text(
+        _first_non_empty(
+            enriched,
+            ("category", "category_name", "record_type"),
+        )
+    )
+    title = normalize_text(enriched.get("title"))
+    description = normalize_text(
+        _first_non_empty(
+            enriched,
+            ("description", "description_raw", "keywords_raw", "summary"),
+        )
+    )
+    keywords_norm = normalize_keywords(enriched.get("keywords_norm"))
+
+    if not product_name:
+        product_name = title or category
+    if not title:
+        title = normalize_text(_first_non_empty(enriched, ("product_name_raw", "product_name_norm", "normalized_name")))
+    if not keywords_norm:
+        keywords_sources = [
+            product_name,
+            title,
+            description,
+            category,
+            normalize_text(enriched.get("keywords_raw")),
+        ]
+        keywords_norm = normalize_keywords(" | ".join(value for value in keywords_sources if value))
+
+    enriched["product_name_norm"] = product_name
+    enriched["title"] = title
+    enriched["description"] = description
+    enriched["category"] = category
+    enriched["keywords_norm"] = keywords_norm
+    return enriched
 
 
 def _normalize_date_candidate(value: Any) -> str:
@@ -389,12 +615,32 @@ def match_hs_or_keywords(
     buyer: Mapping[str, Any],
     opportunity: Mapping[str, Any],
 ) -> dict[str, Any]:
+    buyer = enrich_text_signal_fields(buyer)
+    opportunity = enrich_text_signal_fields(opportunity)
     buyer_hs = normalize_hs_code(
         _first_non_empty(buyer, ("hs_code_norm", "hs_code", "hs_code_raw"))
     )
     opportunity_hs = normalize_hs_code(
         _first_non_empty(opportunity, ("hs_code_norm", "hs_code", "hs_code_raw"))
     )
+    inferred_buyer = infer_hs_code_with_score(
+        buyer.get("keywords_norm"),
+        buyer.get("normalized_name"),
+        buyer.get("product_name_norm"),
+        buyer.get("title"),
+        buyer.get("description"),
+        buyer.get("category"),
+    )
+    inferred_opportunity = infer_hs_code_with_score(
+        opportunity.get("keywords_norm"),
+        opportunity.get("product_name_norm"),
+        opportunity.get("normalized_name"),
+        opportunity.get("title"),
+        opportunity.get("description"),
+        opportunity.get("category"),
+    )
+    effective_buyer_hs = buyer_hs or str(inferred_buyer.get("hs_code") or "")
+    effective_opportunity_hs = opportunity_hs or str(inferred_opportunity.get("hs_code") or "")
 
     if buyer_hs and opportunity_hs:
         if buyer_hs == opportunity_hs:
@@ -436,6 +682,64 @@ def match_hs_or_keywords(
             "matched_terms": [],
         }
 
+    if (
+        buyer_hs
+        and effective_opportunity_hs
+        and buyer_hs != effective_opportunity_hs
+        and _is_blocked_medical_hs(buyer_hs)
+    ) or (
+        opportunity_hs
+        and effective_buyer_hs
+        and opportunity_hs != effective_buyer_hs
+        and _is_blocked_medical_hs(opportunity_hs)
+    ):
+        return {
+            "matched": False,
+            "match_mode": "hs",
+            "reason": "hs_mismatch",
+            "buyer_hs_code_norm": buyer_hs or effective_buyer_hs,
+            "opportunity_hs_code_norm": opportunity_hs or effective_opportunity_hs,
+            "matched_terms": [],
+        }
+
+    if effective_buyer_hs and effective_opportunity_hs:
+        inferred_score = round(
+            min(
+                float(inferred_buyer.get("match_score") or 0.8 if not buyer_hs else 0.8),
+                float(inferred_opportunity.get("match_score") or 0.8 if not opportunity_hs else 0.8),
+            ),
+            2,
+        )
+        if effective_buyer_hs == effective_opportunity_hs:
+            return {
+                "matched": True,
+                "match_mode": "hs_inferred",
+                "reason": "hs_inferred_match",
+                "buyer_hs_code_norm": effective_buyer_hs,
+                "opportunity_hs_code_norm": effective_opportunity_hs,
+                "matched_terms": [],
+                "hs_inference_score": inferred_score,
+                "buyer_inferred_hs_code": str(inferred_buyer.get("hs_code") or ""),
+                "opportunity_inferred_hs_code": str(inferred_opportunity.get("hs_code") or ""),
+                "buyer_inferred_terms": list(inferred_buyer.get("matched_keywords") or []),
+                "opportunity_inferred_terms": list(inferred_opportunity.get("matched_keywords") or []),
+            }
+
+        if effective_buyer_hs[:4] == effective_opportunity_hs[:4] and len(effective_buyer_hs) >= 4 and len(effective_opportunity_hs) >= 4:
+            return {
+                "matched": True,
+                "match_mode": "hs_inferred_prefix_4",
+                "reason": "hs_inferred_prefix_4",
+                "buyer_hs_code_norm": effective_buyer_hs,
+                "opportunity_hs_code_norm": effective_opportunity_hs,
+                "matched_terms": [],
+                "hs_inference_score": max(0.6, min(inferred_score, 0.75)),
+                "buyer_inferred_hs_code": str(inferred_buyer.get("hs_code") or ""),
+                "opportunity_inferred_hs_code": str(inferred_opportunity.get("hs_code") or ""),
+                "buyer_inferred_terms": list(inferred_buyer.get("matched_keywords") or []),
+                "opportunity_inferred_terms": list(inferred_opportunity.get("matched_keywords") or []),
+            }
+ 
     buyer_terms = _extract_match_terms(buyer, ("keywords_norm", "normalized_name", "title"))
     opportunity_terms = _extract_match_terms(
         opportunity,
@@ -636,7 +940,18 @@ def normalize_opportunity_record(
     opportunity: Mapping[str, Any],
     reference_date: date | None = None,
 ) -> dict[str, Any]:
-    record = dict(opportunity)
+    record = enrich_text_signal_fields(opportunity)
+    if not normalize_hs_code(record.get("hs_code_norm")):
+        inferred_hs = infer_hs_code_from_texts(
+            record.get("title"),
+            record.get("product_name_norm"),
+            record.get("keywords_norm"),
+            record.get("keywords_raw"),
+            record.get("description"),
+            record.get("category"),
+        )
+        if inferred_hs:
+            record["hs_code_norm"] = inferred_hs
     signal_type = derive_signal_type(record)
     title_text = normalize_text(record.get("title"))
     product_name_text = normalize_text(record.get("product_name_norm"))
