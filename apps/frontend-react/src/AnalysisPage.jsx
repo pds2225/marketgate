@@ -316,6 +316,7 @@ function normalizeP1Response(payload) {
   const results = Array.isArray(payload?.data?.results) ? payload.data.results : [];
   const input = payload?.data?.input || {};
   const diagnostics = payload?.data?.diagnostics ?? null;
+  const buyers = payload?.data?.buyers ?? null;
 
   return {
     engine: "p1",
@@ -323,7 +324,108 @@ function normalizeP1Response(payload) {
     request: { hsCode: input.hs_code, topN: input.top_n, year: input.year },
     recommendations: results.map((entry) => buildP1Recommendation(entry)),
     diagnostics,
+    buyers,
   };
+}
+
+function BuyerShortlistPanel({ buyers }) {
+  if (!buyers) {
+    return null;
+  }
+
+  const sourceCountries = Array.isArray(buyers.source_countries) ? buyers.source_countries : [];
+  const sourceCountryLabel =
+    sourceCountries.length > 0
+      ? sourceCountries
+          .map((item) => item.target_country_name || item.partner_country_iso3)
+          .filter(Boolean)
+          .join(" · ")
+      : buyers.target_country_name || buyers.target_country_iso3 || "연결 국가 미확정";
+
+  return (
+    <div
+      style={{
+        marginTop: 20,
+        padding: 18,
+        borderRadius: 20,
+        border: "1px solid rgba(148, 163, 184, 0.28)",
+        background: "rgba(15, 23, 42, 0.42)",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+        <div>
+          <p className="analysis-kicker">Buyer Shortlist</p>
+          <h3 style={{ margin: "6px 0 0", fontSize: 20 }}>Top 3 국가 병합 바이어 후보</h3>
+          <p style={{ margin: "8px 0 0", color: "#94a3b8", fontSize: 14 }}>{sourceCountryLabel}</p>
+        </div>
+        <strong style={{ color: "#cbd5e1" }}>{buyers.items?.length || 0}개 후보</strong>
+      </div>
+
+      {buyers.status !== "ok" ? (
+        <div className="analysis-inline-alert" style={{ marginTop: 14 }}>
+          <CircleAlert size={16} />
+          <span>{buyers.error || "바이어 숏리스트를 아직 연결하지 못했습니다."}</span>
+        </div>
+      ) : null}
+
+      {buyers.status === "ok" && (buyers.items?.length || 0) === 0 ? (
+        <div className="analysis-empty analysis-empty--compact" style={{ marginTop: 14 }}>
+          <CircleAlert size={18} />
+          <h3>현재 조건에 맞는 바이어가 없습니다.</h3>
+          <p>HS 코드와 대상 국가 기준으로 연락 가능한 후보를 찾지 못했습니다.</p>
+        </div>
+      ) : null}
+
+      {buyers.status === "ok" && (buyers.items?.length || 0) > 0 ? (
+        <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
+          {buyers.items.map((item, index) => (
+            <div
+              key={`${item.buyer_name}-${index}`}
+              className="analysis-card"
+              style={{ cursor: "default", textAlign: "left" }}
+            >
+              <div className="analysis-card-rank">{index + 1}</div>
+              <div className="analysis-card-body">
+                <div className="analysis-card-title">
+                  <div>
+                    <strong>{item.buyer_name}</strong>
+                    <span>{item.country_norm || "국가 미상"} · {item.source_dataset || "출처 미상"}</span>
+                  </div>
+                  <span className="analysis-card-badge">{item.final_score?.toFixed?.(1) || item.final_score}점</span>
+                </div>
+                <p>{(item.explanation_reasons || []).join(" · ") || "추천 사유 없음"}</p>
+                <div className="analysis-detail-grid" style={{ marginTop: 12 }}>
+                  <div className="analysis-detail-row">
+                    <span>추천 국가</span>
+                    <strong>
+                      {item.source_target_country_name || item.source_target_country_iso3 || "-"}
+                      {item.source_target_country_rank ? ` (Top ${item.source_target_country_rank})` : ""}
+                    </strong>
+                  </div>
+                  <div className="analysis-detail-row">
+                    <span>이메일</span>
+                    <strong>{item.contact_email || "-"}</strong>
+                  </div>
+                  <div className="analysis-detail-row">
+                    <span>전화번호</span>
+                    <strong>{item.contact_phone || "-"}</strong>
+                  </div>
+                  <div className="analysis-detail-row">
+                    <span>홈페이지</span>
+                    <strong>{item.contact_website || "-"}</strong>
+                  </div>
+                  <div className="analysis-detail-row">
+                    <span>매칭 근거</span>
+                    <strong>{item.matched_by || "-"}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 async function fetchJson(url, body) {
@@ -731,6 +833,8 @@ export default function AnalysisPage({ onBack }) {
                     )}
                   </div>
                 </div>
+
+                <BuyerShortlistPanel buyers={result.buyers} />
 
                 {result.diagnostics ? (
                   <DiagnosticsPanel diagnostics={result.diagnostics} />

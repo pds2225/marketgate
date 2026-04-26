@@ -4,6 +4,7 @@ from fastapi import Body, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from app.models import PredictRequest, PredictResponse
+from app.services.buyer_shortlist import build_buyer_shortlist
 from app.services.project_snapshot import build_project_snapshot
 from app.services.scoring import recommend_countries
 from app.utils import now_seoul_iso, new_request_id
@@ -61,6 +62,7 @@ def health_legacy():
 def predict(req: PredictRequest):
     request_id = new_request_id()
     results, input_echo, diagnostics = recommend_countries(req)
+    buyers = build_buyer_shortlist(req, results)
 
     return {
         "request_id": request_id,
@@ -70,6 +72,7 @@ def predict(req: PredictRequest):
             "input": input_echo,
             "results": results,
             "diagnostics": diagnostics,
+            "buyers": buyers,
         },
     }
 
