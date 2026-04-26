@@ -45,6 +45,22 @@ ISO3_TO_TARGET_COUNTRY = {
 }
 
 MAX_SOURCE_COUNTRIES = 3
+_BLOCKED_BUYER_NAMES = {
+    "medical device co",
+    "medical cosmetics buyer",
+}
+_BLOCKED_BUYER_KEYWORDS = (
+    "medical device",
+    "pharma supplement",
+    "beauty equipment",
+)
+
+
+def _is_blocked_item(item: dict[str, Any]) -> bool:
+    buyer_name = str(item.get("buyer_name") or "").strip().casefold()
+    if buyer_name in _BLOCKED_BUYER_NAMES:
+        return True
+    return any(keyword in buyer_name for keyword in _BLOCKED_BUYER_KEYWORDS)
 
 
 def _empty_buyer_meta(source_countries: list[dict[str, Any]]) -> dict[str, Any]:
@@ -172,6 +188,8 @@ def _merge_shortlist_results(
         item.pop("_source_fit_score", None)
         deduped_items.append(item)
 
+    deduped_items = [item for item in deduped_items if not _is_blocked_item(item)]
+
     if limit > 0:
         deduped_items = deduped_items[:limit]
 
@@ -230,6 +248,7 @@ def build_buyer_shortlist(req: Any, country_results: list[dict[str, Any]]) -> Bu
     top_country_iso3 = str(top_country.get("partner_country_iso3") or "").upper()
     target_country_name = str(top_country.get("target_country_name") or "")
     limit = min(int(getattr(req, "top_n", 5) or 5), 10)
+    include_rejected = bool(getattr(req, "include_rejected", False))
 
     if not (BUYER_CSV.exists() and OPPORTUNITY_CSV.exists()):
         meta = _empty_buyer_meta(source_countries)
@@ -266,7 +285,7 @@ def build_buyer_shortlist(req: Any, country_results: list[dict[str, Any]]) -> Bu
                     reference_date=date.today(),
                     limit=internal_limit,
                     opportunity_country_norm=source_country["target_country_name"],
-                    include_rejected=False,
+                    include_rejected=include_rejected,
                 )
             )
 
