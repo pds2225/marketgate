@@ -785,6 +785,15 @@ SOURCE_SPECS: tuple[SourceSpec, ...] = (
             hs_code_raw=("HSCD",),
             keywords=("EXPORTSCALE", "EXP_BHRC_SCR"),
         ),
+        sample_rows=(
+            {
+                "EXPORTSCALE": "대형",
+                "EXP_BHRC_SCR": 11.81,
+                "HSCD": 330420,
+                "NAT_NAME": "네덜란드",
+                "UPDT_DT": "2025-06-26 16:08:53",
+            },
+        ),
     ),
 )
 
