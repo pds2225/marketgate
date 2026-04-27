@@ -2,13 +2,16 @@ import { startTransition, useState } from 'react'
 import LandingPage from './LandingPage'
 import AnalysisPage from './AnalysisPage'
 import AdminDashboard from './AdminDashboard'
+import ChatModePage from './ChatModePage'
 import './App.css'
 
 function App() {
   const [page, setPage] = useState('landing')
-  const navigate = (nextPage) => {
+  const [chatPreset, setChatPreset] = useState(null)
+  const navigate = (nextPage, preset = null) => {
     startTransition(() => {
       setPage(nextPage)
+      if (preset) setChatPreset(preset)
     })
   }
 
@@ -21,11 +24,22 @@ function App() {
       )}
 
       {page === 'landing' && (
-        <LandingPage onStartAnalysis={() => navigate('analysis')} />
+        <LandingPage
+          onStartAnalysis={() => navigate('analysis')}
+          onStartChat={(preset) => navigate('chat', preset)}
+        />
       )}
 
       {page === 'analysis' && (
         <AnalysisPage onBack={() => navigate('landing')} />
+      )}
+
+      {page === 'chat' && (
+        <ChatModePage
+          preset={chatPreset}
+          onBack={() => navigate('landing')}
+          onSwitchToForm={() => navigate('analysis')}
+        />
       )}
 
       {page === 'admin' && (

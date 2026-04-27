@@ -6,8 +6,12 @@ import {
   MoveRight,
   Orbit,
   ShieldCheck,
+  Sparkles,
+  Heart,
+  Shirt,
 } from "lucide-react";
 import { motion, useScroll, useTransform } from "framer-motion";
+import { useState } from "react";
 
 const proofItems = [
   {
@@ -56,10 +60,47 @@ const sourceNotes = [
   "국가 간 거리",
 ];
 
-export default function LandingPage({ onStartAnalysis }) {
+const quickStartItems = [
+  {
+    id: "kbeauty",
+    icon: Sparkles,
+    label: "K-뷰티",
+    sub: "지금 시작",
+    hsCode: "330499",
+    available: true,
+  },
+  {
+    id: "health",
+    icon: Heart,
+    label: "건강식품",
+    sub: "곧 만나요",
+    hsCode: "210690",
+    available: false,
+  },
+  {
+    id: "kfashion",
+    icon: Shirt,
+    label: "K-패션",
+    sub: "곧 만나요",
+    hsCode: "611030",
+    available: false,
+  },
+];
+
+export default function LandingPage({ onStartAnalysis, onStartChat }) {
   const { scrollYProgress } = useScroll();
   const heroY = useTransform(scrollYProgress, [0, 0.5], [0, 90]);
   const heroScale = useTransform(scrollYProgress, [0, 0.35], [1, 1.08]);
+  const [toast, setToast] = useState(null);
+
+  const handleChipClick = (item) => {
+    if (item.available) {
+      onStartChat?.({ hsCode: item.hsCode, category: item.label });
+    } else {
+      setToast(`🚧 ${item.label}는 아직 준비 중이에요. 오픈되면 가장 먼저 알려드릴게요.`);
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
 
   return (
     <div className="landing-page">
@@ -149,6 +190,46 @@ export default function LandingPage({ onStartAnalysis }) {
             <strong>추천 국가 목록과 점수</strong>
           </div>
         </motion.aside>
+      </section>
+
+      {/* Quick Start Chips */}
+      <section className="landing-quickstart">
+        <div className="landing-section-head">
+          <p className="landing-section-kicker">Quick Start</p>
+          <h2>아래에서 바로 시작하거나, 직접 입력해 보세요.</h2>
+        </div>
+        <div className="landing-quickstart-grid">
+          {quickStartItems.map((item, index) => {
+            const Icon = item.icon;
+            return (
+              <motion.button
+                key={item.id}
+                className={`landing-quickstart-chip ${item.available ? "" : "landing-quickstart-chip--soon"}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+                onClick={() => handleChipClick(item)}
+              >
+                <Icon size={28} />
+                <div className="landing-quickstart-chip-info">
+                  <strong>{item.label}</strong>
+                  <span>{item.sub}</span>
+                </div>
+                {!item.available && <span className="landing-quickstart-soon-badge">Coming Soon</span>}
+              </motion.button>
+            );
+          })}
+        </div>
+        {toast && (
+          <motion.div
+            className="landing-toast"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            {toast}
+          </motion.div>
+        )}
       </section>
 
       <section className="landing-proof">
