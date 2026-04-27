@@ -17,6 +17,8 @@ services/**/.test_artifacts/
 # Generated data outputs (large CSVs)
 services/cosmetics_mvp_preprocess/output/*.csv
 services/p1-export-fit-api/csv/*.csv
+# Keep core trade data (country-specific bilateral, ~2MB)
+!services/p1-export-fit-api/csv/trade_data.csv
 
 # Temp files
 temp_*
