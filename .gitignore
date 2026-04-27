@@ -14,6 +14,13 @@ services/**/pytest-cache-files-*/
 services/**/.tmp/
 services/**/.tmp*/
 services/**/.test_artifacts/
+# Generated data outputs (large CSVs)
+services/cosmetics_mvp_preprocess/output/*.csv
+services/p1-export-fit-api/csv/*.csv
+
+# Temp files
+temp_*
+
 # services/cosmetics_mvp_preprocess/output/
 .env
 .DS_Store
