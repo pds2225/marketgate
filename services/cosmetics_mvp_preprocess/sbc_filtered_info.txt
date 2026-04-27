@@ -1,0 +1,12 @@
+Columns: ['업종', '카테고리', '업체명', '상품명', '사업자등록번호']
+Rows: 54
+
+Sample (first 3 rows):
+      업종                    카테고리    업체명                           상품명      사업자등록번호
+뷰티, 패션용품 Beauty & Personal Care  (주)인피노                       Cerazor 221-81-45748
+뷰티, 패션용품 Beauty & Personal Care   (주)이다                앙비 유아용 세제(리필형) 134-86-44417
+뷰티, 패션용품 Beauty & Personal Care  (주)보거스 Wireless charging clipper set 119-81-66310
+
+Value counts for 업종:
+업종
+뷰티, 패션용품    54

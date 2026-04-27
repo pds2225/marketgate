@@ -1,132 +1,43 @@
-# TASKS.md
+# TASKS.md — MarketGate MVP (인콰이어리 E2E)
+
+**목표:** 사용자가 HS코드 입력 → 바이어 조회 → 인콰이어리 발송까지 오류 없이 실행 가능한 MVP
+**테스트 경로:** `services/p1-export-fit-api/`
+**실행 명령:** `cd services/p1-export-fit-api && python -m pytest --tb=short -q`
+
+---
 
 ## Active
-- TASK-13: 실제 거래 데이터 보강 및 0건 원인 제거
-- TASK-14: 분석 화면 MVP 기본 흐름 고정
-- TASK-15: 오류/빈/로딩 상태와 예외 메시지 정리
-- TASK-16: `KOR + 330499 + 2023` 스모크 및 회귀 테스트 강화
-- TASK-17: 상태 카드, 로그, 산출물 정리
+
+### 📬 Phase 2 — 인콰이어리 기능 구현
+
+- [x] **[M04] inquiry_service.py 생성** — services/p1-export-fit-api/app/services/inquiry_service.py 신규 작성. 입력: buyer_name, contact_email, hs_code, sender_company, sender_name, message(optional). 출력: inquiry_id(uuid4), draft_ko(한국어 템플릿), draft_en(영어 템플릿), created_at. 완료 기준: tests/test_inquiry_service.py PASS
+- [x] **[M05] POST /v1/inquiry 엔드포인트 구현** — services/p1-export-fit-api/main.py에 POST /v1/inquiry 추가. inquiry_service.build_draft() 호출 후 결과 반환. 응답: {inquiry_id, draft_ko, draft_en, status: "draft_ready"}. 완료 기준: tests/test_inquiry_endpoint.py PASS
+- [x] **[M06] 인콰이어리 템플릿 한/영 완성** — inquiry_service.py의 draft_ko/draft_en에 buyer_name, hs_code, sender_company, sender_name 치환 정상 동작. 빈값 입력 시 "Unknown" fallback 처리. 완료 기준: test_inquiry_template_substitution PASS
+
+### 🖥️ Phase 3 — 프론트엔드 연결
+
+- [x] **[M07] 바이어 카드 contact 정보 표시** — apps/frontend-react/src/AnalysisPage.jsx 바이어 카드에 contact_email, contact_phone, contact_website 렌더링 추가. contact 없으면 "연락처 미제공" badge 표시. 완료 기준: JSX에 contact 블록 및 null 분기 처리 코드 존재
+- [x] **[M08] 인콰이어리 모달 UI 구현** — AnalysisPage.jsx에 바이어 카드별 "인콰이어리 보내기" 버튼 추가. 클릭 시 모달: sender_company, sender_name, message 입력 폼 → POST /v1/inquiry 호출. 성공 시 draft_en 표시, 실패 시 에러 메시지. 완료 기준: InquiryModal 컴포넌트 및 handleSubmit 함수 존재
+- [x] **[M09] 오류/빈/로딩 3종 상태 처리** — AnalysisPage.jsx에서 (1) API 호출 중 LoaderCircle 스피너, (2) buyers.items 길이 0일 때 "조건에 맞는 바이어를 찾지 못했습니다" 안내, (3) 인콰이어리 POST 실패 시 "잠시 후 다시 시도해 주세요" 메시지. 완료 기준: 3가지 분기 코드 존재
+
+### ✅ Phase 4 — E2E 검증
+
+- [x] **[M10] E2E 스모크 테스트 작성** — services/p1-export-fit-api/tests/test_e2e_smoke.py 신규 작성. (1) GET /health 200, (2) GET /v1/buyers?hs_code=330499&country=USA items>=1 + has_contact True 항목 존재, (3) POST /v1/inquiry {buyer_name, contact_email, hs_code, sender_company, sender_name} → draft_en 비어있지 않음. 완료 기준: 3개 테스트 PASS
+- [x] **[M11] CORS 설정 검증** — services/p1-export-fit-api/main.py CORS origins에 http://localhost:5173 포함 확인 및 누락 시 추가. 완료 기준: test_cors_origins_include_frontend PASS
+- [x] **[M12] 전체 pytest 회귀 통과** — services/p1-export-fit-api/ 전체 pytest 0 failed. 완료 기준: pytest --tb=short -q exit code 0
 
 ---
 
 ## Done
-- TASK-00: 통합 작업본 기준 폴더 정리
-- TASK-01: P1 추천 API 기본 엔드포인트 구현
-- TASK-02: CSV 로더, ISO3 정규화, 거리/무역/WB 조회 구현
-- TASK-03: 프론트 분석 화면에서 P1 결과 렌더링 구현
-- TASK-04: trade fallback self-test 및 pytest 통과
-- TASK-05: 추천 결과 0건/저품질 데이터의 원인을 API 응답에 포함해 진단 가능하게 만들기
-- TASK-06: 프론트 API 베이스 URL을 환경변수로 공통화하고 `AnalysisPage`/`AdminDashboard`의 엔드포인트를 정리하기
-- TASK-07: `KOR + 330499` 기준 스모크 테스트와 `/v1/predict` 계약 회귀 테스트를 추가하기
-- TASK-08: `AnalysisPage`, `AdminDashboard`, `ValueUpAIMvp`, `streamlit_app.py`의 API 베이스 URL을 환경변수/공통 설정으로 묶기
-- TASK-09: `/v1/predict`의 `diagnostics`를 프론트와 관리화면에 노출하고, 0건/저품질 결과를 사람이 읽을 수 있게 보여주기
-- TASK-10: `KOR + 330499 + 2023` 기준 스모크 테스트와 `/v1/predict` / `/predict` 계약 회귀 테스트를 추가하기
-- TASK-11: 대시보드 프로젝트 상태 카드를 `branch / HEAD / remote / dirty / non-git` 안내 문구로 통일하기
-- TASK-12: Windows 로컬 실행 산출물(`__pycache__`, `.pytest_cache`, temp/log 파일)을 `.gitignore`와 테스트 설정에서 계속 분리하기
 
----
-
-## 태스크 상세
-
-### TASK-13 — 실제 거래 데이터 보강 및 0건 원인 제거
-
-**심각도:** P1
-**파일:** `services/p1-export-fit-api/app/services/data_loaders.py`, `services/p1-export-fit-api/app/services/scoring.py`, `services/p1-export-fit-api/csv/*`
-**의존성:** TASK-05, TASK-10
-
-**문제:**
-현재 `trade_data.csv`가 세계 합계 중심이라 국가별 추천 결과가 `0건`으로 떨어지는 경우가 남아 있다. 실제 사용성 기준에서는 가장 먼저 해결해야 하는 데이터 문제다.
-
-**수정 방향:**
-- 국가별 파트너 거래 데이터를 보강한다
-- `0건`이 나오는 원인을 `diagnostics`에서 더 분명하게 구분한다
-- 샘플 입력 `KOR + 330499 + 2023`이 실제 결과를 반환하도록 데이터 경로를 정리한다
-
-**수락 기준:**
-- [ ] 핵심 스모크 입력에서 추천 결과가 `0건`으로만 떨어지지 않는다
-- [ ] `zero_result_reasons`가 실제 원인별로 구분된다
-- [ ] `diagnostics`에 데이터 부족과 필터 제외가 구분되어 보인다
-
----
-
-### TASK-14 — 분석 화면 MVP 기본 흐름 고정
-
-**심각도:** P1
-**파일:** `apps/frontend-react/src/AnalysisPage.jsx`, `apps/frontend-react/src/ValueUpAIMvp.jsx`
-**의존성:** TASK-13
-
-**문제:**
-화면은 존재하지만, 실제 사용자는 입력-실행-결과 확인의 기본 흐름을 가장 짧게 끝내야 한다.
-
-**수정 방향:**
-- 기본 입력값과 샘플 입력을 더 전면에 둔다
-- 분석 시작에서 결과 확인까지의 흐름을 한 번에 끝내게 한다
-- MVP에서 불필요한 설명보다 실행 경로를 먼저 보여준다
-
-**수락 기준:**
-- [ ] 사용자가 샘플 입력으로 바로 실행할 수 있다
-- [ ] 결과 카드와 요약 정보가 한 번에 보인다
-- [ ] 첫 화면에서 핵심 기능을 찾는 데 오래 걸리지 않는다
-
----
-
-### TASK-15 — 오류/빈/로딩 상태와 예외 메시지 정리
-
-**심각도:** P1
-**파일:** `services/p1-export-fit-api/main.py`, `services/p1-export-fit-api/app/services/scoring.py`, `apps/frontend-react/src/AnalysisPage.jsx`, `apps/frontend-react/src/AdminDashboard.jsx`
-**의존성:** TASK-13, TASK-14
-
-**문제:**
-실사용 MVP는 잘 되는 경우보다, 실패했을 때 앱이 안 죽고 다음 행동을 알려주는지가 중요하다.
-
-**수정 방향:**
-- API와 프론트 모두에서 빈 상태, 로딩 상태, 오류 상태를 일관되게 보여준다
-- 예외 메시지를 사용자 친화적으로 정리한다
-- 실패했을 때도 화면이 깨지지 않게 한다
-
-**수락 기준:**
-- [ ] 예외 상황에서도 앱이 종료되지 않는다
-- [ ] 빈 상태와 로딩 상태가 명확히 구분된다
-- [ ] 사용자가 다음에 무엇을 해야 하는지 알 수 있다
-
----
-
-### TASK-16 — `KOR + 330499 + 2023` 스모크 및 회귀 테스트 강화
-
-**심각도:** P1
-**파일:** `services/p1-export-fit-api/tests/test_trade_fallback.py`, `services/p1-export-fit-api/tests`
-**의존성:** TASK-13, TASK-15
-
-**문제:**
-실제 사용 가능한 상태를 유지하려면, 핵심 입력 조합이 매번 같은 방식으로 검증되어야 한다.
-
-**수정 방향:**
-- `KOR + 330499 + 2023`을 고정 스모크로 둔다
-- `/v1/predict`와 legacy `/predict` 응답 계약을 함께 점검한다
-- 0건, 정상, 경계 케이스를 모두 묶는다
-
-**수락 기준:**
-- [ ] 스모크 테스트가 자동으로 통과한다
-- [ ] `/v1/predict` 계약이 깨지면 바로 잡힌다
-- [ ] 0건과 정상 결과가 모두 검증된다
-
----
-
-### TASK-17 — 상태 카드, 로그, 산출물 정리
-
-**심각도:** P2
-**파일:** `dashboard/server.py`, `dashboard/streamlit_app.py`, `dashboard/project_snapshot.py`, `.gitignore`
-**의존성:** TASK-14, TASK-15
-
-**문제:**
-프로젝트가 실제로 쓰이려면, 화면과 로그에서 지금 상태를 바로 알아야 한다.
-
-**수정 방향:**
-- 상태 카드 문구를 한 가지 기준으로 맞춘다
-- 실행 산출물과 런타임 파일이 저장소를 오염시키지 않게 한다
-- Git 상태와 실행 상태를 사람이 바로 읽을 수 있게 정리한다
-
-**수락 기준:**
-- [ ] 상태 문구가 화면마다 다르지 않다
-- [ ] 런타임 산출물이 저장소를 더럽히지 않는다
-- [ ] Git 비저장소 상태에서도 화면이 깨지지 않는다
+- [x] TASK-00: 통합 작업본 기준 폴더 정리
+- [x] TASK-01: P1 추천 API 기본 엔드포인트 구현
+- [x] TASK-02: CSV 로더, ISO3 정규화, 거리/무역/WB 조회 구현
+- [x] TASK-03: 프론트 분석 화면에서 P1 결과 렌더링 구현
+- [x] TASK-04: trade fallback self-test 및 pytest 통과
+- [x] TASK-05: 추천 결과 0건/저품질 원인 API 응답 포함
+- [x] TASK-06: 프론트 API 베이스 URL 환경변수 공통화
+- [x] TASK-07: KOR + 330499 스모크 테스트 및 회귀 테스트
+- [x] M01: data_loaders.py 절대경로 수정 (이미 구현됨)
+- [x] M02: blocked buyer 필터 구현 (이미 구현됨)
+- [x] M03: 전체 109 테스트 통과 확인

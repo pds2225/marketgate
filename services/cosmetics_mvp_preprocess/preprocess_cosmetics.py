@@ -740,6 +740,37 @@ SOURCE_SPECS: tuple[SourceSpec, ...] = (
             },
         ),
     ),
+    SourceSpec(
+        key="sbc_promising_product",
+        label="중소벤처기업진흥공단_업종별 해외시장진출 유망상품 현황",
+        target="opportunity_item",
+        filename_patterns=(
+            "중소벤처기업진흥공단_업종별 해외시장진출 유망상품 현황.csv",
+            "중소벤처기업진흥공단_업종별 해외시장진출 유망상품 현황_*.csv",
+        ),
+        field_groups=_extend_groups(
+            BASE_FIELD_GROUPS,
+            title=("상품명",),
+            company_name=("업천명","업천명","업천명","업천명","업천명","업천명"),
+            keywords=("업종", "카테고리"),
+        ),
+        sample_rows=(
+            {
+                "업종": "뷰티, 미용, 화장품",
+                "카테고리": "Beauty & Personal Care",
+                "업천명": "(주)오피코스",
+                "상품명": "Cerazor",
+                "사업자등록번호": "221-81-45748",
+            },
+            {
+                "업종": "뷰티, 미용, 화장품",
+                "카테고리": "Beauty & Personal Care",
+                "업천명": "(주)오딧세이",
+                "상품명": "올인원 스킨케어 세트(남성용)",
+                "사업자등록번호": "134-86-44417",
+            },
+        ),
+    ),
 )
 
 
@@ -873,12 +904,17 @@ def _ensure_sample_file(spec: SourceSpec, sample_dir: Path) -> Path:
     return sample_path
 
 
+import fnmatch
+
 def _matches_spec(file_name: str, spec: SourceSpec) -> bool:
     candidate_key = _normalize_lookup_key(file_name)
     if not candidate_key:
         return False
 
     for pattern in spec.filename_patterns:
+        # 와일드카드 패턴 직접 매칭
+        if fnmatch.fnmatch(file_name, pattern):
+            return True
         pattern_key = _normalize_lookup_key(pattern)
         if not pattern_key:
             continue
