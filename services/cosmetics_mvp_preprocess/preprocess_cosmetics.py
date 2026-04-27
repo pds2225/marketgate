@@ -771,6 +771,21 @@ SOURCE_SPECS: tuple[SourceSpec, ...] = (
             },
         ),
     ),
+    SourceSpec(
+        key="kotra_export_recommend",
+        label="대한무역투자진흥공사_수출유망추천정보",
+        target="opportunity_item",
+        filename_patterns=(
+            "kotra_export_recommend_all.csv",
+        ),
+        field_groups=_extend_groups(
+            BASE_FIELD_GROUPS,
+            title=("NAT_NAME",),
+            country_raw=("NAT_NAME",),
+            hs_code_raw=("HSCD",),
+            keywords=("EXPORTSCALE", "EXP_BHRC_SCR"),
+        ),
+    ),
 )
 
 
