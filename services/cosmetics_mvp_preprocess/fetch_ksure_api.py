@@ -1,6 +1,7 @@
 """
 한국무역보험공사_바이어 검색 API 수집 스크립트
 공공데이터포털: https://www.data.go.kr/data/15144480/openapi.do
+엔드포인트: https://apis.data.go.kr/B552696/buyer/getBuyerList
 
 사용법:
   1. .env 파일에 KSURE_API_KEY=YOUR_KEY 입력
@@ -20,21 +21,19 @@ from typing import Any
 import requests
 from dotenv import load_dotenv
 
-# .env 로드 (프로젝트 루트 또는 현재 디렉토리)
+# .env 로드
 load_dotenv(Path(__file__).resolve().parent / ".env")
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 API_KEY = os.getenv("KSURE_API_KEY", "")
-# 공공데이터포털 표준 엔드포인트 (실제 엔드포인트는 Swagger 확인 후 수정 필요)
-DEFAULT_ENDPOINT = os.getenv(
+ENDPOINT = os.getenv(
     "KSURE_ENDPOINT",
-    "https://apis.data.go.kr/B552696/buyer",
+    "https://apis.data.go.kr/B552696/buyer/getBuyerList",
 )
 
-# 요청당 최대 페이지/건수 (공공데이터포털 일반 제한)
 PAGE_SIZE = 100
-MAX_PAGES = 100
-REQUEST_DELAY = 0.3  # 초당 3~4회 제한 대응
+MAX_PAGES = 1000
+REQUEST_DELAY = 0.3
 
 
 def fetch_page(
@@ -69,14 +68,24 @@ def fetch_all(
     for page in range(1, MAX_PAGES + 1):
         data = fetch_page(endpoint, service_key, page, PAGE_SIZE, search_params)
 
-        # 응답 구조는 실제 Swagger 테스트 후에 맞춰야 함
-        # 일반적인 공공데이터포털 JSON 형식 가정
-        body = data.get("response", {}).get("body", {})
-        items = body.get("items", {}).get("item", [])
-        total_count = int(body.get("totalCount", 0))
+        header = data.get("response", {}).get("header", {})
+        result_code = int(header.get("resultCode", -1))
+        result_msg = header.get("resultMsg", "")
 
+        if result_code != 0:
+            print(f"[WARN] API 오류: code={result_code}, msg={result_msg}")
+            break
+
+        body = data.get("response", {}).get("body", {}) or {}
+        items_raw = body.get("items", {})
+        if items_raw is None:
+            print(f"[INFO] 페이지 {page}: 데이터 없음. 수집 종료.")
+            break
+
+        items = items_raw.get("item", [])
         if isinstance(items, dict):
             items = [items]
+        total_count = int(body.get("totalCount", 0))
 
         if not items:
             print(f"[INFO] 페이지 {page}: 데이터 없음. 수집 종료.")
@@ -120,23 +129,38 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--endpoint",
-        default=DEFAULT_ENDPOINT,
-        help="API 엔드포인트 URL (Swagger 확인 후 수정)",
+        default=ENDPOINT,
+        help="API 엔드포인트 URL",
     )
     parser.add_argument(
         "--api-key",
         default=API_KEY,
-        help="공공데이터포털 API 인증키 (미입력 시 .env의 KSURE_API_KEY 사용)",
+        help="공공데이터포털 API 인증키",
     )
     parser.add_argument(
-        "--keyword",
+        "--buyer-nm",
         default="",
-        help="검색 키워드 (예: 화장품, cosmetics 등)",
+        help="바이어명 검색 키워드",
     )
     parser.add_argument(
-        "--country",
+        "--ctry-cd",
         default="",
-        help="국가 필터 (ISO2 또는 한글 국가명, API 스펙 확인 필요)",
+        help="국가코드",
+    )
+    parser.add_argument(
+        "--industry-cd",
+        default="",
+        help="업종 코드 (4단계, 예: 75999)",
+    )
+    parser.add_argument(
+        "--industry-nm",
+        default="",
+        help="업종명",
+    )
+    parser.add_argument(
+        "--prod-nm",
+        default="",
+        help="품목명 (예: cosmetics, beauty)",
     )
     return parser
 
@@ -153,10 +177,16 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     search_params: dict[str, Any] = {}
-    if args.keyword:
-        search_params["keyword"] = args.keyword
-    if args.country:
-        search_params["country"] = args.country
+    if args.buyer_nm:
+        search_params["buyerNm"] = args.buyer_nm
+    if args.ctry_cd:
+        search_params["ctryCd"] = args.ctry_cd
+    if args.industry_cd:
+        search_params["industryCd"] = args.industry_cd
+    if args.industry_nm:
+        search_params["industryNm"] = args.industry_nm
+    if args.prod_nm:
+        search_params["prodNm"] = args.prod_nm
 
     print(f"[INFO] 엔드포인트: {args.endpoint}")
     print(f"[INFO] 검색 조건: {search_params or '(전체)'}")
