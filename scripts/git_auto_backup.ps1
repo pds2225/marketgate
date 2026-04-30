@@ -1,5 +1,5 @@
-# MarketGate Git 자동 백업 스크립트
-# 5분마다 변경사항을 감지하여 자동으로 add → commit → push
+# MarketGate Git 자동 백업 스크립트 (Stash-Pull-Pop 안전 모드)
+# 5분마다 변경사항을 감지하여 자동으로 add → stash → pull → pop → commit → push
 # 실행: PowerShell -File scripts/git_auto_backup.ps1
 
 $repoPath = "D:\marketgate"
@@ -13,11 +13,11 @@ function Write-Log($msg) {
 }
 
 Set-Location $repoPath
-Write-Log "=== Git Auto Backup Started ==="
+Write-Log "=== Git Auto Backup Started (Stash-Pull-Pop Mode) ==="
 Write-Log "Repository: $repoPath"
 Write-Log "Interval: $($intervalSeconds / 60) minutes"
 Write-Log "Log file: $logFile"
-Write-Log "Stop: Task Manager > PowerShell 프로세스 종료"
+Write-Log "Stop: Task Manager > PowerShell PID 종료"
 Write-Log ""
 
 while ($true) {
@@ -43,29 +43,47 @@ while ($true) {
         } else {
             $changeCount = ($status -split "`n" | Where-Object { $_.Trim() -ne "" }).Count
             Write-Log "[BACKUP] $changeCount changed file(s) detected."
-
-            # add
-            git add -A 2>$null
-            if ($LASTEXITCODE -ne 0) { throw "git add failed" }
-
-            # commit
             $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+
+            # 1. Stash (untracked 포함)
+            git stash push -m "auto-backup-stash-$timestamp" --include-untracked 2>$null
+            if ($LASTEXITCODE -ne 0) { throw "git stash failed" }
+            Write-Log "[STASH] Local changes saved."
+
+            # 2. Pull (원격 최신 가져오기, rebase 없이 merge)
+            $behind = git rev-list --count HEAD..origin/main 2>$null
+            if ($behind -gt 0) {
+                Write-Log "[PULL] origin/main is $behind commit(s) ahead. Pulling..."
+                git pull origin main --quiet 2>$null
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Log "[ERROR] git pull failed. Restoring stash and stopping."
+                    git stash pop 2>$null
+                    exit 1
+                }
+                Write-Log "[PULL] Synced with origin/main."
+            }
+
+            # 3. Stash Pop (로컬 변경 복원)
+            git stash pop 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                Write-Log "[ERROR] git stash pop failed (conflict?). Manual fix required."
+                exit 1
+            }
+            Write-Log "[POP] Stash restored."
+
+            # 4. 충돌 체크
+            $conflicts = git diff --name-only --diff-filter=U 2>$null
+            if ($conflicts) {
+                Write-Log "[CONFLICT] Conflict detected in: $($conflicts -join ', ')"
+                Write-Log "[STOP] Auto-backup stopped. Resolve conflicts and restart."
+                exit 1
+            }
+
+            # 5. Add + Commit + Push
+            git add -A 2>$null
             git commit -m "auto-backup: $timestamp" 2>$null
             if ($LASTEXITCODE -ne 0) { throw "git commit failed" }
 
-            # 원격과 동기화 (rebase로 충돌 최소화)
-            $behind = git rev-list --count main..origin/main 2>$null
-            if ($behind -gt 0) {
-                Write-Log "[SYNC] origin/main is $behind commit(s) ahead. Pulling..."
-                git pull origin main --rebase --quiet 2>$null
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Log "[ERROR] Pull rebase failed. Stopping auto-backup to prevent data loss."
-                    Write-Log "[HINT] Manually resolve conflicts and restart this script."
-                    exit 1
-                }
-            }
-
-            # push
             git push origin main 2>$null
             if ($LASTEXITCODE -ne 0) { throw "git push failed" }
 
