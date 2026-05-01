@@ -5,37 +5,47 @@ on:
     branches: [ main ]
     paths:
       - 'services/cosmetics_mvp_preprocess/output/raw/**'
-      - 'services/cosmetics_mvp_preprocess/scripts/**'
+      - 'services/cosmetics_mvp_preprocess/scripts/auto_filter_cosmetics.py'
   workflow_dispatch:
+    inputs:
+      force_run:
+        description: 'Force run even if no raw changes'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
 
 jobs:
-  process-data:
+  process:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     
     - name: Install dependencies
-      run: |
-        pip install pandas numpy requests
+      run: pip install pandas
     
-    - name: Run data processing scripts
+    - name: Run auto cosmetics filter
       run: |
         cd services/cosmetics_mvp_preprocess
-        # 필요시 데이터 처리 스크립트 실행
-        # python scripts/auto_process.py
+        python scripts/auto_filter_cosmetics.py
     
-    - name: Commit processed data
+    - name: Commit processed results
       run: |
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
-        git add output/
-        git diff --cached --quiet || git commit -m "Auto-processed buyer data [$(date +%Y-%m-%d)]"
-        git push
+        git add output/COS_combined_*.csv
+        if git diff --cached --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "auto: cosmetics filter $(date +%Y%m%d-%H%M%S)"
+          git push
+        fi
