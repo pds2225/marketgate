@@ -87,7 +87,7 @@ const quickStartItems = [
   },
 ];
 
-export default function LandingPage({ onStartAnalysis, onStartChat }) {
+export default function LandingPage({ onStartChat }) {
   const { scrollYProgress } = useScroll();
   const heroY = useTransform(scrollYProgress, [0, 0.5], [0, 90]);
   const heroScale = useTransform(scrollYProgress, [0, 0.35], [1, 1.08]);
@@ -109,7 +109,7 @@ export default function LandingPage({ onStartAnalysis, onStartChat }) {
           <span className="landing-brand-mark">VALUE-UP</span>
           <span className="landing-brand-copy">Export Fit Console</span>
         </div>
-        <button className="ui-button ui-button--ghost" onClick={onStartAnalysis}>
+        <button className="ui-button ui-button--ghost" onClick={() => onStartChat?.()}>
           분석 시작
           <ArrowRight size={16} />
         </button>
@@ -154,12 +154,25 @@ export default function LandingPage({ onStartAnalysis, onStartChat }) {
           </motion.p>
 
           <motion.div
+            className="landing-data-banner"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.16 }}
+          >
+            <ShieldCheck size={16} />
+            <span>
+              <strong>ChatGPT와 다릅니다.</strong> 모든 추천은 KOTRA 수출입통계, 관세청, World Bank
+              실제 데이터를 정량 분석한 결과입니다.
+            </span>
+          </motion.div>
+
+          <motion.div
             className="landing-hero-actions"
             initial={{ opacity: 0, y: 26 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.72, delay: 0.18 }}
           >
-            <button className="ui-button ui-button--solid" onClick={onStartAnalysis}>
+            <button className="ui-button ui-button--solid" onClick={() => onStartChat?.()}>
               추천 결과 보기
               <MoveRight size={18} />
             </button>
@@ -300,7 +313,7 @@ export default function LandingPage({ onStartAnalysis, onStartChat }) {
           <p className="landing-section-kicker">Next Screen</p>
           <h2>다음 화면에서는 실제로 HS 코드를 넣고 추천 국가를 확인할 수 있습니다.</h2>
         </div>
-        <button className="ui-button ui-button--solid" onClick={onStartAnalysis}>
+        <button className="ui-button ui-button--solid" onClick={() => onStartChat?.()}>
           분석 작업면 열기
           <ArrowRight size={18} />
         </button>

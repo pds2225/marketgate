@@ -1652,3 +1652,51 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* --- GPT 차별성 배너 --- */
+.landing-data-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  font-size: 13px;
+  color: #166534;
+  line-height: 1.5;
+}
+
+.landing-data-banner svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #22c55e;
+}
+
+.landing-data-banner strong {
+  font-weight: 700;
+}
+
+.buyer-report-data-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  font-size: 12px;
+  color: #1e40af;
+  line-height: 1.5;
+}
+
+.buyer-report-data-banner span {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.buyer-report-data-banner p {
+  margin: 0;
+}

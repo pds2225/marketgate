@@ -12,10 +12,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { API_BASE, buildApiUrl, ENDPOINTS } from "./config";
 
 const hsExamples = [
-  { code: "330499", label: "화장품" },
+  { code: "330499", label: "K-뷰티" },
   { code: "854231", label: "반도체" },
-  { code: "870899", label: "자동차 부품" },
-  { code: "190230", label: "즉석면" },
+  { code: "611030", label: "K-패션" },
+  { code: "210690", label: "건강식품" },
   { code: "850650", label: "리튬전지" },
 ];
 
@@ -483,7 +483,12 @@ async function requestAnalysis(hsCode, topN, year) {
         hint: "P1 API는 응답했지만 현재 데이터 기준 추천 국가가 없습니다.",
       };
     } catch (error) {
-      p1Issue = `P1 API 오류: ${error.message}`;
+      const msg = String(error.message || "");
+      if (msg.includes("fetch") || msg.includes("network")) {
+        p1Issue = "P1 API 서버에 연결할 수 없습니다. 터미널에서 'uvicorn main:app --reload'를 실행해 주세요.";
+      } else {
+        p1Issue = `P1 API 오류: ${msg}`;
+      }
     }
   }
 

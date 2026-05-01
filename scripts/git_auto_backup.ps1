@@ -1,11 +1,10 @@
-# MarketGate Git 자동 백업 스크립트 (Stash-Pull-Pop 안전 모드)
-# 5분마다 변경사항을 감지하여 자동으로 add → stash → pull → pop → commit → push
-# 실행: PowerShell -File scripts/git_auto_backup.ps1
+﻿# MarketGate Git ?먮룞 諛깆뾽 ?ㅽ겕由쏀듃 (Stash-Pull-Pop ?덉쟾 紐⑤뱶)
+# 5遺꾨쭏??蹂寃쎌궗??쓣 媛먯??섏뿬 ?먮룞?쇰줈 add ??stash ??pull ??pop ??commit ??push
+# ?ㅽ뻾: PowerShell -File scripts/git_auto_backup.ps1
 
 $repoPath = "D:\marketgate"
 $logFile = "D:\marketgate\.git-auto-backup.log"
-$intervalSeconds = 300  # 5분
-
+$intervalSeconds = 300  # 5遺?
 function Write-Log($msg) {
     $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  $msg"
     Write-Host $line
@@ -17,14 +16,14 @@ Write-Log "=== Git Auto Backup Started (Stash-Pull-Pop Mode) ==="
 Write-Log "Repository: $repoPath"
 Write-Log "Interval: $($intervalSeconds / 60) minutes"
 Write-Log "Log file: $logFile"
-Write-Log "Stop: Task Manager > PowerShell PID 종료"
+Write-Log "Stop: Task Manager > PowerShell PID 醫낅즺"
 Write-Log ""
 
 while ($true) {
     try {
         Set-Location $repoPath
 
-        # 현재 브랜치 확인
+        # ?꾩옱 釉뚮옖移??뺤씤
         $branch = git rev-parse --abbrev-ref HEAD 2>$null
         if ($branch -ne "main") {
             Write-Log "[SKIP] Current branch is '$branch', not main."
@@ -32,10 +31,10 @@ while ($true) {
             continue
         }
 
-        # 원격 최신 상태 fetch
+        # ?먭꺽 理쒖떊 ?곹깭 fetch
         git fetch origin main --quiet 2>$null
 
-        # 변경사항 확인 (untracked + modified + deleted)
+        # 蹂寃쎌궗???뺤씤 (untracked + modified + deleted)
         $status = git status --short 2>$null
 
         if ([string]::IsNullOrWhiteSpace($status)) {
@@ -45,12 +44,13 @@ while ($true) {
             Write-Log "[BACKUP] $changeCount changed file(s) detected."
             $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 
-            # 1. Stash (untracked 포함)
+            # 1. Stash (untracked ?ы븿)
+            if (Test-Path "$epoPath\.git-auto-backup.log") { Remove-Item "$epoPath\.git-auto-backup.log" -Force }
             git stash push -m "auto-backup-stash-$timestamp" --include-untracked 2>$null
             if ($LASTEXITCODE -ne 0) { throw "git stash failed" }
             Write-Log "[STASH] Local changes saved."
 
-            # 2. Pull (원격 최신 가져오기, rebase 없이 merge)
+            # 2. Pull (?먭꺽 理쒖떊 媛?몄삤湲? rebase ?놁씠 merge)
             $behind = git rev-list --count HEAD..origin/main 2>$null
             if ($behind -gt 0) {
                 Write-Log "[PULL] origin/main is $behind commit(s) ahead. Pulling..."
@@ -63,7 +63,7 @@ while ($true) {
                 Write-Log "[PULL] Synced with origin/main."
             }
 
-            # 3. Stash Pop (로컬 변경 복원)
+            # 3. Stash Pop (濡쒖뺄 蹂寃?蹂듭썝)
             git stash pop 2>$null
             if ($LASTEXITCODE -ne 0) {
                 Write-Log "[ERROR] git stash pop failed (conflict?). Manual fix required."
@@ -71,7 +71,7 @@ while ($true) {
             }
             Write-Log "[POP] Stash restored."
 
-            # 4. 충돌 체크
+            # 4. 異⑸룎 泥댄겕
             $conflicts = git diff --name-only --diff-filter=U 2>$null
             if ($conflicts) {
                 Write-Log "[CONFLICT] Conflict detected in: $($conflicts -join ', ')"
@@ -95,3 +95,4 @@ while ($true) {
 
     Start-Sleep -Seconds $intervalSeconds
 }
+

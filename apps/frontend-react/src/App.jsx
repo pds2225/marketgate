@@ -25,7 +25,6 @@ function App() {
 
       {page === 'landing' && (
         <LandingPage
-          onStartAnalysis={() => navigate('analysis')}
           onStartChat={(preset) => navigate('chat', preset)}
         />
       )}

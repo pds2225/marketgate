@@ -56,6 +56,10 @@ export default function BuyerReport({ buyer }) {
         <div className="buyer-report-target">
           분석 대상: {buyer.targetCountry} ({buyer.targetCountryIso3}) · HS {buyer.hsCode} ({buyer.hsLabel})
         </div>
+        <div className="buyer-report-data-banner">
+          <span>🛡️</span>
+          <p>이 보고서는 AI가 생성한 것이 아닙니다. KOTRA, 관세청, World Bank 실제 데이터를 정량 분석하여 산출한 결과입니다.</p>
+        </div>
       </div>
 
       <div className="buyer-report-divider" />
