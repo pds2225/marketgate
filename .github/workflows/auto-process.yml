@@ -1,0 +1,41 @@
+name: Auto Process Buyer Data
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'services/cosmetics_mvp_preprocess/output/raw/**'
+      - 'services/cosmetics_mvp_preprocess/scripts/**'
+  workflow_dispatch:
+
+jobs:
+  process-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install pandas numpy requests
+    
+    - name: Run data processing scripts
+      run: |
+        cd services/cosmetics_mvp_preprocess
+        # 필요시 데이터 처리 스크립트 실행
+        # python scripts/auto_process.py
+    
+    - name: Commit processed data
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git add output/
+        git diff --cached --quiet || git commit -m "Auto-processed buyer data [$(date +%Y-%m-%d)]"
+        git push
