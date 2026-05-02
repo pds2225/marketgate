@@ -10,7 +10,7 @@ import {
   Heart,
   Shirt,
 } from "lucide-react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion } from "framer-motion";
 import { useState } from "react";
 
 const proofItems = [
@@ -88,9 +88,6 @@ const quickStartItems = [
 ];
 
 export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow }) {
-  const { scrollYProgress } = useScroll();
-  const heroY = useTransform(scrollYProgress, [0, 0.5], [0, 90]);
-  const heroScale = useTransform(scrollYProgress, [0, 0.35], [1, 1.08]);
   const [toast, setToast] = useState(null);
 
   const handleChipClick = (item) => {
@@ -106,8 +103,7 @@ export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow 
     <div className="landing-page">
       <header className="landing-topbar">
         <div className="landing-brand">
-          <span className="landing-brand-mark">VALUE-UP</span>
-          <span className="landing-brand-copy">Export Fit Console</span>
+          <span className="landing-brand-mark">MarketGate</span>
         </div>
         <button className="ui-button ui-button--ghost" onClick={() => onStartChat?.()}>
           분석 시작
@@ -116,14 +112,6 @@ export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow 
       </header>
 
       <section className="landing-hero">
-        <motion.div className="landing-hero-media" style={{ y: heroY, scale: heroScale }}>
-          <img
-            src="/valueup-hero.png"
-            alt="항만과 글로벌 물류 흐름을 표현한 배경 이미지"
-          />
-          <div className="landing-hero-media-glow" />
-        </motion.div>
-
         <div className="landing-hero-copy">
           <motion.p
             className="landing-kicker"
@@ -131,16 +119,14 @@ export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow 
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55 }}
           >
-            수출 유망국 추천 1차 버전
+            Export Intelligence Platform
           </motion.p>
           <motion.h1
             initial={{ opacity: 0, y: 22 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.65, delay: 0.05 }}
           >
-            어디에 팔아야 하는지,
-            <br />
-            감이 아니라 점수로 봅니다.
+            MarketGate
           </motion.h1>
           <motion.p
             className="landing-hero-description"
@@ -337,8 +323,8 @@ export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow 
       </section>
 
       <footer className="landing-footer">
-        <span>VALUE-UP MVP</span>
-        <span>현재 단계는 수출 유망국 추천 P1입니다.</span>
+        <span>MarketGate</span>
+        <span>HS 코드 기반 수출 유망국 추천 & 바이어 매칭</span>
       </footer>
     </div>
   );

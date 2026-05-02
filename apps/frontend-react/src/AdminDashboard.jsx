@@ -172,7 +172,7 @@ export default function AdminDashboard() {
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 32, fontWeight: "bold", marginBottom: 8 }}>
           <Settings style={{ display: "inline", marginRight: 12 }} />
-          VALUE-UP AI 관리자 대시보드
+          MarketGate 관리자 대시보드
         </h1>
         <p style={{ color: "#666" }}>시스템 상태 모니터링 및 P1 계약 점검</p>
       </div>
