@@ -26,3 +26,7 @@ temp_*
 # services/cosmetics_mvp_preprocess/output/
 .env
 .DS_Store
+
+# Buyer search development artifacts
+Kimi_Agent_사이트 개선 제안/
+logs/

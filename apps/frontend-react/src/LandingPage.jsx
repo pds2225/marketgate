@@ -87,7 +87,7 @@ const quickStartItems = [
   },
 ];
 
-export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow }) {
+export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow, onStartBuyerSearch }) {
   const [toast, setToast] = useState(null);
 
   const handleChipClick = (item) => {
@@ -309,14 +309,8 @@ export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow 
             분석 작업면 열기
             <ArrowRight size={18} />
           </button>
-        </div>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <button className="ui-button ui-button--solid" onClick={onStartFlow}>
-            수출 플로우 시작
-            <ArrowRight size={18} />
-          </button>
-          <button className="ui-button ui-button--ghost" onClick={onStartAnalysis}>
-            분석 작업면 열기
+          <button className="ui-button ui-button--solid" style={{ background: '#0f766e', borderColor: '#0f766e' }} onClick={onStartBuyerSearch}>
+            글로벌 바이어 검색
             <ArrowRight size={18} />
           </button>
         </div>

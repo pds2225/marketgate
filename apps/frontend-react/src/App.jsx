@@ -4,6 +4,7 @@ import AnalysisPage from './AnalysisPage'
 import AdminDashboard from './AdminDashboard'
 import ChatModePage from './ChatModePage'
 import ExportFlowPage from './ExportFlowPage'
+import BuyerSearchPage from './pages/BuyerSearch'
 import './App.css'
 
 function App() {
@@ -28,7 +29,14 @@ function App() {
         <LandingPage
           onStartChat={(preset) => navigate('chat', preset)}
           onStartFlow={() => navigate('exportFlow')}
+          onStartBuyerSearch={() => navigate('buyerSearch')}
         />
+      )}
+
+      {page === 'buyerSearch' && (
+        <div className="fixed inset-0 z-50">
+          <BuyerSearchPage onClose={() => navigate('landing')} />
+        </div>
       )}
 
       {page === 'analysis' && (
