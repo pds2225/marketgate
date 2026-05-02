@@ -87,7 +87,7 @@ const quickStartItems = [
   },
 ];
 
-export default function LandingPage({ onStartChat }) {
+export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow }) {
   const { scrollYProgress } = useScroll();
   const heroY = useTransform(scrollYProgress, [0, 0.5], [0, 90]);
   const heroScale = useTransform(scrollYProgress, [0, 0.35], [1, 1.08]);
@@ -310,13 +310,30 @@ export default function LandingPage({ onStartChat }) {
 
       <section className="landing-cta">
         <div>
-          <p className="landing-section-kicker">Next Screen</p>
-          <h2>다음 화면에서는 실제로 HS 코드를 넣고 추천 국가를 확인할 수 있습니다.</h2>
+          <p className="landing-section-kicker">Full Export Flow</p>
+          <h2>국가 추천부터 주문서까지 한 번에.</h2>
+          <p>수출 전 과정 One-Stop 플로우를 체험해 보세요.</p>
         </div>
-        <button className="ui-button ui-button--solid" onClick={() => onStartChat?.()}>
-          분석 작업면 열기
-          <ArrowRight size={18} />
-        </button>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <button className="ui-button ui-button--solid" onClick={onStartFlow}>
+            수출 플로우 시작
+            <ArrowRight size={18} />
+          </button>
+          <button className="ui-button ui-button--ghost" onClick={onStartAnalysis}>
+            분석 작업면 열기
+            <ArrowRight size={18} />
+          </button>
+        </div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <button className="ui-button ui-button--solid" onClick={onStartFlow}>
+            수출 플로우 시작
+            <ArrowRight size={18} />
+          </button>
+          <button className="ui-button ui-button--ghost" onClick={onStartAnalysis}>
+            분석 작업면 열기
+            <ArrowRight size={18} />
+          </button>
+        </div>
       </section>
 
       <footer className="landing-footer">

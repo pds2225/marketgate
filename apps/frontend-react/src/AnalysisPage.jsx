@@ -5,8 +5,10 @@ import {
   CircleAlert,
   Database,
   LoaderCircle,
+  Mail,
   Search,
   Sparkles,
+  X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { API_BASE, buildApiUrl, ENDPOINTS } from "./config";
@@ -328,7 +330,7 @@ function normalizeP1Response(payload) {
   };
 }
 
-function BuyerShortlistPanel({ buyers }) {
+function BuyerShortlistPanel({ buyers, onInquiry }) {
   if (!buyers) {
     return null;
   }
@@ -419,6 +421,18 @@ function BuyerShortlistPanel({ buyers }) {
                     <strong>{item.matched_by || "-"}</strong>
                   </div>
                 </div>
+                {onInquiry ? (
+                  <div style={{ marginTop: 12 }}>
+                    <button
+                      className="ui-button ui-button--ghost"
+                      style={{ fontSize: 13, padding: "8px 12px" }}
+                      onClick={() => onInquiry(item)}
+                    >
+                      <Mail size={14} />
+                      인콰이어리 작성
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </div>
           ))}
@@ -569,6 +583,13 @@ export default function AnalysisPage({ onBack }) {
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState(null);
 
+  const [inquiryBuyer, setInquiryBuyer] = useState(null);
+  const [showInquiryModal, setShowInquiryModal] = useState(false);
+  const [inquiryForm, setInquiryForm] = useState({ sender_company: "", sender_name: "", message: "" });
+  const [inquiryLoading, setInquiryLoading] = useState(false);
+  const [inquiryResult, setInquiryResult] = useState(null);
+  const [inquiryError, setInquiryError] = useState("");
+
   const deferredSelectedId = useDeferredValue(selectedId);
   const selectedRecommendation =
     result?.recommendations.find((item) => item.id === deferredSelectedId) ||
@@ -603,6 +624,51 @@ export default function AnalysisPage({ onBack }) {
   const handleExample = (code) => {
     setHsCode(code);
     setError("");
+  };
+
+  const handleOpenInquiry = (buyer) => {
+    setInquiryBuyer(buyer);
+    setInquiryForm({ sender_company: "", sender_name: "", message: "" });
+    setInquiryResult(null);
+    setInquiryError("");
+    setShowInquiryModal(true);
+  };
+
+  const handleCloseInquiry = () => {
+    setShowInquiryModal(false);
+    setInquiryBuyer(null);
+    setInquiryResult(null);
+    setInquiryError("");
+  };
+
+  const handleInquirySubmit = async () => {
+    if (!inquiryForm.sender_company.trim() || !inquiryForm.sender_name.trim()) {
+      setInquiryError("회사명과 담당자 이름을 입력해 주세요.");
+      return;
+    }
+    setInquiryLoading(true);
+    setInquiryError("");
+    try {
+      const res = await fetch(buildApiUrl("/v1/inquiry", API_BASE), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          buyer_name: inquiryBuyer.buyer_name || "Unknown",
+          contact_email: inquiryBuyer.contact_email || "",
+          hs_code: inquiryBuyer.hs_code_norm || hsCode || "",
+          sender_company: inquiryForm.sender_company,
+          sender_name: inquiryForm.sender_name,
+          message: inquiryForm.message,
+        }),
+      });
+      if (!res.ok) throw new Error("인콰이어리 생성에 실패했습니다.");
+      const data = await res.json();
+      setInquiryResult(data);
+    } catch (err) {
+      setInquiryError(err.message || "잠시 후 다시 시도해 주세요.");
+    } finally {
+      setInquiryLoading(false);
+    }
   };
 
   return (
@@ -839,13 +905,158 @@ export default function AnalysisPage({ onBack }) {
                   </div>
                 </div>
 
-                <BuyerShortlistPanel buyers={result.buyers} />
+                <BuyerShortlistPanel buyers={result.buyers} onInquiry={handleOpenInquiry} />
 
                 {result.diagnostics ? (
                   <DiagnosticsPanel diagnostics={result.diagnostics} />
                 ) : null}
               </motion.div>
             ) : null}
+          </AnimatePresence>
+
+          {/* 인콰이어리 모달 */}
+          <AnimatePresence>
+            {showInquiryModal && inquiryBuyer && (
+              <motion.div
+                className="analysis-modal-overlay"
+                style={{
+                  position: "fixed",
+                  inset: 0,
+                  zIndex: 200,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "rgba(2, 6, 23, 0.72)",
+                  padding: 24,
+                }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={handleCloseInquiry}
+              >
+                <motion.div
+                  style={{
+                    width: "100%",
+                    maxWidth: 520,
+                    maxHeight: "85vh",
+                    overflowY: "auto",
+                    background: "#0f172a",
+                    border: "1px solid rgba(148,163,184,0.28)",
+                    borderRadius: 20,
+                    padding: 24,
+                  }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 20 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                    <h3 style={{ margin: 0, fontSize: 18 }}>✉️ 인콰이어리 작성</h3>
+                    <button className="ui-button ui-button--ghost" onClick={handleCloseInquiry} style={{ padding: 6 }}>
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <div style={{ marginBottom: 14, fontSize: 14, color: "#94a3b8" }}>
+                    <strong style={{ color: "#e2e8f0" }}>{inquiryBuyer.buyer_name}</strong> · {" "}
+                    {inquiryBuyer.contact_email || "연락처 미제공"}
+                  </div>
+
+                  {!inquiryResult ? (
+                    <>
+                      <label className="analysis-field" style={{ marginBottom: 12 }}>
+                        <span>회사명 (sender_company)</span>
+                        <input
+                          type="text"
+                          value={inquiryForm.sender_company}
+                          onChange={(e) => setInquiryForm((prev) => ({ ...prev, sender_company: e.target.value }))}
+                          placeholder="예: 주식회사 샘플"
+                        />
+                      </label>
+                      <label className="analysis-field" style={{ marginBottom: 12 }}>
+                        <span>담당자 이름 (sender_name)</span>
+                        <input
+                          type="text"
+                          value={inquiryForm.sender_name}
+                          onChange={(e) => setInquiryForm((prev) => ({ ...prev, sender_name: e.target.value }))}
+                          placeholder="예: 김철수"
+                        />
+                      </label>
+                      <label className="analysis-field" style={{ marginBottom: 12 }}>
+                        <span>추가 메시지 (선택)</span>
+                        <textarea
+                          rows={3}
+                          value={inquiryForm.message}
+                          onChange={(e) => setInquiryForm((prev) => ({ ...prev, message: e.target.value }))}
+                          placeholder="전달하고 싶은 내용을 입력하세요."
+                          style={{ resize: "vertical" }}
+                        />
+                      </label>
+
+                      {inquiryError ? (
+                        <div className="analysis-inline-alert" style={{ marginBottom: 12 }}>
+                          <CircleAlert size={16} />
+                          <span>{inquiryError}</span>
+                        </div>
+                      ) : null}
+
+                      <button
+                        className="ui-button ui-button--solid"
+                        onClick={handleInquirySubmit}
+                        disabled={inquiryLoading}
+                        style={{ width: "100%" }}
+                      >
+                        {inquiryLoading ? <LoaderCircle size={18} className="analysis-spin" /> : <Mail size={18} />}
+                        {inquiryLoading ? "생성 중..." : "인콰이어리 초안 생성"}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ marginBottom: 12 }}>
+                        <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6 }}>영문 초안</p>
+                        <div
+                          style={{
+                            background: "rgba(15,23,42,0.8)",
+                            border: "1px solid rgba(148,163,184,0.2)",
+                            borderRadius: 12,
+                            padding: 14,
+                            fontSize: 14,
+                            lineHeight: 1.6,
+                            whiteSpace: "pre-wrap",
+                          }}
+                        >
+                          {inquiryResult.draft_en}
+                        </div>
+                      </div>
+                      <div style={{ marginBottom: 12 }}>
+                        <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6 }}>한국어 초안</p>
+                        <div
+                          style={{
+                            background: "rgba(15,23,42,0.8)",
+                            border: "1px solid rgba(148,163,184,0.2)",
+                            borderRadius: 12,
+                            padding: 14,
+                            fontSize: 14,
+                            lineHeight: 1.6,
+                            whiteSpace: "pre-wrap",
+                          }}
+                        >
+                          {inquiryResult.draft_ko}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button className="ui-button ui-button--solid" style={{ flex: 1 }} onClick={() => {navigator.clipboard?.writeText?.(inquiryResult.draft_en);}}>
+                          영문 복사
+                        </button>
+                        <button className="ui-button ui-button--ghost" style={{ flex: 1 }} onClick={handleCloseInquiry}>
+                          닫기
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </motion.div>
+              </motion.div>
+            )}
           </AnimatePresence>
         </section>
       </main>

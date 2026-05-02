@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { ArrowLeft, Send, Mic, LayoutTemplate } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import BuyerReport from "./BuyerReport";
+import { API_BASE, buildApiUrl } from "./config";
 
 const quickStartItems = [
   { id: "kbeauty", label: "K-뷰티", hsCode: "330499", available: true },
@@ -13,45 +14,80 @@ const dummyMessages = [
   { id: 1, role: "assistant", text: "안녕하세요! 어떤 제품의 해외 바이어를 찾아드릴까요? 아래에서 바로 시작하거나, 직접 입력해 주세요." },
 ];
 
-const dummyBuyer = {
-  reportId: "#MG-0427-001",
-  issuedAt: "2026년 4월 27일",
-  targetCountry: "독일",
-  targetCountryIso3: "DEU",
-  hsCode: "330499",
-  hsLabel: "스킨케어",
-  dataDate: "2026년 4월",
-  company: {
-    name: "Beauty Wholesale GmbH",
-    normalizedName: "beauty wholesale gmbh",
-    industry: "뷰티 유통사",
-    region: "함부르크",
-    country: "독일",
-    contactName: "Procurement Team / Ms. Anna Schmidt",
-    email: "contact@beauty-wholesale.de",
-    phone: "+49-40-1234-5678",
-    website: "www.beauty-wholesale.de",
-    hasContact: true,
-  },
-  fitScore: 92,
-  fitBars: {
-    trade_history: "████████████████",
-    growth: "████████████",
-    gdp: "██████████",
-    logistics: "████████",
-  },
-  matchedTerms: ["skincare", "serum", "k-beauty", "moisturizing"],
-  recommendations: [
-    "최근 2년간 스킨케어 품목 수입 실적 보유",
-    "한국 화장품 유통 채널 확장 중",
-    "온라인/오프라인 복합 유통망 보유",
-  ],
-  dataSource: "KOTRA 글로벌 바이어 정보",
-  sourceFile: "kotra_buyers_202604.csv",
-  sourceRow: "1,847",
-  lastVerified: "2026-04-10",
-  trustStatus: "verified",
-};
+function buildBuyerReportFromApi(item, hsLabel) {
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일`;
+  const dataDateStr = `${today.getFullYear()}년 ${today.getMonth() + 1}월`;
+
+  const score = item.final_score ?? 0;
+  const bars = item.score_breakdown || {};
+  const toBar = (val) => {
+    const n = Math.max(0, Math.min(1, Number(val) || 0));
+    const filled = Math.round(n * 16);
+    return "█".repeat(filled) + "░".repeat(16 - filled);
+  };
+
+  return {
+    reportId: `#MG-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}-${Math.floor(Math.random() * 900 + 100)}`,
+    issuedAt: dateStr,
+    targetCountry: item.source_target_country_name || item.country_norm || "미확인",
+    targetCountryIso3: item.source_target_country_iso3 || "",
+    hsCode: item.hs_code_norm || "",
+    hsLabel: hsLabel || "수출품목",
+    dataDate: dataDateStr,
+    company: {
+      name: item.buyer_name || "이름 미확인",
+      normalizedName: (item.buyer_name || "").toLowerCase(),
+      industry: item.source_dataset || "유통/바이어",
+      region: item.country_norm || "미확인",
+      country: item.source_target_country_name || item.country_norm || "미확인",
+      contactName: item.contact_name || "-",
+      email: item.contact_email || "",
+      phone: item.contact_phone || "",
+      website: item.contact_website || "",
+      hasContact: !!item.has_contact,
+    },
+    fitScore: Math.round(score),
+    fitBars: {
+      trade_history: toBar(bars.trade_history_score ?? bars.trade_volume_score ?? score / 100),
+      growth: toBar(bars.growth_score ?? score / 100),
+      gdp: toBar(bars.gdp_score ?? score / 100),
+      logistics: toBar(bars.distance_score ?? score / 100),
+    },
+    matchedTerms: item.matched_terms || [],
+    recommendations: item.recommendation_lines?.length
+      ? item.recommendation_lines
+      : item.explanation_reasons?.length
+        ? item.explanation_reasons
+        : ["해당 바이어는 추천 점수 기준으로 선정되었습니다."],
+    dataSource: item.source_dataset || "KOTRA 글로벌 바이어 정보",
+    sourceFile: item.source_dataset ? `${item.source_dataset}.csv` : "-",
+    sourceRow: "-",
+    lastVerified: dateStr,
+    trustStatus: item.has_contact ? "verified" : "estimated",
+  };
+}
+
+async function fetchPredict(hsCode) {
+  const res = await fetch(buildApiUrl("/v1/predict", API_BASE), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      hs_code: hsCode,
+      exporter_country_iso3: "KOR",
+      top_n: 5,
+      year: 2023,
+      filters: { min_trade_value_usd: 0 },
+    }),
+  });
+  if (!res.ok) throw new Error("분석 요청에 실패했습니다.");
+  const payload = await res.json();
+  const buyers = payload?.data?.buyers;
+  if (!buyers || buyers.status !== "ok" || !buyers.items?.length) {
+    throw new Error("현재 조건에 맞는 바이어를 찾지 못했습니다.");
+  }
+  return buyers;
+}
 
 export default function ChatModePage({ preset, onBack, onSwitchToForm }) {
   const [messages, setMessages] = useState(dummyMessages);
@@ -59,48 +95,91 @@ export default function ChatModePage({ preset, onBack, onSwitchToForm }) {
   const [isLoading, setIsLoading] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [currentBuyer, setCurrentBuyer] = useState(null);
+  const [apiError, setApiError] = useState("");
   const bottomRef = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = () => {
+  useEffect(() => {
+    if (preset?.hsCode) {
+      const item = quickStartItems.find((i) => i.hsCode === preset.hsCode);
+      if (item) handleChipClick(item);
+    }
+  }, [preset]);
+
+  const handleSend = async () => {
     if (!input.trim()) return;
     const userMsg = { id: Date.now(), role: "user", text: input.trim() };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setIsLoading(true);
+    setApiError("");
 
-    setTimeout(() => {
-      setIsLoading(false);
-      const reply = {
-        id: Date.now() + 1,
-        role: "assistant",
-        text: `독일 K-뷰티 바이어를 검색했습니다. 적합도 기준 상위 결과입니다. 우측에서 확인해 보세요.`,
-      };
-      setMessages((prev) => [...prev, reply]);
-      setCurrentBuyer(dummyBuyer);
+    try {
+      const buyers = await fetchPredict("330499");
+      const first = buyers.items[0];
+      const report = buildBuyerReportFromApi(first, "스킨케어");
+      setCurrentBuyer(report);
       setShowReport(true);
-    }, 1200);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          text: `${report.targetCountry} ${report.hsLabel} 바이어를 검색했습니다. 적합도 기준 상위 결과입니다. 우측에서 확인해 보세요.`,
+        },
+      ]);
+    } catch (err) {
+      setApiError(err.message || "분석 중 오류가 발생했습니다.");
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          text: `죄송합니다. ${err.message || "분석 중 오류가 발생했습니다."} 폼 모드에서 직접 시도해 보세요.`,
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleChipClick = (item) => {
+  const handleChipClick = async (item) => {
     if (!item.available) return;
     const userMsg = { id: Date.now(), role: "user", text: `${item.label} 수출하고 싶어요` };
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      const reply = {
-        id: Date.now() + 1,
-        role: "assistant",
-        text: `${item.label} 독일 바이어를 검색했습니다. 적합도 기준 상위 결과입니다. 우측에서 확인해 보세요.`,
-      };
-      setMessages((prev) => [...prev, reply]);
-      setCurrentBuyer(dummyBuyer);
+    setApiError("");
+
+    try {
+      const buyers = await fetchPredict(item.hsCode);
+      const first = buyers.items[0];
+      const report = buildBuyerReportFromApi(first, item.label);
+      setCurrentBuyer(report);
       setShowReport(true);
-    }, 1200);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          text: `${item.label} ${report.targetCountry} 바이어를 검색했습니다. 적합도 기준 상위 결과입니다. 우측에서 확인해 보세요.`,
+        },
+      ]);
+    } catch (err) {
+      setApiError(err.message || "분석 중 오류가 발생했습니다.");
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          text: `죄송합니다. ${err.message || "분석 중 오류가 발생했습니다."} 폼 모드에서 직접 시도해 보세요.`,
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

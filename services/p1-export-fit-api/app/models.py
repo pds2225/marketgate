@@ -155,3 +155,26 @@ class LegacyPredictResponse(BaseModel):
     input: Dict[str, Any]
     top_countries: List[LegacyPredictResult]
     diagnostics: PredictDiagnostics
+
+
+class InquiryRequest(BaseModel):
+    buyer_name: str = Field(..., description="Buyer company name")
+    contact_email: str = Field(..., description="Buyer contact email")
+    hs_code: str = Field(..., description="HS code for the product")
+    sender_company: str = Field(..., description="Sender company name")
+    sender_name: str = Field(..., description="Sender person name")
+    message: Optional[str] = Field(default="", description="Optional additional message")
+
+
+class InquiryResponse(BaseModel):
+    inquiry_id: str
+    buyer_name: str
+    contact_email: str
+    hs_code: str
+    sender_company: str
+    sender_name: str
+    message: str
+    draft_ko: str
+    draft_en: str
+    created_at: str
+    status: str = "draft_ready"

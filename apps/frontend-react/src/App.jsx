@@ -3,6 +3,7 @@ import LandingPage from './LandingPage'
 import AnalysisPage from './AnalysisPage'
 import AdminDashboard from './AdminDashboard'
 import ChatModePage from './ChatModePage'
+import ExportFlowPage from './ExportFlowPage'
 import './App.css'
 
 function App() {
@@ -26,11 +27,16 @@ function App() {
       {page === 'landing' && (
         <LandingPage
           onStartChat={(preset) => navigate('chat', preset)}
+          onStartFlow={() => navigate('exportFlow')}
         />
       )}
 
       {page === 'analysis' && (
         <AnalysisPage onBack={() => navigate('landing')} />
+      )}
+
+      {page === 'exportFlow' && (
+        <ExportFlowPage onBack={() => navigate('landing')} />
       )}
 
       {page === 'chat' && (
