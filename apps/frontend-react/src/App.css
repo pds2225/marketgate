@@ -83,7 +83,8 @@
 
 .landing-page {
   position: relative;
-  overflow: clip; /* prevents horizontal bleed from decorative gradients without clipping vertical scroll */
+  overflow-x: clip; /* prevents horizontal bleed; keeps vertical scroll */
+  overflow-y: visible;
   min-height: 100svh;
   background:
     radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 24rem),
@@ -100,7 +101,10 @@
   justify-content: space-between;
   align-items: center;
   gap: 18px;
-  padding: 22px clamp(20px, 4vw, 48px);
+  padding-top: max(22px, env(safe-area-inset-top, 0px));
+  padding-right: max(clamp(20px, 4vw, 48px), env(safe-area-inset-right, 0px));
+  padding-bottom: 22px;
+  padding-left: max(clamp(20px, 4vw, 48px), env(safe-area-inset-left, 0px));
   background: linear-gradient(180deg, rgba(248, 250, 248, 0.88), rgba(248, 250, 248, 0.4));
   backdrop-filter: blur(12px);
 }
@@ -207,6 +211,13 @@
   border: 1px solid rgba(15, 23, 42, 0.08);
   color: var(--color-muted);
   backdrop-filter: blur(10px);
+  max-width: 100%;
+}
+
+.landing-hero-note span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
 }
 
 .landing-signal-rail {
@@ -306,6 +317,7 @@
 .analysis-loading h2 {
   margin: 0;
   font-size: clamp(2rem, 4vw, 3.8rem);
+  overflow-wrap: break-word;
 }
 
 .landing-proof-grid {
@@ -437,6 +449,11 @@
 
 .analysis-page {
   min-height: 100svh;
+  overflow-x: clip;
+  box-sizing: border-box;
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
   background:
     radial-gradient(circle at top right, rgba(14, 116, 144, 0.16), transparent 24rem),
     linear-gradient(180deg, #eff6f5 0%, #e8edeb 100%);
@@ -448,7 +465,7 @@
   justify-content: space-between;
   gap: 12px 24px;
   align-items: flex-end;
-  padding: 20px clamp(16px, 4vw, 48px) 14px;
+  padding: max(28px, env(safe-area-inset-top, 0px)) clamp(16px, 4vw, 48px) 14px;
 }
 
 .analysis-header-main {
@@ -456,6 +473,8 @@
   flex-wrap: wrap;
   align-items: end;
   gap: 16px;
+  min-width: 0;
+  flex: 1;
 }
 
 .analysis-header-main h1 {
@@ -464,11 +483,13 @@
 
 .analysis-layout {
   width: min(1320px, calc(100% - 32px));
+  max-width: 100%;
   margin: 0 auto;
   display: grid;
   grid-template-columns: minmax(min(280px, 100%), 360px) minmax(0, 1fr);
   gap: 20px;
   padding: 18px 0 40px;
+  min-width: 0;
 }
 
 .analysis-input-rail {
@@ -601,6 +622,7 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
+  min-width: 0;
 }
 
 .analysis-empty,
@@ -1886,4 +1908,161 @@
 
 .buyer-report-data-banner p {
   margin: 0;
+}
+/* ========== Landing Page Enhancement (2025-05-03) ========== */
+
+/* Hero: remove 2-column forced height to prevent clipping */
+.landing-hero {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: auto;
+  padding: 32px 0 48px;
+  align-items: start;
+}
+
+/* Hero headline sizing for multi-line service description */
+.landing-hero .landing-hero-copy h1 {
+  font-size: clamp(2.8rem, 7vw, 5.2rem);
+  line-height: 1.15;
+}
+
+/* ---------- Trust Metrics ---------- */
+.landing-trust {
+  width: min(1280px, calc(100% - 32px));
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 32px 0 56px;
+}
+
+.landing-trust-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.landing-trust-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 20px;
+  border-radius: 28px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(14px);
+  text-align: center;
+}
+
+.landing-trust-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: rgba(15, 118, 110, 0.12);
+  color: #115e59;
+}
+
+.landing-trust-item strong {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  letter-spacing: -0.03em;
+  color: #0f766e;
+}
+
+.landing-trust-item span {
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+/* ---------- Problem Questions ---------- */
+.landing-problems {
+  width: min(1280px, calc(100% - 32px));
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 32px 0 56px;
+}
+
+.landing-problem-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.landing-problem-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  border-radius: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(14px);
+  color: #0f172a;
+}
+
+.landing-problem-item svg {
+  flex-shrink: 0;
+  color: #0f766e;
+}
+
+.landing-problem-item p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+/* ---------- Workflow 5-step ---------- */
+.landing-workflow--5 {
+  display: grid;
+  gap: 16px;
+}
+
+/* ---------- Bottom CTA ---------- */
+.landing-cta-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ---------- Responsive fixes ---------- */
+@media (max-width: 1180px) {
+  .landing-trust-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .landing-hero {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    padding-top: 16px;
+  }
+}
+
+@media (max-width: 760px) {
+  .landing-trust-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-problem-item {
+    padding: 16px 18px;
+  }
+
+  .landing-problem-item p {
+    font-size: 15px;
+  }
+
+  .landing-cta-actions {
+    width: 100%;
+  }
+
+  .landing-cta-actions .ui-button {
+    width: 100%;
+  }
 }
