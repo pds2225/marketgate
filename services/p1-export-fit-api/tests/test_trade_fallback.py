@@ -28,6 +28,18 @@ def test_allocate_world_trade_proxy_value_respects_kotra_weights():
     assert jpn_value == 200.0
 
 
+def test_allocate_world_trade_proxy_value_preserves_total_with_zero_weights():
+    scores = {"USA": 30.0, "JPN": 10.0, "VNM": 0.0}
+
+    allocations = [
+        _allocate_world_trade_proxy_value(1_000.0, iso3, scores)
+        for iso3 in scores
+    ]
+
+    assert sum(value or 0.0 for value in allocations) == pytest.approx(1_000.0)
+    assert allocations[2] == pytest.approx(1_000.0 / 3.0)
+
+
 def test_kor_2023_world_trade_total_exists_for_hs_330499():
     ds = load_datastore()
     value = get_world_trade_value_usd(ds.trade, 2023, "KOR", "330499")
