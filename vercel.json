@@ -1,3 +1,4 @@
 {
-  "rootDirectory": "apps/frontend-react"
+  "rootDirectory": "apps/frontend-react",
+  "outputDirectory": "dist"
 }
