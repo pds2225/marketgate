@@ -792,15 +792,27 @@ export default function AnalysisPage({ onBack }) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
               >
-                <Sparkles size={20} />
+                <div className="analysis-empty-icon">
+                  <Sparkles size={22} />
+                </div>
                 <h2>왼쪽에서 품목을 고르고 추천 국가 계산을 시작하세요.</h2>
                 <p>
                   결과에는 추천 국가 점수, 선택 국가의 핵심 지표, 바로 연락할 수 있는
                   추천 바이어가 순서대로 정리됩니다.
                 </p>
-                <div className="analysis-empty-actions">
-                  <span>기본 예시: K-뷰티 330499</span>
-                  <span>권장 시작: 추천 국가 5개</span>
+                <div className="analysis-steps">
+                  <div className="analysis-step">
+                    <span className="analysis-step-num">1</span>
+                    <span>위 예시 칩을 클릭하거나 HS 코드를 직접 입력</span>
+                  </div>
+                  <div className="analysis-step">
+                    <span className="analysis-step-num">2</span>
+                    <span>추천 국가 수·기준 연도 확인 후 필요시 변경</span>
+                  </div>
+                  <div className="analysis-step">
+                    <span className="analysis-step-num">3</span>
+                    <span><strong>추천 국가 계산</strong> 버튼 클릭 → 결과 확인</span>
+                  </div>
                 </div>
               </motion.div>
             ) : null}

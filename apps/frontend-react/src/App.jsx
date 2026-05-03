@@ -34,7 +34,7 @@ function App() {
       )}
 
       {page === 'buyerSearch' && (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-50 overflow-y-auto">
           <BuyerSearchPage onClose={() => navigate('landing')} />
         </div>
       )}
