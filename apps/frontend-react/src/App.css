@@ -492,6 +492,45 @@
   padding: 24px;
 }
 
+.analysis-next-steps {
+  display: grid;
+  gap: 10px;
+}
+
+.analysis-next-steps div {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 4px 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.analysis-next-steps span {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+  background: rgba(15, 118, 110, 0.12);
+  color: #115e59;
+  font-family: var(--font-display);
+}
+
+.analysis-next-steps strong {
+  font-size: 14px;
+  color: var(--color-ink);
+}
+
+.analysis-next-steps p {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .analysis-example-list {
   display: flex;
   flex-wrap: wrap;
@@ -578,6 +617,21 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.analysis-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.analysis-empty-actions span {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #334155;
+  font-size: 13px;
 }
 
 .analysis-overview {
@@ -943,6 +997,10 @@
   }
 
   .analysis-card {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-next-steps {
     grid-template-columns: 1fr;
   }
 
