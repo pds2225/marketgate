@@ -43,3 +43,41 @@
 5. 테스트 결과
 6. 충돌 가능성
 7. 다음 프롬프트 1개
+
+# MarketGate React/Vercel 작업 고정 규칙
+
+이번 프로젝트의 웹사이트 개선 대상은 Vercel에 배포되는 React 프론트엔드다.
+
+작업 기준:
+- 작업 대상 폴더: apps/frontend-react
+- 로컬 확인 URL: http://localhost:5173/
+- 배포 확인 URL: https://marketgate.vercel.app
+- Streamlit localhost:8503은 이번 웹사이트 개선 대상이 아니다.
+- services/p1-export-fit-api/streamlit_app.py 수정 금지
+
+주요 파일:
+- apps/frontend-react/src/LandingPage.jsx
+- apps/frontend-react/src/AnalysisPage.jsx
+- apps/frontend-react/src/App.css
+- apps/frontend-react/src/App.jsx
+
+필수 제한:
+- 백엔드 수정 금지
+- API 응답 구조 변경 금지
+- 새 라이브러리 추가 금지
+- 대규모 리팩토링 금지
+- 기존 구조 유지
+- 최소 변경 패치
+- TASKS.md와 auto_prompt_*.md는 건드리지 말 것
+
+검증 기준:
+1. apps/frontend-react에서 npm run build 성공
+2. npm run dev 실행 후 http://localhost:5173/ 확인
+3. 화면 잘림 여부 확인
+4. 문제 없으면 GitHub main에 push
+5. Vercel https://marketgate.vercel.app 에서 최종 확인
+
+응답 시 항상 구분:
+- localhost:5173 = React 로컬 개발 화면
+- marketgate.vercel.app = React Vercel 배포 화면
+- localhost:8503 = Streamlit 로컬 화면, 이번 작업 대상 아님
