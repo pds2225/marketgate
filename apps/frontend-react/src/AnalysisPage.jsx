@@ -702,6 +702,24 @@ export default function AnalysisPage({ onBack }) {
               </p>
             </div>
 
+            <div className="analysis-next-steps" aria-label="분석 진행 순서">
+              <div>
+                <span>1</span>
+                <strong>품목 선택</strong>
+                <p>예시를 누르거나 HS 코드를 입력합니다.</p>
+              </div>
+              <div>
+                <span>2</span>
+                <strong>조건 확인</strong>
+                <p>추천 국가 수와 기준 연도를 맞춥니다.</p>
+              </div>
+              <div>
+                <span>3</span>
+                <strong>결과 검토</strong>
+                <p>국가 점수와 추천 바이어를 함께 봅니다.</p>
+              </div>
+            </div>
+
             <div className="analysis-example-list">
               {hsExamples.map((item) => (
                 <button
@@ -777,8 +795,11 @@ export default function AnalysisPage({ onBack }) {
                 <div className="analysis-empty-icon">
                   <Sparkles size={22} />
                 </div>
-                <h2>왼쪽에서 HS 코드를 입력하고 분석을 시작하세요</h2>
-                <p>수출 유망국 점수가 이 영역에 국가별 카드로 나타납니다.</p>
+                <h2>왼쪽에서 품목을 고르고 추천 국가 계산을 시작하세요.</h2>
+                <p>
+                  결과에는 추천 국가 점수, 선택 국가의 핵심 지표, 바로 연락할 수 있는
+                  추천 바이어가 순서대로 정리됩니다.
+                </p>
                 <div className="analysis-steps">
                   <div className="analysis-step">
                     <span className="analysis-step-num">1</span>
