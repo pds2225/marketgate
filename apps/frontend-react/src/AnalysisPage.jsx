@@ -774,12 +774,25 @@ export default function AnalysisPage({ onBack }) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
               >
-                <Sparkles size={20} />
-                <h2>추천 국가가 이 영역에 나타납니다.</h2>
-                <p>
-                  점수는 여러 지표를 한데 모아 계산한 결과입니다. 비개발자 기준으로는
-                  “어느 나라가 더 유망한지 숫자로 정리한 표”라고 보면 됩니다.
-                </p>
+                <div className="analysis-empty-icon">
+                  <Sparkles size={22} />
+                </div>
+                <h2>왼쪽에서 HS 코드를 입력하고 분석을 시작하세요</h2>
+                <p>수출 유망국 점수가 이 영역에 국가별 카드로 나타납니다.</p>
+                <div className="analysis-steps">
+                  <div className="analysis-step">
+                    <span className="analysis-step-num">1</span>
+                    <span>위 예시 칩을 클릭하거나 HS 코드를 직접 입력</span>
+                  </div>
+                  <div className="analysis-step">
+                    <span className="analysis-step-num">2</span>
+                    <span>추천 국가 수·기준 연도 확인 후 필요시 변경</span>
+                  </div>
+                  <div className="analysis-step">
+                    <span className="analysis-step-num">3</span>
+                    <span><strong>추천 국가 계산</strong> 버튼 클릭 → 결과 확인</span>
+                  </div>
+                </div>
               </motion.div>
             ) : null}
 
