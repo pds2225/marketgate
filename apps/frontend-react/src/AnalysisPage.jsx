@@ -7,7 +7,6 @@ import {
   LoaderCircle,
   Mail,
   Search,
-  Sparkles,
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -792,28 +791,32 @@ export default function AnalysisPage({ onBack }) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
               >
-                <div className="analysis-empty-icon">
-                  <Sparkles size={22} />
+                <div className="analysis-empty-steps">
+                  <div className="analysis-empty-step">
+                    <span className="analysis-empty-step-num">1</span>
+                    <div>
+                      <strong>HS 코드 입력</strong>
+                      <span>왼쪽 패널에서 품목 코드를 입력하거나 예시를 클릭하세요.</span>
+                    </div>
+                  </div>
+                  <div className="analysis-empty-step">
+                    <span className="analysis-empty-step-num">2</span>
+                    <div>
+                      <strong>추천 국가 계산</strong>
+                      <span>버튼을 누르면 데이터 기반 유망 시장을 자동 분석합니다.</span>
+                    </div>
+                  </div>
+                  <div className="analysis-empty-step">
+                    <span className="analysis-empty-step-num">3</span>
+                    <div>
+                      <strong>결과 확인 및 바이어 탐색</strong>
+                      <span>점수·지표·바이어 후보까지 한 화면에 정리됩니다.</span>
+                    </div>
+                  </div>
                 </div>
-                <h2>왼쪽에서 품목을 고르고 추천 국가 계산을 시작하세요.</h2>
-                <p>
-                  결과에는 추천 국가 점수, 선택 국가의 핵심 지표, 바로 연락할 수 있는
-                  추천 바이어가 순서대로 정리됩니다.
+                <p className="analysis-empty-hint">
+                  왼쪽 입력 패널에서 <strong>추천 국가 계산</strong> 버튼을 눌러 시작하세요.
                 </p>
-                <div className="analysis-steps">
-                  <div className="analysis-step">
-                    <span className="analysis-step-num">1</span>
-                    <span>위 예시 칩을 클릭하거나 HS 코드를 직접 입력</span>
-                  </div>
-                  <div className="analysis-step">
-                    <span className="analysis-step-num">2</span>
-                    <span>추천 국가 수·기준 연도 확인 후 필요시 변경</span>
-                  </div>
-                  <div className="analysis-step">
-                    <span className="analysis-step-num">3</span>
-                    <span><strong>추천 국가 계산</strong> 버튼 클릭 → 결과 확인</span>
-                  </div>
-                </div>
               </motion.div>
             ) : null}
 
