@@ -83,7 +83,7 @@
 
 .landing-page {
   position: relative;
-  overflow: hidden;
+  overflow: clip; /* prevents horizontal bleed from decorative gradients without clipping vertical scroll */
   min-height: 100svh;
   background:
     radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 24rem),
@@ -144,7 +144,7 @@
   grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
   gap: clamp(24px, 4vw, 48px);
   padding: 32px 0 56px;
-  min-height: calc(100svh - 88px);
+  min-height: min(calc(100svh - 88px), 860px); /* cap so short viewports don't cut off content */
   align-items: center;
   background: #ffffff;
 }
@@ -444,10 +444,11 @@
 
 .analysis-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 24px;
-  align-items: end;
-  padding: 28px clamp(20px, 4vw, 48px) 18px;
+  gap: 12px 24px;
+  align-items: flex-end;
+  padding: 20px clamp(16px, 4vw, 48px) 14px;
 }
 
 .analysis-header-main {
@@ -458,22 +459,25 @@
 }
 
 .analysis-header-main h1 {
-  font-size: clamp(2.4rem, 5vw, 4.2rem);
+  font-size: clamp(1.6rem, 3.5vw, 3.2rem);
 }
 
 .analysis-layout {
   width: min(1320px, calc(100% - 32px));
   margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  grid-template-columns: minmax(min(280px, 100%), 360px) minmax(0, 1fr);
   gap: 20px;
   padding: 18px 0 40px;
 }
 
 .analysis-input-rail {
   position: sticky;
-  top: 94px;
+  top: 16px;
   height: fit-content;
+  max-height: calc(100svh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .analysis-input-card,
@@ -602,7 +606,7 @@
 
 .analysis-panels {
   display: grid;
-  grid-template-columns: minmax(0, 0.92fr) minmax(320px, 0.88fr);
+  grid-template-columns: minmax(0, 0.92fr) minmax(min(320px, 100%), 0.88fr);
   gap: 18px;
   align-items: start;
 }
@@ -738,7 +742,7 @@
 
 .analysis-detail-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 12px;
 }
 
@@ -882,7 +886,6 @@
 
   .analysis-layout,
   .analysis-panels,
-  .analysis-detail-grid,
   .landing-proof-grid,
   .landing-cta {
     grid-template-columns: 1fr;
@@ -890,15 +893,13 @@
 
   .analysis-input-rail {
     position: static;
+    max-height: none;
+    overflow-y: visible;
   }
 
   .landing-cta {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .analysis-detail-grid {
-    display: grid;
   }
 }
 
@@ -942,6 +943,47 @@
 
   .analysis-detail-head {
     flex-direction: column;
+  }
+
+  .analysis-header-main h1 {
+    font-size: clamp(1.4rem, 6vw, 2rem);
+  }
+
+  .analysis-header {
+    align-items: flex-start;
+    padding: 16px 16px 12px;
+  }
+
+  .analysis-header-status {
+    font-size: 12px;
+    flex-wrap: wrap;
+  }
+
+  .analysis-layout {
+    width: calc(100% - 24px);
+    padding: 12px 0 32px;
+  }
+
+  .analysis-input-card {
+    padding: 16px;
+    gap: 14px;
+    border-radius: 20px;
+  }
+
+  .analysis-detail {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
+  .analysis-empty,
+  .analysis-loading {
+    padding: 24px 16px;
+    min-height: 240px;
+    border-radius: 24px;
+  }
+
+  .buyer-report {
+    padding: 16px;
   }
 }
 
@@ -1044,7 +1086,8 @@
 .chat-mode-page {
   display: flex;
   flex-direction: column;
-  height: 100svh;
+  min-height: 100svh;
+  height: 100svh; /* keep full-height chat for desktop */
   background: #f8fafc;
 }
 
@@ -1095,6 +1138,7 @@
 .chat-mode-body {
   display: flex;
   flex: 1;
+  min-height: 0; /* allows flex child to shrink and scroll instead of overflowing */
   overflow: hidden;
 }
 
@@ -1243,6 +1287,10 @@
 }
 
 @media (max-width: 768px) {
+  .chat-mode-page {
+    height: 100svh;
+    height: -webkit-fill-available; /* iOS Safari fix */
+  }
   .chat-mode-body {
     flex-direction: column;
   }
