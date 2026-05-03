@@ -30,6 +30,7 @@ function App() {
           onStartChat={(preset) => navigate('chat', preset)}
           onStartFlow={() => navigate('exportFlow')}
           onStartBuyerSearch={() => navigate('buyerSearch')}
+          onStartAnalysis={() => navigate('analysis')}
         />
       )}
 
