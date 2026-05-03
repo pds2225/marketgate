@@ -7,7 +7,6 @@ import {
   LoaderCircle,
   Mail,
   Search,
-  Sparkles,
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -774,11 +773,31 @@ export default function AnalysisPage({ onBack }) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
               >
-                <Sparkles size={20} />
-                <h2>추천 국가가 이 영역에 나타납니다.</h2>
-                <p>
-                  점수는 여러 지표를 한데 모아 계산한 결과입니다. 비개발자 기준으로는
-                  “어느 나라가 더 유망한지 숫자로 정리한 표”라고 보면 됩니다.
+                <div className="analysis-empty-steps">
+                  <div className="analysis-empty-step">
+                    <span className="analysis-empty-step-num">1</span>
+                    <div>
+                      <strong>HS 코드 입력</strong>
+                      <span>왼쪽 패널에서 품목 코드를 입력하거나 예시를 클릭하세요.</span>
+                    </div>
+                  </div>
+                  <div className="analysis-empty-step">
+                    <span className="analysis-empty-step-num">2</span>
+                    <div>
+                      <strong>추천 국가 계산</strong>
+                      <span>버튼을 누르면 데이터 기반 유망 시장을 자동 분석합니다.</span>
+                    </div>
+                  </div>
+                  <div className="analysis-empty-step">
+                    <span className="analysis-empty-step-num">3</span>
+                    <div>
+                      <strong>결과 확인 및 바이어 탐색</strong>
+                      <span>점수·지표·바이어 후보까지 한 화면에 정리됩니다.</span>
+                    </div>
+                  </div>
+                </div>
+                <p className="analysis-empty-hint">
+                  왼쪽 입력 패널에서 <strong>추천 국가 계산</strong> 버튼을 눌러 시작하세요.
                 </p>
               </motion.div>
             ) : null}

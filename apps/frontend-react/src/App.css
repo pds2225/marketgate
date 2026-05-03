@@ -758,6 +758,68 @@
   justify-content: center;
 }
 
+.analysis-empty-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.analysis-empty-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(15, 118, 110, 0.04);
+  border: 1px solid rgba(15, 118, 110, 0.1);
+}
+
+.analysis-empty-step-num {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #115e59, #0f766e);
+  color: #f8fafc;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.analysis-empty-step div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.analysis-empty-step strong {
+  font-size: 14px;
+  color: var(--color-ink);
+}
+
+.analysis-empty-step span {
+  font-size: 13px;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.analysis-empty-hint {
+  margin: 8px 0 0;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: rgba(15, 118, 110, 0.08);
+  font-size: 14px;
+  color: #115e59;
+  text-align: center;
+}
+
+.analysis-empty-hint strong {
+  font-weight: 700;
+}
+
 .analysis-spin {
   animation: spin 1s linear infinite;
 }
