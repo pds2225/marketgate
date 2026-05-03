@@ -40,14 +40,22 @@ def _allocate_world_trade_proxy_value(
         return None
 
     weight = float(candidate_score_map.get(partner_iso3, 0.0))
-    total_weight = sum(max(float(v), 0.0) for v in candidate_score_map.values())
+    positive_weights = [max(float(v), 0.0) for v in candidate_score_map.values()]
+    total_weight = sum(positive_weights)
+    n = float(len(candidate_score_map) or 1)
 
-    if total_weight <= 0 or weight <= 0:
+    if total_weight <= 0:
         # KOTRA 가중치가 없어도 균등 배분 proxy를 부여해 data_missing 배제를 방지한다
-        n = float(len(candidate_score_map) or 1)
         return float(world_trade_value_usd) / n
 
-    return float(world_trade_value_usd) * (weight / total_weight)
+    non_positive_count = sum(1 for v in candidate_score_map.values() if float(v) <= 0)
+    equal_share = float(world_trade_value_usd) / n
+    if weight <= 0:
+        return equal_share
+
+    zero_weight_pool = equal_share * non_positive_count
+    weighted_pool = max(float(world_trade_value_usd) - zero_weight_pool, 0.0)
+    return weighted_pool * (weight / total_weight)
 
 
 def _summarize_reason_counts(hard_reasons: Dict[str, List[str]]) -> Dict[str, int]:
