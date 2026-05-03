@@ -762,6 +762,94 @@
   animation: spin 1s linear infinite;
 }
 
+/* ========== Analysis Empty State: 3-step guide ========== */
+.analysis-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: rgba(15, 118, 110, 0.12);
+  color: #0f766e;
+  flex-shrink: 0;
+}
+
+.analysis-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  width: 100%;
+  max-width: 480px;
+}
+
+.analysis-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--color-ink);
+  line-height: 1.6;
+}
+
+.analysis-step-num {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: rgba(15, 118, 110, 0.15);
+  color: #0f766e;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+/* ========== Input field: focus + hover states ========== */
+.analysis-field input:hover,
+.analysis-field select:hover {
+  border-color: rgba(15, 118, 110, 0.3);
+}
+
+.analysis-field input:focus,
+.analysis-field select:focus {
+  outline: none;
+  border-color: rgba(15, 118, 110, 0.6);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1);
+}
+
+/* ========== analysis-card: cleaner hover + focus ========== */
+.analysis-card:hover:not(.is-selected) {
+  border-color: rgba(15, 118, 110, 0.22);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.analysis-card:focus-visible {
+  outline: 2px solid rgba(15, 118, 110, 0.5);
+  outline-offset: 2px;
+}
+
+/* ========== detail-row: remove large fixed min-height ========== */
+.analysis-detail-row {
+  min-height: unset;
+  padding: 14px 16px;
+}
+
+/* ========== ui-button: focus-visible ring ========== */
+.ui-button:focus-visible {
+  outline: 2px solid rgba(15, 118, 110, 0.55);
+  outline-offset: 3px;
+}
+
+/* ========== analysis-chip: hover state ========== */
+.analysis-chip:hover:not(.is-active) {
+  border-color: rgba(15, 118, 110, 0.35);
+  background: rgba(15, 118, 110, 0.06);
+}
+
 @keyframes spin {
   from {
     transform: rotate(0deg);
