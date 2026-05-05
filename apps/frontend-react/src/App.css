@@ -1231,6 +1231,13 @@
   cursor: pointer;
 }
 
+.chat-mode-toggle[aria-current="page"] {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #fff;
+  cursor: default;
+}
+
 .chat-mode-body {
   display: flex;
   flex: 1;
@@ -1328,6 +1335,11 @@
   font-size: 10px;
   padding: 1px 6px;
   border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+}
+
+.chat-chip--soon .chat-chip-badge {
   background: #f1f5f9;
   color: #64748b;
 }

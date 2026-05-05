@@ -13,7 +13,7 @@ function App() {
   const navigate = (nextPage, preset = null) => {
     startTransition(() => {
       setPage(nextPage)
-      if (preset) setChatPreset(preset)
+      setChatPreset(preset)
     })
   }
 
@@ -41,7 +41,7 @@ function App() {
       )}
 
       {page === 'analysis' && (
-        <AnalysisPage onBack={() => navigate('landing')} />
+        <AnalysisPage onBack={() => navigate('landing')} preset={chatPreset} />
       )}
 
       {page === 'exportFlow' && (
@@ -53,6 +53,7 @@ function App() {
           preset={chatPreset}
           onBack={() => navigate('landing')}
           onSwitchToForm={() => navigate('analysis')}
+          onStartWizard={(preset) => navigate('analysis', preset)}
         />
       )}
 
