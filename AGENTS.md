@@ -81,3 +81,32 @@
 - localhost:5173 = React 로컬 개발 화면
 - marketgate.vercel.app = React Vercel 배포 화면
 - localhost:8503 = Streamlit 로컬 화면, 이번 작업 대상 아님
+
+## Cursor Cloud specific instructions
+
+### Services overview
+
+| Service | Location | Start command |
+|---|---|---|
+| **p1-export-fit-api** (FastAPI) | `services/p1-export-fit-api/` | `uvicorn main:app --reload --port 8000` |
+| **frontend-react** (Vite + React 19) | `apps/frontend-react/` | `npm run dev` (requires Node 20.x via nvm) |
+| **cosmetics_mvp_preprocess** | `services/cosmetics_mvp_preprocess/` | Scripts only — no long-running server |
+
+### Running services
+
+- **Backend API** must start from `services/p1-export-fit-api/` directory (it loads CSV files via relative paths).
+- **Frontend** runs on port 5173 and expects the API at `localhost:8000`. CORS is configured for `localhost:5173`.
+- Node.js 20.x is installed via nvm. Source nvm before running node/npm: `export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"`
+
+### Lint / Test / Build
+
+- **Frontend lint**: `cd apps/frontend-react && npx eslint .` (pre-existing lint errors exist in the codebase)
+- **Frontend build**: `cd apps/frontend-react && npm run build`
+- **API tests**: `cd services/p1-export-fit-api && python3 -m pytest tests/ -v` (13/14 pass; 1 pre-existing failure in `test_build_buyer_shortlist_merges_top_three_countries`)
+- **Preprocess tests**: `cd services/cosmetics_mvp_preprocess && python3 -m pytest tests/ -v` (98/101 pass; 3 pre-existing failures due to missing `python` symlink and subprocess calls)
+
+### Gotchas
+
+- The `python` command is not available by default (only `python3`). Some subprocess calls in `cosmetics_mvp_preprocess` tests fail because of this.
+- The frontend uses client-side state routing (not URL routing). All navigation is via button clicks from the landing page.
+- The export recommendation flow is accessed via "수출 플로우 시작" button on the landing page, not the chat mode.
