@@ -250,9 +250,10 @@ def build_buyer_shortlist(req: Any, country_results: list[dict[str, Any]]) -> Bu
     limit = min(int(getattr(req, "top_n", 5) or 5), 10)
     include_rejected = bool(getattr(req, "include_rejected", False))
 
-    if not (BUYER_CSV.exists() and OPPORTUNITY_CSV.exists()):
+    if not BUYER_CSV.exists():
         meta = _empty_buyer_meta(source_countries)
         meta["missing_output"] = True
+        meta["missing_files"] = [str(BUYER_CSV)]
         return BuyerShortlistData(
             status="ok",
             target_country_iso3=top_country_iso3,
@@ -262,6 +263,19 @@ def build_buyer_shortlist(req: Any, country_results: list[dict[str, Any]]) -> Bu
             items=[],
             error=None,
         )
+
+    # opportunity_item.csv가 없으면 임시 빈 파일 생성 (shortlist_service 호환성)
+    if not OPPORTUNITY_CSV.exists():
+        try:
+            import pandas as pd
+            empty_opportunity = pd.DataFrame(columns=[
+                "title", "country_norm", "hs_code_norm", "keywords_norm",
+                "product_name_norm", "signal_usable", "valid_until"
+            ])
+            OPPORTUNITY_CSV.parent.mkdir(parents=True, exist_ok=True)
+            empty_opportunity.to_csv(OPPORTUNITY_CSV, index=False, encoding="utf-8-sig")
+        except Exception as exc:
+            logger.warning(f"[buyer_shortlist] opportunity_item.csv 임시 생성 실패: {exc}")
 
     try:
         shortlist_results: list[dict[str, Any]] = []
