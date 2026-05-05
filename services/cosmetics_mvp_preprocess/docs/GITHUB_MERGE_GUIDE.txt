@@ -1,0 +1,99 @@
+GitHub 저장소 병합 작업 가이드
+================================
+
+대상 저장소: https://github.com/pds2225/marketgate
+
+Step 1. 병합할 파일 준비
+─────────────────────────────────────
+아래 파일을 GitHub에 업로드할 폴더 구조로 정리:
+
+services/cosmetics_mvp_preprocess/output/
+  ├── buyer_candidate.csv                    ← 기존 파일 (34,088건)
+  ├── buyer_candidate_20250430_backup.csv    ← 기존 백업
+  ├── buyer_candidate_CLEANED_20250430.csv   ← 신규 병합본 (18,012건 화장품)
+  ├── NONCOS_buyer_data_20250430.csv         ← 비화장품 분리 (2,083건)
+  ├── data_catalog_updated_20250430.csv      ← API 현황 업데이트
+  └── raw/
+      ├── sns_buyer_2025.csv                 ← 원본 SNS 데이터
+      ├── gobiz_inquiry_2024.csv             ← 원본 GoBiz 인콰이어리
+      ├── gobiz_inquiry_2021_2023.csv        ← 원본 GoBiz 인콰이어리
+      ├── gobiz_purchase_offer.csv           ← 원본 GoBiz 구매오퍼
+      └── nipa_ict_buyer.csv                 ← 원본 NIPA 데이터
+
+services/cosmetics_mvp_preprocess/docs/
+  ├── DATA_COLLECTION_GUIDE.md               ← 데이터 수집 가이드
+  ├── API_STATUS_REPORT.txt                  ← API 반영 현황
+  └── NICE_DNB_신청가이드.txt                 ← NICE D&B 신청 방법
+
+services/cosmetics_mvp_preprocess/scripts/
+  ├── fetch_govdata_api.py                   ← 공공데이터 API 호출
+  ├── fetch_buykorea_inquiry.py              ← buyKOREA 인콰이어리
+  ├── nice_dnb_poc.py                        ← NICE D&B PoC 코드
+  └── enrich_emails.py                       ← 이메일 확보 파이프라인
+
+Step 2. Git Push 명령
+─────────────────────────────────────
+# 1. 로컬에 임시 clone
+cd /tmp
+git clone https://github.com/pds2225/marketgate.git
+cd marketgate
+
+# 2. 기존 파일 백업
+cp services/cosmetics_mvp_preprocess/output/buyer_candidate.csv \
+   services/cosmetics_mvp_preprocess/output/buyer_candidate_20250430_backup.csv
+
+# 3. 신규 파일 복사
+cp /mnt/agents/output/buyer_candidate_CLEANED_20250430.csv \
+   services/cosmetics_mvp_preprocess/output/
+cp /mnt/agents/output/NONCOS_buyer_data.csv \
+   services/cosmetics_mvp_preprocess/output/NONCOS_buyer_data_20250430.csv
+cp /mnt/agents/output/data_catalog_updated.csv \
+   services/cosmetics_mvp_preprocess/output/data_catalog_updated_20250430.csv
+
+# 4. 원본 raw 데이터 폴더 생성
+mkdir -p services/cosmetics_mvp_preprocess/output/raw
+cp /mnt/agents/output/sns_buyer_cosmetics_transformed.csv \
+   services/cosmetics_mvp_preprocess/output/raw/sns_buyer_2025.csv
+cp /mnt/agents/output/gobiz_inquiry_2024_cosmetics_transformed.csv \
+   services/cosmetics_mvp_preprocess/output/raw/gobiz_inquiry_2024.csv
+cp /mnt/agents/output/gobiz_inquiry_2021_2023_cosmetics_transformed.csv \
+   services/cosmetics_mvp_preprocess/output/raw/gobiz_inquiry_2021_2023.csv
+cp /mnt/agents/output/gobiz_purchase_offer_cosmetics_transformed.csv \
+   services/cosmetics_mvp_preprocess/output/raw/gobiz_purchase_offer.csv
+cp /mnt/agents/output/nipa_ict_buyer_transformed.csv \
+   services/cosmetics_mvp_preprocess/output/raw/nipa_ict_buyer.csv
+
+# 5. 문서/스크립트 복사
+mkdir -p services/cosmetics_mvp_preprocess/docs
+mkdir -p services/cosmetics_mvp_preprocess/scripts
+cp /mnt/agents/output/DATA_COLLECTION_GUIDE.md services/cosmetics_mvp_preprocess/docs/
+cp /mnt/agents/output/api_status_report.txt services/cosmetics_mvp_preprocess/docs/
+cp /mnt/agents/output/NICE_DNB_신청가이드.txt services/cosmetics_mvp_preprocess/docs/
+cp /mnt/agents/output/fetch_govdata_api.py services/cosmetics_mvp_preprocess/scripts/
+cp /mnt/agents/output/fetch_buykorea_inquiry.py services/cosmetics_mvp_preprocess/scripts/
+cp /mnt/agents/output/nice_dnb_poc.py services/cosmetics_mvp_preprocess/scripts/
+cp /mnt/agents/output/enrich_emails.py services/cosmetics_mvp_preprocess/scripts/
+
+# 6. Git 커밋 및 푸시
+git add .
+git commit -m "feat: add new buyer data sources (SNS, GoBizKorea, NIPA)
+
+- buyer_candidate_CLEANED: 18,012 cosmetics-filtered records
+- NONCOS_buyer_data: 2,083 non-cosmetics records
+- raw data: 5 source files preserved
+- data_catalog: updated API status
+- docs: collection guide, API report, NICE DNB guide
+- scripts: fetchers, NICE D&B PoC, email enrichment"
+
+git push origin main
+
+주의사항:
+  - 대용량 CSV 파일은 Git LFS 사용 권장 (또는 .gitignore 설정)
+  - GitHub 100MB 파일 제한 확인
+  - 현재 buyer_candidate.csv는 15.6MB (정상)
+  - CLEANED 버전은 약 4.3MB (정상)
+
+Merge Conflict 방지:
+  - 기존 buyer_candidate.csv를 별도로 백업
+  - 새로운 파일명(buyer_candidate_CLEANED_20250430.csv)으로 추가
+  - 기존 파일은 건드리지 않음 (안전)

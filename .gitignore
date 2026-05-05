@@ -1,4 +1,4 @@
-node_modules/
+﻿node_modules/
 dist/
 .vite/
 .vite-temp/
@@ -14,5 +14,19 @@ services/**/pytest-cache-files-*/
 services/**/.tmp/
 services/**/.tmp*/
 services/**/.test_artifacts/
+# Generated data outputs (large CSVs)
+services/cosmetics_mvp_preprocess/output/*.csv
+services/p1-export-fit-api/csv/*.csv
+# Keep core trade data (country-specific bilateral, ~2MB)
+!services/p1-export-fit-api/csv/trade_data.csv
+
+# Temp files
+temp_*
+
+# services/cosmetics_mvp_preprocess/output/
 .env
 .DS_Store
+
+# Buyer search development artifacts
+Kimi_Agent_사이트 개선 제안/
+logs/

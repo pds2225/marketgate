@@ -3,9 +3,11 @@ from typing import Any, Dict, List
 from fastapi import Body, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from app.models import PredictRequest, PredictResponse
+from app.models import PredictRequest, PredictResponse, InquiryRequest, InquiryResponse
+from app.services.buyer_shortlist import build_buyer_shortlist
 from app.services.project_snapshot import build_project_snapshot
 from app.services.scoring import recommend_countries
+from app.services.inquiry_service import build_draft
 from app.utils import now_seoul_iso, new_request_id
 
 app = FastAPI(title="Export Fit Score API(P1)", version="0.0.1")
@@ -15,6 +17,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+                "https://marketgate.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -61,6 +64,7 @@ def health_legacy():
 def predict(req: PredictRequest):
     request_id = new_request_id()
     results, input_echo, diagnostics = recommend_countries(req)
+    buyers = build_buyer_shortlist(req, results)
 
     return {
         "request_id": request_id,
@@ -70,6 +74,7 @@ def predict(req: PredictRequest):
             "input": input_echo,
             "results": results,
             "diagnostics": diagnostics,
+            "buyers": buyers,
         },
     }
 
@@ -81,6 +86,19 @@ def project_snapshot():
         "timestamp": now_seoul_iso(),
         "data": build_project_snapshot(),
     }
+
+
+@app.post("/v1/inquiry", response_model=InquiryResponse)
+def create_inquiry(req: InquiryRequest):
+    result = build_draft(
+        buyer_name=req.buyer_name,
+        contact_email=req.contact_email,
+        hs_code=req.hs_code,
+        sender_company=req.sender_company,
+        sender_name=req.sender_name,
+        message=req.message,
+    )
+    return result
 
 
 def _legacy_explanation_from_p1(result: Dict[str, Any]) -> Dict[str, Any]:

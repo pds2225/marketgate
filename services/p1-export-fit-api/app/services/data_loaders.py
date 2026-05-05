@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional
 import pandas as pd
 
@@ -18,6 +19,14 @@ class DataStore:
 
 
 _DATASTORE: Optional[DataStore] = None
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _resolve_path(file_path: str) -> str:
+    path = Path(file_path)
+    if path.is_absolute():
+        return str(path)
+    return str(_PROJECT_ROOT / path)
 
 
 def _load_trade(path: str) -> pd.DataFrame:
@@ -47,12 +56,12 @@ def load_datastore() -> DataStore:
     if _DATASTORE is not None:
         return _DATASTORE
 
-    kotra = read_csv_safely(Files.KOTRA_RECO)
-    mofa = read_csv_safely(Files.MOFA_ISO3)
-    trade = _load_trade(Files.TRADE)
-    wb_gdp = read_csv_safely(Files.WB_GDP)
-    wb_growth = read_csv_safely(Files.WB_GDP_GROWTH)
-    distance = read_csv_safely(Files.DISTANCE)
+    kotra = read_csv_safely(_resolve_path(Files.KOTRA_RECO))
+    mofa = read_csv_safely(_resolve_path(Files.MOFA_ISO3))
+    trade = _load_trade(_resolve_path(Files.TRADE))
+    wb_gdp = read_csv_safely(_resolve_path(Files.WB_GDP))
+    wb_growth = read_csv_safely(_resolve_path(Files.WB_GDP_GROWTH))
+    distance = read_csv_safely(_resolve_path(Files.DISTANCE))
 
     # KOTRA 컬럼 검증
     for col in ["HSCD", "NAT_NAME"]:

@@ -39,6 +39,28 @@ def _parse_reference_date(value: str) -> date:
     return parsed
 
 
+def _shortlist_item_passes_policy(item: dict[str, Any]) -> bool:
+    if item.get("decision") == "rejected":
+        return False
+    return True
+
+
+def _apply_task05_06_policy_filter(result: dict[str, Any], *, include_rejected: bool) -> dict[str, Any]:
+    filtered = dict(result)
+    original_items = result.get("items", [])
+    items = list(original_items) if include_rejected else [item for item in original_items if _shortlist_item_passes_policy(item)]
+    filtered["items"] = items
+
+    meta = dict(result.get("meta", {}))
+    meta["returned_count"] = len(items)
+    meta["shortlist_count"] = sum(1 for item in items if item.get("decision") == "shortlist")
+    meta["candidate_count"] = sum(1 for item in items if item.get("decision") == "candidate")
+    meta.pop("rejected_count", None)
+    meta["pre_filter_rejected_count"] = sum(1 for item in original_items if item.get("decision") == "rejected")
+    filtered["meta"] = meta
+    return filtered
+
+
 def create_app(output_dir: Path | None = None) -> FastAPI:
     app = FastAPI(title="MarketGate Shortlist API", version="0.1.0")
     app.state.output_dir = output_dir or (ROOT / "output")
@@ -70,7 +92,7 @@ def create_app(output_dir: Path | None = None) -> FastAPI:
         )
 
         try:
-            return shortlist_buyers(
+            result = shortlist_buyers(
                 output_dir=app.state.output_dir,
                 supplier_profile=supplier_profile,
                 reference_date=ref,
@@ -79,6 +101,7 @@ def create_app(output_dir: Path | None = None) -> FastAPI:
                 opportunity_country_norm=opportunity_country_norm,
                 include_rejected=include_rejected,
             )
+            return _apply_task05_06_policy_filter(result, include_rejected=include_rejected)
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 

@@ -1,4 +1,4 @@
-const DEFAULT_API_BASE = "http://localhost:8000";
+const DEFAULT_API_BASE = "";
 
 function normalizeBaseUrl(value) {
   return String(value || "").replace(/\/+$/, "");
@@ -20,8 +20,8 @@ export function buildApiUrl(path, base = API_BASE) {
 }
 
 export const ENDPOINTS = {
-  health: buildApiUrl("/v1/health"),
-  predict: buildApiUrl("/v1/predict"),
-  legacyPredict: buildApiUrl("/predict"),
-  snapshot: buildApiUrl("/v1/snapshot"),
+  health: buildApiUrl("/api/v1/health"),
+  predict: buildApiUrl("/api/v1/predict"),
+  legacyPredict: buildApiUrl("/api/predict"),
+  snapshot: buildApiUrl("/api/v1/snapshot"),
 };

@@ -1,0 +1,16 @@
+데이터명,파일명,타입,상태,URL,비고
+한국무역보험공사_화장품 바이어 정보,한국무역보험공사_화장품 바이어 정보_20200812.csv,파일,반영완료,https://www.data.go.kr/data/15063396/fileData.do,화장품 한정
+대한무역투자진흥공사_SNS 마케팅 수집 바이어 정보,대한무역투자진흥공사_SNS 마케팅 수집 바이어 정보_20251127.csv,파일,반영완료,https://www.data.go.kr/data/15155497/fileData.do,
+대한무역투자진흥공사_인콰이어리 정보,대한무역투자진흥공사_인콰이어리 정보_20251127.csv,파일,반영완료,https://www.data.go.kr/data/15034831/fileData.do,해외시장뉴스와 동일 데이터셋으로 추정
+중소벤처기업진흥공단_해외바이어 인콰이어리 신청,중소벤처기업진흥공단_해외바이어 인콰이어리 신청_20241230.csv,파일,반영완료,https://www.data.go.kr/data/15108325/fileData.do,
+중소벤처기업진흥공단_해외바이어 구매오퍼 정보,중소벤처기업진흥공단_해외바이어 구매오퍼 정보_20241231.csv,파일,반영완료,https://www.data.go.kr/data/15002299/fileData.do,
+한국무역보험공사_바이어 검색,한국무역보험공사_바이어 검색_20260426.csv,API,반영완료,https://www.data.go.kr/data/15144480/openapi.do,236건 수집
+정보통신산업진흥원_글로벌ICT포털_해외바이어정보,,API,미반영,https://www.data.go.kr/data/15132939/openapi.do,API 키 필요
+대한무역투자진흥공사_수출유망추천정보,kotra_export_recommend_all.csv,파일,반영완료,https://www.data.go.kr/data/15144221/openapi.do,화장품 HS 필터링 8,280건
+대한무역투자진흥공사_국가정보,,API,미반영,https://www.data.go.kr/data/15034830/openapi.do,API 키 필요
+대한무역투자진흥공사_상품DB,,API,미반영,https://www.data.go.kr/data/15034958/openapi.do,API 키 필요
+대한무역투자진흥공사_해외시장뉴스,,API,미반영,https://www.data.go.kr/data/15034831/openapi.do,API 키 필요
+대한무역투자진흥공사_무역사기사례,,API,미반영,https://www.data.go.kr/data/15034754/openapi.do,API 키 필요
+대한무역투자진흥공사_기업성공사례,,API,미반영,https://www.data.go.kr/data/15034755/openapi.do,API 키 필요
+중소벤처기업진흥공단_업종별 해외시장진출 유망상품 현황,중소벤처기업진흥공단_업종별 해외시장진출 유망상품 현황*.csv,파일,반영완료,https://www.data.go.kr/data/15020678/fileData.do,Beauty & Personal Care 필터링 201건
+한국농수산식품유통공사_바이어매칭시스템(BMS),,파일,미반영,https://www.data.go.kr/data/15117847/fileData.do,농식품 위주

@@ -5,17 +5,18 @@ import {
   CircleAlert,
   Database,
   LoaderCircle,
+  Mail,
   Search,
-  Sparkles,
+  X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { API_BASE, buildApiUrl, ENDPOINTS } from "./config";
 
 const hsExamples = [
-  { code: "330499", label: "화장품" },
+  { code: "330499", label: "K-뷰티" },
   { code: "854231", label: "반도체" },
-  { code: "870899", label: "자동차 부품" },
-  { code: "190230", label: "즉석면" },
+  { code: "611030", label: "K-패션" },
+  { code: "210690", label: "건강식품" },
   { code: "850650", label: "리튬전지" },
 ];
 
@@ -316,6 +317,7 @@ function normalizeP1Response(payload) {
   const results = Array.isArray(payload?.data?.results) ? payload.data.results : [];
   const input = payload?.data?.input || {};
   const diagnostics = payload?.data?.diagnostics ?? null;
+  const buyers = payload?.data?.buyers ?? null;
 
   return {
     engine: "p1",
@@ -323,7 +325,120 @@ function normalizeP1Response(payload) {
     request: { hsCode: input.hs_code, topN: input.top_n, year: input.year },
     recommendations: results.map((entry) => buildP1Recommendation(entry)),
     diagnostics,
+    buyers,
   };
+}
+
+function BuyerShortlistPanel({ buyers, onInquiry }) {
+  if (!buyers) {
+    return null;
+  }
+
+  const sourceCountries = Array.isArray(buyers.source_countries) ? buyers.source_countries : [];
+  const sourceCountryLabel =
+    sourceCountries.length > 0
+      ? sourceCountries
+          .map((item) => item.target_country_name || item.partner_country_iso3)
+          .filter(Boolean)
+          .join(" · ")
+      : buyers.target_country_name || buyers.target_country_iso3 || "연결 국가 미확정";
+
+  return (
+    <div
+      style={{
+        marginTop: 20,
+        padding: 18,
+        borderRadius: 20,
+        border: "1px solid rgba(148, 163, 184, 0.28)",
+        background: "rgba(15, 23, 42, 0.42)",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+        <div>
+          <p className="analysis-kicker">Buyer Shortlist</p>
+          <h3 style={{ margin: "6px 0 0", fontSize: 20 }}>Top 3 국가 병합 바이어 후보</h3>
+          <p style={{ margin: "8px 0 0", color: "#94a3b8", fontSize: 14 }}>{sourceCountryLabel}</p>
+        </div>
+        <strong style={{ color: "#cbd5e1" }}>{buyers.items?.length || 0}개 후보</strong>
+      </div>
+
+      {buyers.status !== "ok" ? (
+        <div className="analysis-inline-alert" style={{ marginTop: 14 }}>
+          <CircleAlert size={16} />
+          <span>{buyers.error || "바이어 숏리스트를 아직 연결하지 못했습니다."}</span>
+        </div>
+      ) : null}
+
+      {buyers.status === "ok" && (buyers.items?.length || 0) === 0 ? (
+        <div className="analysis-empty analysis-empty--compact" style={{ marginTop: 14 }}>
+          <CircleAlert size={18} />
+          <h3>현재 조건에 맞는 바이어가 없습니다.</h3>
+          <p>HS 코드와 대상 국가 기준으로 연락 가능한 후보를 찾지 못했습니다.</p>
+        </div>
+      ) : null}
+
+      {buyers.status === "ok" && (buyers.items?.length || 0) > 0 ? (
+        <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
+          {buyers.items.map((item, index) => (
+            <div
+              key={`${item.buyer_name}-${index}`}
+              className="analysis-card"
+              style={{ cursor: "default", textAlign: "left" }}
+            >
+              <div className="analysis-card-rank">{index + 1}</div>
+              <div className="analysis-card-body">
+                <div className="analysis-card-title">
+                  <div>
+                    <strong>{item.buyer_name}</strong>
+                    <span>{item.country_norm || "국가 미상"} · {item.source_dataset || "출처 미상"}</span>
+                  </div>
+                  <span className="analysis-card-badge">{item.final_score?.toFixed?.(1) || item.final_score}점</span>
+                </div>
+                <p>{(item.explanation_reasons || []).join(" · ") || "추천 사유 없음"}</p>
+                <div className="analysis-detail-grid" style={{ marginTop: 12 }}>
+                  <div className="analysis-detail-row">
+                    <span>추천 국가</span>
+                    <strong>
+                      {item.source_target_country_name || item.source_target_country_iso3 || "-"}
+                      {item.source_target_country_rank ? ` (Top ${item.source_target_country_rank})` : ""}
+                    </strong>
+                  </div>
+                  <div className="analysis-detail-row">
+                    <span>이메일</span>
+                    <strong>{item.contact_email || "-"}</strong>
+                  </div>
+                  <div className="analysis-detail-row">
+                    <span>전화번호</span>
+                    <strong>{item.contact_phone || "-"}</strong>
+                  </div>
+                  <div className="analysis-detail-row">
+                    <span>홈페이지</span>
+                    <strong>{item.contact_website || "-"}</strong>
+                  </div>
+                  <div className="analysis-detail-row">
+                    <span>매칭 근거</span>
+                    <strong>{item.matched_by || "-"}</strong>
+                  </div>
+                </div>
+                {onInquiry ? (
+                  <div style={{ marginTop: 12 }}>
+                    <button
+                      className="ui-button ui-button--ghost"
+                      style={{ fontSize: 13, padding: "8px 12px" }}
+                      onClick={() => onInquiry(item)}
+                    >
+                      <Mail size={14} />
+                      인콰이어리 작성
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 async function fetchJson(url, body) {
@@ -381,7 +496,12 @@ async function requestAnalysis(hsCode, topN, year) {
         hint: "P1 API는 응답했지만 현재 데이터 기준 추천 국가가 없습니다.",
       };
     } catch (error) {
-      p1Issue = `P1 API 오류: ${error.message}`;
+      const msg = String(error.message || "");
+      if (msg.includes("fetch") || msg.includes("network")) {
+        p1Issue = "P1 API 서버에 연결할 수 없습니다. 터미널에서 'uvicorn main:app --reload'를 실행해 주세요.";
+      } else {
+        p1Issue = `P1 API 오류: ${msg}`;
+      }
     }
   }
 
@@ -462,6 +582,13 @@ export default function AnalysisPage({ onBack }) {
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState(null);
 
+  const [inquiryBuyer, setInquiryBuyer] = useState(null);
+  const [showInquiryModal, setShowInquiryModal] = useState(false);
+  const [inquiryForm, setInquiryForm] = useState({ sender_company: "", sender_name: "", message: "" });
+  const [inquiryLoading, setInquiryLoading] = useState(false);
+  const [inquiryResult, setInquiryResult] = useState(null);
+  const [inquiryError, setInquiryError] = useState("");
+
   const deferredSelectedId = useDeferredValue(selectedId);
   const selectedRecommendation =
     result?.recommendations.find((item) => item.id === deferredSelectedId) ||
@@ -498,6 +625,51 @@ export default function AnalysisPage({ onBack }) {
     setError("");
   };
 
+  const handleOpenInquiry = (buyer) => {
+    setInquiryBuyer(buyer);
+    setInquiryForm({ sender_company: "", sender_name: "", message: "" });
+    setInquiryResult(null);
+    setInquiryError("");
+    setShowInquiryModal(true);
+  };
+
+  const handleCloseInquiry = () => {
+    setShowInquiryModal(false);
+    setInquiryBuyer(null);
+    setInquiryResult(null);
+    setInquiryError("");
+  };
+
+  const handleInquirySubmit = async () => {
+    if (!inquiryForm.sender_company.trim() || !inquiryForm.sender_name.trim()) {
+      setInquiryError("회사명과 담당자 이름을 입력해 주세요.");
+      return;
+    }
+    setInquiryLoading(true);
+    setInquiryError("");
+    try {
+      const res = await fetch(buildApiUrl("/v1/inquiry", API_BASE), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          buyer_name: inquiryBuyer.buyer_name || "Unknown",
+          contact_email: inquiryBuyer.contact_email || "",
+          hs_code: inquiryBuyer.hs_code_norm || hsCode || "",
+          sender_company: inquiryForm.sender_company,
+          sender_name: inquiryForm.sender_name,
+          message: inquiryForm.message,
+        }),
+      });
+      if (!res.ok) throw new Error("인콰이어리 생성에 실패했습니다.");
+      const data = await res.json();
+      setInquiryResult(data);
+    } catch (err) {
+      setInquiryError(err.message || "잠시 후 다시 시도해 주세요.");
+    } finally {
+      setInquiryLoading(false);
+    }
+  };
+
   return (
     <div className="analysis-page">
       <header className="analysis-header">
@@ -527,6 +699,24 @@ export default function AnalysisPage({ onBack }) {
                 HS 코드는 국제 상품 분류 코드입니다. 6자리면 현재 P1 추천 API를 먼저
                 시도하고, 아니면 예전 실험형 엔진으로 이어집니다.
               </p>
+            </div>
+
+            <div className="analysis-next-steps" aria-label="분석 진행 순서">
+              <div>
+                <span>1</span>
+                <strong>품목 선택</strong>
+                <p>예시를 누르거나 HS 코드를 입력합니다.</p>
+              </div>
+              <div>
+                <span>2</span>
+                <strong>조건 확인</strong>
+                <p>추천 국가 수와 기준 연도를 맞춥니다.</p>
+              </div>
+              <div>
+                <span>3</span>
+                <strong>결과 검토</strong>
+                <p>국가 점수와 추천 바이어를 함께 봅니다.</p>
+              </div>
             </div>
 
             <div className="analysis-example-list">
@@ -601,11 +791,31 @@ export default function AnalysisPage({ onBack }) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
               >
-                <Sparkles size={20} />
-                <h2>추천 국가가 이 영역에 나타납니다.</h2>
-                <p>
-                  점수는 여러 지표를 한데 모아 계산한 결과입니다. 비개발자 기준으로는
-                  “어느 나라가 더 유망한지 숫자로 정리한 표”라고 보면 됩니다.
+                <div className="analysis-empty-steps">
+                  <div className="analysis-empty-step">
+                    <span className="analysis-empty-step-num">1</span>
+                    <div>
+                      <strong>HS 코드 입력</strong>
+                      <span>왼쪽 패널에서 품목 코드를 입력하거나 예시를 클릭하세요.</span>
+                    </div>
+                  </div>
+                  <div className="analysis-empty-step">
+                    <span className="analysis-empty-step-num">2</span>
+                    <div>
+                      <strong>추천 국가 계산</strong>
+                      <span>버튼을 누르면 데이터 기반 유망 시장을 자동 분석합니다.</span>
+                    </div>
+                  </div>
+                  <div className="analysis-empty-step">
+                    <span className="analysis-empty-step-num">3</span>
+                    <div>
+                      <strong>결과 확인 및 바이어 탐색</strong>
+                      <span>점수·지표·바이어 후보까지 한 화면에 정리됩니다.</span>
+                    </div>
+                  </div>
+                </div>
+                <p className="analysis-empty-hint">
+                  왼쪽 입력 패널에서 <strong>추천 국가 계산</strong> 버튼을 눌러 시작하세요.
                 </p>
               </motion.div>
             ) : null}
@@ -732,11 +942,158 @@ export default function AnalysisPage({ onBack }) {
                   </div>
                 </div>
 
+                <BuyerShortlistPanel buyers={result.buyers} onInquiry={handleOpenInquiry} />
+
                 {result.diagnostics ? (
                   <DiagnosticsPanel diagnostics={result.diagnostics} />
                 ) : null}
               </motion.div>
             ) : null}
+          </AnimatePresence>
+
+          {/* 인콰이어리 모달 */}
+          <AnimatePresence>
+            {showInquiryModal && inquiryBuyer && (
+              <motion.div
+                className="analysis-modal-overlay"
+                style={{
+                  position: "fixed",
+                  inset: 0,
+                  zIndex: 200,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "rgba(2, 6, 23, 0.72)",
+                  padding: 24,
+                }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={handleCloseInquiry}
+              >
+                <motion.div
+                  style={{
+                    width: "100%",
+                    maxWidth: 520,
+                    maxHeight: "85vh",
+                    overflowY: "auto",
+                    background: "#0f172a",
+                    border: "1px solid rgba(148,163,184,0.28)",
+                    borderRadius: 20,
+                    padding: 24,
+                  }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 20 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                    <h3 style={{ margin: 0, fontSize: 18 }}>✉️ 인콰이어리 작성</h3>
+                    <button className="ui-button ui-button--ghost" onClick={handleCloseInquiry} style={{ padding: 6 }}>
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <div style={{ marginBottom: 14, fontSize: 14, color: "#94a3b8" }}>
+                    <strong style={{ color: "#e2e8f0" }}>{inquiryBuyer.buyer_name}</strong> · {" "}
+                    {inquiryBuyer.contact_email || "연락처 미제공"}
+                  </div>
+
+                  {!inquiryResult ? (
+                    <>
+                      <label className="analysis-field" style={{ marginBottom: 12 }}>
+                        <span>회사명 (sender_company)</span>
+                        <input
+                          type="text"
+                          value={inquiryForm.sender_company}
+                          onChange={(e) => setInquiryForm((prev) => ({ ...prev, sender_company: e.target.value }))}
+                          placeholder="예: 주식회사 샘플"
+                        />
+                      </label>
+                      <label className="analysis-field" style={{ marginBottom: 12 }}>
+                        <span>담당자 이름 (sender_name)</span>
+                        <input
+                          type="text"
+                          value={inquiryForm.sender_name}
+                          onChange={(e) => setInquiryForm((prev) => ({ ...prev, sender_name: e.target.value }))}
+                          placeholder="예: 김철수"
+                        />
+                      </label>
+                      <label className="analysis-field" style={{ marginBottom: 12 }}>
+                        <span>추가 메시지 (선택)</span>
+                        <textarea
+                          rows={3}
+                          value={inquiryForm.message}
+                          onChange={(e) => setInquiryForm((prev) => ({ ...prev, message: e.target.value }))}
+                          placeholder="전달하고 싶은 내용을 입력하세요."
+                          style={{ resize: "vertical" }}
+                        />
+                      </label>
+
+                      {inquiryError ? (
+                        <div className="analysis-inline-alert" style={{ marginBottom: 12 }}>
+                          <CircleAlert size={16} />
+                          <span>{inquiryError}</span>
+                        </div>
+                      ) : null}
+
+                      <button
+                        className="ui-button ui-button--solid"
+                        onClick={handleInquirySubmit}
+                        disabled={inquiryLoading}
+                        style={{ width: "100%" }}
+                      >
+                        {inquiryLoading ? <LoaderCircle size={18} className="analysis-spin" /> : <Mail size={18} />}
+                        {inquiryLoading ? "생성 중..." : "인콰이어리 초안 생성"}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ marginBottom: 12 }}>
+                        <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6 }}>영문 초안</p>
+                        <div
+                          style={{
+                            background: "rgba(15,23,42,0.8)",
+                            border: "1px solid rgba(148,163,184,0.2)",
+                            borderRadius: 12,
+                            padding: 14,
+                            fontSize: 14,
+                            lineHeight: 1.6,
+                            whiteSpace: "pre-wrap",
+                          }}
+                        >
+                          {inquiryResult.draft_en}
+                        </div>
+                      </div>
+                      <div style={{ marginBottom: 12 }}>
+                        <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6 }}>한국어 초안</p>
+                        <div
+                          style={{
+                            background: "rgba(15,23,42,0.8)",
+                            border: "1px solid rgba(148,163,184,0.2)",
+                            borderRadius: 12,
+                            padding: 14,
+                            fontSize: 14,
+                            lineHeight: 1.6,
+                            whiteSpace: "pre-wrap",
+                          }}
+                        >
+                          {inquiryResult.draft_ko}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button className="ui-button ui-button--solid" style={{ flex: 1 }} onClick={() => {navigator.clipboard?.writeText?.(inquiryResult.draft_en);}}>
+                          영문 복사
+                        </button>
+                        <button className="ui-button ui-button--ghost" style={{ flex: 1 }} onClick={handleCloseInquiry}>
+                          닫기
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </motion.div>
+              </motion.div>
+            )}
           </AnimatePresence>
         </section>
       </main>

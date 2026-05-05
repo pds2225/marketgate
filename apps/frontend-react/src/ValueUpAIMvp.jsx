@@ -56,7 +56,7 @@ function renderStatusTone(snapshot) {
   return "정상";
 }
 
-export default function ValueUpAIMvp() {
+export default function MarketGateMvp() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
@@ -128,7 +128,7 @@ export default function ValueUpAIMvp() {
   return (
     <div style={{ padding: 32, maxWidth: 1200, margin: "0 auto" }}>
       <h1 style={{ fontSize: 32, fontWeight: "bold", marginBottom: 12 }}>
-        VALUE-UP AI : 수출 유망국 추천 MVP
+        MarketGate : 수출 유망국 추천 MVP
       </h1>
       <p style={{ color: "#6b7280", marginBottom: 24 }}>
         현재 화면은 `/v1/predict`와 공통 API 베이스 URL 규칙을 사용합니다.

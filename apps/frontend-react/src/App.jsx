@@ -2,13 +2,18 @@ import { startTransition, useState } from 'react'
 import LandingPage from './LandingPage'
 import AnalysisPage from './AnalysisPage'
 import AdminDashboard from './AdminDashboard'
+import ChatModePage from './ChatModePage'
+import ExportFlowPage from './ExportFlowPage'
+import BuyerSearchPage from './pages/BuyerSearch'
 import './App.css'
 
 function App() {
   const [page, setPage] = useState('landing')
-  const navigate = (nextPage) => {
+  const [chatPreset, setChatPreset] = useState(null)
+  const navigate = (nextPage, preset = null) => {
     startTransition(() => {
       setPage(nextPage)
+      if (preset) setChatPreset(preset)
     })
   }
 
@@ -21,11 +26,34 @@ function App() {
       )}
 
       {page === 'landing' && (
-        <LandingPage onStartAnalysis={() => navigate('analysis')} />
+        <LandingPage
+          onStartChat={(preset) => navigate('chat', preset)}
+          onStartFlow={() => navigate('exportFlow')}
+          onStartBuyerSearch={() => navigate('buyerSearch')}
+          onStartAnalysis={() => navigate('analysis')}
+        />
+      )}
+
+      {page === 'buyerSearch' && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <BuyerSearchPage onClose={() => navigate('landing')} />
+        </div>
       )}
 
       {page === 'analysis' && (
         <AnalysisPage onBack={() => navigate('landing')} />
+      )}
+
+      {page === 'exportFlow' && (
+        <ExportFlowPage onBack={() => navigate('landing')} />
+      )}
+
+      {page === 'chat' && (
+        <ChatModePage
+          preset={chatPreset}
+          onBack={() => navigate('landing')}
+          onSwitchToForm={() => navigate('analysis')}
+        />
       )}
 
       {page === 'admin' && (

@@ -206,6 +206,42 @@ NOISE_MARKER_RE = re.compile(
 )
 
 CONTACT_PHONE_BLACKLIST = {"번호"}
+COSMETICS_HS_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "330499",
+        (
+            "cosmetic",
+            "cosmetics",
+            "makeup",
+            "skin care",
+            "skincare",
+            "serum",
+            "cream",
+            "lotion",
+            "ampoule",
+            "mask",
+            "maskpack",
+            "sunscreen",
+            "sun care",
+            "toner",
+            "essence",
+            "beauty",
+            "페이셜",
+            "세럼",
+            "크림",
+            "로션",
+            "앰플",
+            "마스크",
+            "선크림",
+            "토너",
+            "에센스",
+            "스킨케어",
+            "화장품",
+            "메이크업",
+            "미용",
+        ),
+    ),
+)
 
 
 def setup_logger() -> logging.Logger:
@@ -348,6 +384,16 @@ def _normalize_hs_code(value: Any) -> str:
     if not digits:
         return ""
     return digits[:6]
+
+
+def _infer_hs_code_from_texts(*values: Any) -> str:
+    combined = " ".join(_normalize_text(value).casefold() for value in values if _normalize_text(value))
+    if not combined:
+        return ""
+    for hs_code, keywords in COSMETICS_HS_RULES:
+        if any(keyword in combined for keyword in keywords):
+            return hs_code
+    return ""
 
 
 def _normalize_valid_until(value: Any) -> str:
@@ -694,6 +740,61 @@ SOURCE_SPECS: tuple[SourceSpec, ...] = (
             },
         ),
     ),
+    SourceSpec(
+        key="sbc_promising_product",
+        label="중소벤처기업진흥공단_업종별 해외시장진출 유망상품 현황",
+        target="opportunity_item",
+        filename_patterns=(
+            "중소벤처기업진흥공단_업종별 해외시장진출 유망상품 현황.csv",
+            "중소벤처기업진흥공단_업종별 해외시장진출 유망상품 현황_*.csv",
+        ),
+        field_groups=_extend_groups(
+            BASE_FIELD_GROUPS,
+            title=("상품명",),
+            company_name=("업천명","업천명","업천명","업천명","업천명","업천명"),
+            keywords=("업종", "카테고리"),
+        ),
+        sample_rows=(
+            {
+                "업종": "뷰티, 미용, 화장품",
+                "카테고리": "Beauty & Personal Care",
+                "업천명": "(주)오피코스",
+                "상품명": "Cerazor",
+                "사업자등록번호": "221-81-45748",
+            },
+            {
+                "업종": "뷰티, 미용, 화장품",
+                "카테고리": "Beauty & Personal Care",
+                "업천명": "(주)오딧세이",
+                "상품명": "올인원 스킨케어 세트(남성용)",
+                "사업자등록번호": "134-86-44417",
+            },
+        ),
+    ),
+    SourceSpec(
+        key="kotra_export_recommend",
+        label="대한무역투자진흥공사_수출유망추천정보",
+        target="opportunity_item",
+        filename_patterns=(
+            "kotra_export_recommend_all.csv",
+        ),
+        field_groups=_extend_groups(
+            BASE_FIELD_GROUPS,
+            title=("NAT_NAME",),
+            country_raw=("NAT_NAME",),
+            hs_code_raw=("HSCD",),
+            keywords=("EXPORTSCALE", "EXP_BHRC_SCR"),
+        ),
+        sample_rows=(
+            {
+                "EXPORTSCALE": "대형",
+                "EXP_BHRC_SCR": 11.81,
+                "HSCD": 330420,
+                "NAT_NAME": "네덜란드",
+                "UPDT_DT": "2025-06-26 16:08:53",
+            },
+        ),
+    ),
 )
 
 
@@ -827,12 +928,17 @@ def _ensure_sample_file(spec: SourceSpec, sample_dir: Path) -> Path:
     return sample_path
 
 
+import fnmatch
+
 def _matches_spec(file_name: str, spec: SourceSpec) -> bool:
     candidate_key = _normalize_lookup_key(file_name)
     if not candidate_key:
         return False
 
     for pattern in spec.filename_patterns:
+        # 와일드카드 패턴 직접 매칭
+        if fnmatch.fnmatch(file_name, pattern):
+            return True
         pattern_key = _normalize_lookup_key(pattern)
         if not pattern_key:
             continue
@@ -970,6 +1076,10 @@ def transform_source_dataframe(df: pd.DataFrame, spec: SourceSpec, source_file: 
         title_clean = _normalize_text(title_raw or company_raw)
         company_clean = _normalize_text(company_raw or title_raw)
 
+        hs_code_norm = _normalize_hs_code(hs_raw)
+        if not hs_code_norm:
+            hs_code_norm = _infer_hs_code_from_texts(title_raw, company_raw, keywords_sources)
+
         record = {
             "record_type": spec.target,
             "source_dataset": spec.label,
@@ -981,7 +1091,7 @@ def transform_source_dataframe(df: pd.DataFrame, spec: SourceSpec, source_file: 
             "country_norm": country_norm,
             "country_iso3": country_iso3,
             "hs_code_raw": hs_raw,
-            "hs_code_norm": _normalize_hs_code(hs_raw),
+            "hs_code_norm": hs_code_norm,
             "keywords_raw": " | ".join(keywords_sources),
             "keywords_norm": _join_keywords(keywords_sources),
             "contact_name": contact_name,

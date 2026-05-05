@@ -86,10 +86,51 @@ class PredictDiagnostics(BaseModel):
     sample_countries_by_reason: Dict[str, List[str]]
 
 
+class BuyerShortlistItem(BaseModel):
+    buyer_name: str
+    source_dataset: Optional[str] = None
+    country_norm: Optional[str] = None
+    source_target_country_iso3: Optional[str] = None
+    source_target_country_name: Optional[str] = None
+    source_target_country_rank: Optional[int] = None
+    hs_code_norm: Optional[str] = None
+    keywords_norm: Optional[str] = None
+    has_contact: bool = False
+    contact_email: Optional[str] = None
+    contact_name: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_website: Optional[str] = None
+    final_score: float
+    decision: str
+    score_breakdown: Dict[str, Any]
+    recommendation_lines: List[str]
+    explanation_reasons: List[str]
+    matched_by: Optional[str] = None
+    matched_terms: List[str] = Field(default_factory=list)
+
+
+class BuyerShortlistSourceCountry(BaseModel):
+    rank: int
+    partner_country_iso3: str
+    target_country_name: Optional[str] = None
+    fit_score: float
+
+
+class BuyerShortlistData(BaseModel):
+    status: str
+    target_country_iso3: Optional[str] = None
+    target_country_name: Optional[str] = None
+    source_countries: List[BuyerShortlistSourceCountry] = Field(default_factory=list)
+    meta: Dict[str, Any] = Field(default_factory=dict)
+    items: List[BuyerShortlistItem] = Field(default_factory=list)
+    error: Optional[str] = None
+
+
 class PredictData(BaseModel):
     input: Dict[str, Any]
     results: List[PredictResult]
     diagnostics: PredictDiagnostics
+    buyers: Optional[BuyerShortlistData] = None
 
 
 class PredictResponse(BaseModel):
@@ -114,3 +155,26 @@ class LegacyPredictResponse(BaseModel):
     input: Dict[str, Any]
     top_countries: List[LegacyPredictResult]
     diagnostics: PredictDiagnostics
+
+
+class InquiryRequest(BaseModel):
+    buyer_name: str = Field(..., description="Buyer company name")
+    contact_email: str = Field(..., description="Buyer contact email")
+    hs_code: str = Field(..., description="HS code for the product")
+    sender_company: str = Field(..., description="Sender company name")
+    sender_name: str = Field(..., description="Sender person name")
+    message: Optional[str] = Field(default="", description="Optional additional message")
+
+
+class InquiryResponse(BaseModel):
+    inquiry_id: str
+    buyer_name: str
+    contact_email: str
+    hs_code: str
+    sender_company: str
+    sender_name: str
+    message: str
+    draft_ko: str
+    draft_en: str
+    created_at: str
+    status: str = "draft_ready"

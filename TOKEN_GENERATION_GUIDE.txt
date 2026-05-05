@@ -1,0 +1,69 @@
+GitHub Personal Access Token 생성 가이드
+===========================================
+
+Step 1. 토큰 생성 페이지 접속
+─────────────────────────────────────
+1. https://github.com/settings/tokens 접속
+2. GitHub 로그인 (pds2225 계정)
+3. "Generate new token" 드롭다운 클릭
+4. "Generate new token (classic)" 선택
+
+Step 2. 토큰 정보 입력
+─────────────────────────────────────
+Note (메모): 
+  marketgate 데이터 업로드용
+  
+Expiration (만료일):
+  [ ] No expiration (만료 없음) ← 추천
+  또는
+  [ ] Custom → 90 days
+
+Step 3. 권한(Scopes) 선택
+─────────────────────────────────────
+아래 권한들을 체크:
+
+□ repo  ← ★ 반드시 체크 (전체 저장소 접근)
+  □ repo:status
+  □ repo_deployment
+  □ public_repo
+  □ repo:invite
+  □ security_events
+
+□ workflow  ← ★ 체크 (GitHub Actions workflow 수정)
+
+□ read:org  ← 체크 (선택, 조직 정보 읽기)
+
+□ gist  ← 체크 (선택)
+
+나머지는 체크하지 않아도 됩니다.
+
+Step 4. 토큰 생성
+─────────────────────────────────────
+1. 페이지 맨 아래 "Generate token" 버튼 클릭
+2. 생성된 토큰 복사 (ghp_xxxx... 형태)
+
+⚠️ 중요: 토큰은 이 페이지에서만 한 번 표시됩니다.
+   반드시 복사/저장 후 페이지를 벗어나세요.
+
+Step 5. 토큰 전달
+─────────────────────────────────────
+복사한 토큰을 아래 형식으로 붙여넣기:
+
+ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+─────────────────────────────────────
+Token classic vs Fine-grained 비교
+─────────────────────────────────────
+
+Classic (추천):
+  ✅ 설정이 간단함 (repo만 체크하면 됨)
+  ✅ 모든 저장소에 동일 권한
+  ❌ 보안상 덜 세밀함
+
+Fine-grained:
+  ✅ 저장소별, 권한별 세밀 제어
+  ❌ 설정이 복잡함
+  ❌ 만료일 필수 (최대 1년)
+
+→ 지금은 Classic으로 빠르게 진행하세요.
+─────────────────────────────────────

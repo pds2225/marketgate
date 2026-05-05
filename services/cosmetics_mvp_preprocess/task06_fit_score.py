@@ -15,8 +15,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from task05_shortlist import (  # noqa: E402
+    BLOCKED_NON_COSMETICS_KEYWORD_FORMS,
     KEYWORD_MATCH_STOPWORDS,
+    WEAK_COSMETICS_KEYWORD_FORMS,
     buyer_hard_gate,
+    infer_hs_code_with_score,
     match_hs_or_keywords,
     normalize_country,
     normalize_hs_code,
@@ -28,15 +31,23 @@ from task05_shortlist import (  # noqa: E402
 )
 
 
-SCORE_WEIGHTS = {
-    "hs_score": 30,
-    "country_score": 20,
-    "signal_score": 15,
-    "recency_score": 10,
-    "capacity_score": 10,
-    "contact_score": 5,
-    "keyword_score": 10,
+FIT_COMPONENT_WEIGHTS = {
+    "country_match_score": 20,
+    "hs_match_score": 35,
+    "contact_score": 15,
+    "activity_score": 15,
+    "opportunity_signal_score": 15,
 }
+SOFT_PENALTY_WEIGHTS = {
+    "country_mismatch": 10,
+    "hs_mismatch": 18,
+    "capacity_fail": 12,
+    "missing_contact": 10,
+    "partial_missing_data": 6,
+}
+BUYER_HARD_FAIL_CODES = {"banned_country"}
+# expired/ambiguous_product은 component score에서 이미 0으로 처리 — hard_fail로 모든 buyer 제거 불필요
+OPPORTUNITY_HARD_FAIL_CODES = {"signal_type_invalid"}
 SHORTLIST_THRESHOLD = 70
 SMOKE_KEYWORD_RE = re.compile(
     r"cosmetic|makeup|serum|cream|mask|sunscreen|shampoo|toner|ampoule|lotion|lipstick|foundation",
@@ -48,6 +59,17 @@ DEFAULT_SMOKE_SUPPLIER_PROFILE = {
     "target_hs_code_norm": "3304",
     "target_keywords_norm": "cosmetics | makeup | serum | cream | mask | sunscreen | shampoo | toner",
 }
+
+
+def _keyword_form_compacts(keyword_forms: Mapping[str, str]) -> set[str]:
+    return {
+        re.sub(r"[^0-9a-z가-힣]+", "", searchable.casefold())
+        for searchable in keyword_forms
+    }
+
+
+BLOCKED_KEYWORD_COMPACTS = _keyword_form_compacts(BLOCKED_NON_COSMETICS_KEYWORD_FORMS)
+WEAK_KEYWORD_COMPACTS = _keyword_form_compacts(WEAK_COSMETICS_KEYWORD_FORMS)
 
 
 def _first_non_empty(record: Mapping[str, Any], keys: Iterable[str]) -> str:
@@ -215,7 +237,12 @@ def _keyword_terms(record: Mapping[str, Any], keys: Iterable[str]) -> set[str]:
             raw_candidates = [token.casefold(), *re.split(r"[\s_\-\/,&\(\)\[\]]+", token.casefold())]
             for candidate in raw_candidates:
                 compact = re.sub(r"[^0-9a-z가-힣]+", "", candidate)
-                if len(compact) <= 2 or compact in KEYWORD_MATCH_STOPWORDS:
+                if (
+                    len(compact) <= 2
+                    or compact in KEYWORD_MATCH_STOPWORDS
+                    or any(blocked and blocked in compact for blocked in BLOCKED_KEYWORD_COMPACTS)
+                    or any(weak and weak in compact for weak in WEAK_KEYWORD_COMPACTS)
+                ):
                     continue
                 tokens.add(compact)
     return tokens
@@ -234,7 +261,10 @@ def _keyword_hint_regex(supplier_profile: Mapping[str, Any]) -> re.Pattern[str] 
         token = token.strip()
         if len(token) <= 3:
             continue
-        if re.sub(r"[^0-9a-z가-힣]+", "", token.casefold()) in KEYWORD_MATCH_STOPWORDS:
+        compact = re.sub(r"[^0-9a-z가-힣]+", "", token.casefold())
+        if compact in KEYWORD_MATCH_STOPWORDS:
+            continue
+        if any(blocked and blocked in compact for blocked in BLOCKED_KEYWORD_COMPACTS):
             continue
         tokens.append(re.escape(token))
     if not tokens:
@@ -251,15 +281,125 @@ def _has_usable_contact(buyer: Mapping[str, Any]) -> bool:
     )
 
 
-def _contact_score(buyer: Mapping[str, Any]) -> int:
+def _normalize_score(value: float) -> float:
+    return max(0.0, min(1.0, round(float(value), 4)))
+
+
+def _has_certification(buyer: Mapping[str, Any]) -> bool:
+    return bool(
+        _first_non_empty(
+            buyer,
+            (
+                "certification",
+                "certifications",
+                "certification_status",
+                "cert_status",
+                "required_certifications",
+            ),
+        )
+    )
+
+
+def _has_moq(buyer: Mapping[str, Any]) -> bool:
+    return _to_float(
+        _first_non_empty(
+            buyer,
+            ("moq", "minimum_order_quantity", "min_order_qty", "minimum_order_qty"),
+        )
+    ) is not None
+
+
+def _has_partial_missing_data(buyer: Mapping[str, Any], target: Mapping[str, Any]) -> bool:
+    required_values = [
+        _first_non_empty(buyer, ("normalized_name", "title")),
+        _first_non_empty(buyer, ("country_norm", "country", "country_raw")),
+    ]
+    target_hs = normalize_hs_code(target.get("hs_code_norm"))
+    buyer_hs = normalize_hs_code(_first_non_empty(buyer, ("hs_code_norm", "hs_code", "hs_code_raw")))
+    buyer_keywords = normalize_keywords(_first_non_empty(buyer, ("keywords_norm", "keywords_raw")))
+    if target_hs:
+        required_values.append(buyer_hs)
+    else:
+        required_values.append(buyer_keywords)
+    return any(not value for value in required_values)
+
+
+def _component_country_match_score(buyer: Mapping[str, Any], target: Mapping[str, Any]) -> float:
+    target_country = normalize_country(target.get("country_norm"))
+    buyer_country = normalize_country(_first_non_empty(buyer, ("country_norm", "country", "country_raw")))
+    if target_country and buyer_country and target_country == buyer_country:
+        return 1.0
+    if not target_country or not buyer_country:
+        return 0.35
+    return 0.0
+
+
+def _component_hs_match_score(match_mode: str, overlap_terms: list[str]) -> float:
+    if match_mode == "hs_exact":
+        return 1.0
+    if match_mode == "hs_prefix_4":
+        return 0.9
+    if match_mode == "hs_prefix_2":
+        return 0.75
+    if match_mode == "hs_inferred":
+        return 0.7
+    if match_mode == "hs_inferred_prefix_4":
+        return 0.65
+    if overlap_terms:
+        return 0.6 if len(overlap_terms) >= 2 else 0.45
+    return 0.0
+
+
+def _resolve_hs_match_score(
+    buyer: Mapping[str, Any],
+    target: Mapping[str, Any],
+    match_result: Mapping[str, Any],
+    overlap_terms: list[str],
+) -> tuple[float, str]:
+    match_mode = normalize_text(match_result.get("match_mode"))
+    explicit_score = _component_hs_match_score(match_mode, overlap_terms)
+    if explicit_score > 0:
+        return explicit_score, match_mode
+
+    buyer_inferred = infer_hs_code_with_score(
+        buyer.get("keywords_norm"),
+        buyer.get("normalized_name"),
+        buyer.get("product_name_norm"),
+        buyer.get("title"),
+        buyer.get("description"),
+        buyer.get("category"),
+    )
+    target_inferred = infer_hs_code_with_score(
+        target.get("keywords_norm"),
+        target.get("product_name_norm"),
+        target.get("normalized_name"),
+        target.get("title"),
+        target.get("description"),
+        target.get("category"),
+    )
+    buyer_hs = normalize_hs_code(_first_non_empty(buyer, ("hs_code_norm", "hs_code", "hs_code_raw"))) or str(buyer_inferred.get("hs_code") or "")
+    target_hs = normalize_hs_code(target.get("hs_code_norm")) or str(target_inferred.get("hs_code") or "")
+    if not buyer_hs or not target_hs:
+        return _component_hs_match_score("", overlap_terms), "keyword"
+    if buyer_hs == target_hs:
+        return float(match_result.get("hs_inference_score") or min(float(buyer_inferred.get("match_score") or 0.0), float(target_inferred.get("match_score") or 0.0)) or 0.7), "hs_inferred"
+    if buyer_hs[:4] == target_hs[:4] and len(buyer_hs) >= 4 and len(target_hs) >= 4:
+        inferred_score = float(match_result.get("hs_inference_score") or 0.65)
+        return max(0.6, min(0.75, inferred_score)), "hs_inferred_prefix_4"
+    return _component_hs_match_score("", overlap_terms), "keyword"
+
+
+def _component_contact_score(buyer: Mapping[str, Any]) -> float:
     if _has_usable_contact(buyer):
-        return SCORE_WEIGHTS["contact_score"]
-    return 0
+        return 1.0
+    if _normalize_bool(buyer.get("has_contact")):
+        return 0.6
+    return 0.0
 
 
-def _capacity_score(buyer: Mapping[str, Any], required_capacity: float | None) -> int:
+def _capacity_passes(buyer: Mapping[str, Any], required_capacity: float | None) -> bool:
     if required_capacity is None or required_capacity <= 0:
-        return 0
+        return True
     capacity = None
     for key in ("capacity", "monthly_capacity", "annual_capacity", "production_capacity", "supply_capacity", "max_capacity"):
         value = _to_float(buyer.get(key))
@@ -267,57 +407,30 @@ def _capacity_score(buyer: Mapping[str, Any], required_capacity: float | None) -
             capacity = value
             break
     if capacity is None:
-        return 0
-    ratio = capacity / required_capacity
-    if ratio >= 1.5:
-        return SCORE_WEIGHTS["capacity_score"]
-    if ratio >= 1.2:
-        return 8
-    if ratio >= 1.0:
-        return 6
-    return 0
+        return False
+    return capacity >= required_capacity
 
 
-def _country_score(buyer: Mapping[str, Any], target: Mapping[str, Any]) -> int:
-    target_country = normalize_country(target.get("country_norm"))
-    buyer_country = normalize_country(_first_non_empty(buyer, ("country_norm", "country", "country_raw")))
-    if target_country and buyer_country and target_country == buyer_country:
-        return SCORE_WEIGHTS["country_score"]
-    return 0
+def _component_signal_score(opportunity_gate: Mapping[str, Any] | None) -> float:
+    if not opportunity_gate or not _normalize_bool(opportunity_gate.get("signal_usable")):
+        return 0.0
+    signal_type = normalize_text(opportunity_gate.get("signal_type")).casefold()
+    if signal_type == "inquiry":
+        return 1.0
+    if signal_type in {"purchase_offer", "offer"}:
+        return 0.95
+    if signal_type == "consultation":
+        return 0.9
+    return 0.75
 
 
-def _hs_score(match_mode: str) -> int:
-    if match_mode == "hs_exact":
-        return SCORE_WEIGHTS["hs_score"]
-    if match_mode == "hs_prefix_4":
-        return 27
-    if match_mode == "hs_prefix_2":
-        return 22
-    return 0
-
-
-def _keyword_score(match_mode: str, overlap_terms: list[str]) -> int:
-    overlap_count = len(overlap_terms)
-    if overlap_count <= 0:
-        return 0
-    if match_mode.startswith("hs"):
-        return min(3, overlap_count)
-    if overlap_count >= 3:
-        return SCORE_WEIGHTS["keyword_score"]
-    if overlap_count == 2:
-        return 8
-    return 6
-
-
-def _score_signal(opportunity_gate: Mapping[str, Any] | None) -> int:
-    if opportunity_gate and opportunity_gate.get("passed") and _normalize_bool(opportunity_gate.get("signal_usable")):
-        return SCORE_WEIGHTS["signal_score"]
-    return 0
-
-
-def _recency_score(opportunity: Mapping[str, Any] | None, opportunity_gate: Mapping[str, Any] | None, reference_date: date | None) -> int:
+def _component_activity_score(
+    opportunity: Mapping[str, Any] | None,
+    opportunity_gate: Mapping[str, Any] | None,
+    reference_date: date | None,
+) -> float:
     if opportunity is None or opportunity_gate is None or _normalize_bool(opportunity_gate.get("expired")):
-        return 0
+        return 0.0
     ref = reference_date or date.today()
     valid_until = parse_date(opportunity.get("valid_until"))
     created_at = parse_date(opportunity.get("created_at"))
@@ -326,38 +439,52 @@ def _recency_score(opportunity: Mapping[str, Any] | None, opportunity_gate: Mapp
     elif created_at is not None:
         days = (ref - created_at).days
     else:
-        return 0
+        return 0.2
     if days < 0:
-        return 0
+        return 0.0
     if days <= 30:
-        return SCORE_WEIGHTS["recency_score"]
+        return 1.0
     if days <= 90:
-        return 8
+        return 0.8
     if days <= 183:
-        return 6
-    return 0
+        return 0.6
+    return 0.3
 
 
-def _zero_breakdown() -> dict[str, int]:
-    return {key: 0 for key in SCORE_WEIGHTS}
+def _weighted_score(component_scores: Mapping[str, float]) -> float:
+    return round(
+        sum(
+            FIT_COMPONENT_WEIGHTS[key] * _normalize_score(component_scores.get(key, 0.0))
+            for key in FIT_COMPONENT_WEIGHTS
+        ),
+        2,
+    )
 
 
-def _gate_failure_reasons(buyer_gate: Mapping[str, Any], opportunity_gate: Mapping[str, Any] | None) -> list[str]:
+def _zero_breakdown() -> dict[str, Any]:
+    breakdown: dict[str, Any] = {key: 0.0 for key in FIT_COMPONENT_WEIGHTS}
+    breakdown["soft_penalty_score"] = 0.0
+    breakdown["final_weighted_score"] = 0.0
+    return breakdown
+
+
+def _gate_failure_reasons(
+    hard_fail_codes: list[str],
+    buyer_gate: Mapping[str, Any],
+    opportunity_gate: Mapping[str, Any] | None,
+) -> list[str]:
     mapping = {
-        "country_mismatch": "타깃 국가와 buyer 국가가 맞지 않아 Hard Gate에서 탈락했습니다.",
+        "country_mismatch": "타깃 국가와 buyer 국가가 맞지 않아 강한 감점이 적용됐습니다.",
         "banned_country": "금지 국가 규칙에 걸려 후보에서 제외했습니다.",
-        "hs_mismatch": "제품 HS 또는 핵심 키워드가 맞지 않아 탈락했습니다.",
-        "capacity_fail": "요구 생산능력을 충족하지 못해 탈락했습니다.",
+        "hs_mismatch": "제품 HS 또는 핵심 키워드가 맞지 않아 감점이 적용됐습니다.",
+        "capacity_fail": "요구 생산능력을 충족하지 못해 감점이 적용됐습니다.",
         "signal_type_invalid": "signal_type이 shortlist 대상 유형이 아니어서 탈락했습니다.",
         "expired": "기회 신호가 만료되어 점수 계산 대상에서 제외했습니다.",
         "ambiguous_product": "title/product가 불명확해 점수 계산 대상에서 제외했습니다.",
     }
     reasons = []
-    for code in buyer_gate.get("gate_reason", []):
-        reasons.append(mapping.get(str(code), f"Hard Gate 사유: {code}"))
-    if opportunity_gate is not None:
-        for code in opportunity_gate.get("gate_reason", []):
-            reasons.append(mapping.get(str(code), f"Hard Gate 사유: {code}"))
+    for code in hard_fail_codes:
+        reasons.append(mapping.get(str(code), f"Hard Fail 사유: {code}"))
     if not reasons:
         reasons.append("Hard Gate 미통과로 Fit Score 계산을 생략했습니다.")
     while len(reasons) < 3:
@@ -365,56 +492,122 @@ def _gate_failure_reasons(buyer_gate: Mapping[str, Any], opportunity_gate: Mappi
     return reasons[:3]
 
 
+def _classify_gate_reasons(
+    *,
+    buyer: Mapping[str, Any],
+    target: Mapping[str, Any],
+    buyer_gate: Mapping[str, Any],
+    opportunity_gate: Mapping[str, Any] | None,
+    required_capacity: float | None,
+) -> dict[str, list[str]]:
+    hard_fail: list[str] = []
+    soft_penalty: list[str] = []
+
+    for code in buyer_gate.get("gate_reason", []):
+        normalized = normalize_text(code)
+        if normalized in BUYER_HARD_FAIL_CODES:
+            hard_fail.append(normalized)
+        elif normalized:
+            soft_penalty.append(normalized)
+
+    if opportunity_gate is not None:
+        for code in opportunity_gate.get("gate_reason", []):
+            normalized = normalize_text(code)
+            if normalized in OPPORTUNITY_HARD_FAIL_CODES:
+                hard_fail.append(normalized)
+            elif normalized:
+                soft_penalty.append(normalized)
+
+    # has_contact=True면 연락 방법이 있다고 간주 — 추가 soft_penalty 없음
+    if not _has_usable_contact(buyer) and not _normalize_bool(buyer.get("has_contact")):
+        soft_penalty.append("missing_contact")
+    if _has_partial_missing_data(buyer, target):
+        soft_penalty.append("partial_missing_data")
+    if not _capacity_passes(buyer, required_capacity):
+        soft_penalty.append("capacity_fail")
+    if not _has_certification(buyer):
+        soft_penalty.append("missing_certification")
+    if not _has_moq(buyer):
+        soft_penalty.append("unclear_moq")
+
+    hard_fail = sorted(dict.fromkeys(hard_fail))
+    soft_penalty = [code for code in dict.fromkeys(soft_penalty) if code not in hard_fail]
+    neutral = ["ranking_eligible"] if not hard_fail else []
+    return {
+        "hard_fail": hard_fail,
+        "soft_penalty": soft_penalty,
+        "neutral": neutral,
+    }
+
+
+def _soft_penalty_total(soft_penalty_codes: Iterable[str]) -> float:
+    total = 0.0
+    for code in soft_penalty_codes:
+        total += SOFT_PENALTY_WEIGHTS.get(normalize_text(code), 0.0)
+    return round(total, 2)
+
+
 def _explanation_reasons(
     buyer: Mapping[str, Any],
     target: Mapping[str, Any],
     normalized_opportunity: Mapping[str, Any] | None,
-    buyer_gate: Mapping[str, Any],
-    opportunity_gate: Mapping[str, Any] | None,
-    score_breakdown: Mapping[str, int],
-    match_result: Mapping[str, Any],
-    overlap_terms: list[str],
-    required_capacity: float | None,
+    score_breakdown: Mapping[str, Any],
+    gate_classification: Mapping[str, list[str]],
 ) -> list[str]:
-    if not buyer_gate.get("passed") or (opportunity_gate is not None and not opportunity_gate.get("passed")):
-        return _gate_failure_reasons(buyer_gate, opportunity_gate)
-
     buyer_hs = normalize_hs_code(_first_non_empty(buyer, ("hs_code_norm", "hs_code", "hs_code_raw")))
     target_hs = normalize_hs_code(target.get("hs_code_norm"))
     target_country = normalize_text(target.get("country_norm"))
     buyer_country = normalize_text(_first_non_empty(buyer, ("country_norm", "country", "country_raw")))
+    overlap_terms = list(score_breakdown.get("matched_terms", []))
 
-    if score_breakdown["hs_score"] > 0:
+    hs_match_type = normalize_text(score_breakdown.get("hs_match_type"))
+    if hs_match_type.startswith("hs_inferred"):
+        reason_1 = (
+            f"HS 추정 기반 매칭이 적용됐습니다 ({buyer_hs or '-'} vs {target_hs or '-'})"
+            if buyer_hs or target_hs
+            else "HS 추정 기반 매칭이 적용됐습니다."
+        )
+        if overlap_terms:
+            reason_1 += f" {', '.join(overlap_terms[:2])} 키워드가 함께 확인됩니다."
+        else:
+            reason_1 += " 키워드/상품명 기반으로 유사성이 확인됩니다."
+    elif score_breakdown["hs_match_score"] >= 0.75:
         if overlap_terms:
             reason_1 = (
-                f"HS 적합도가 높습니다 ({buyer_hs or '-'} vs {target_hs or '-'}) "
+                f"제품 적합도가 높습니다 ({buyer_hs or '-'} vs {target_hs or '-'}) "
                 f"그리고 {', '.join(overlap_terms[:2])} 키워드가 함께 겹칩니다."
             )
         else:
-            reason_1 = f"HS 적합도가 높습니다 ({buyer_hs or '-'} vs {target_hs or '-'})."
-    elif score_breakdown["keyword_score"] > 0:
-        reason_1 = f"제품 키워드가 맞물립니다 ({', '.join(overlap_terms[:3])})."
+            reason_1 = f"제품 적합도가 높습니다 ({buyer_hs or '-'} vs {target_hs or '-'})."
+    elif score_breakdown["hs_match_score"] > 0:
+        reason_1 = "완전 일치는 아니지만 HS 또는 키워드 기준으로 관련성이 확인됩니다."
     else:
-        reason_1 = "제품 적합성은 Hard Gate 기준을 통과했지만 추가 가점은 제한적입니다."
+        reason_1 = "제품 적합도는 낮지만 ranking 후보로는 유지했습니다."
 
-    if score_breakdown["country_score"] > 0:
+    if score_breakdown["country_match_score"] >= 1.0:
         reason_2 = f"타깃 국가 {target_country}과 buyer 국가 {buyer_country}이 일치합니다."
+    elif score_breakdown["country_match_score"] > 0:
+        reason_2 = "국가 정보가 일부 비어 있어 중립 점수만 반영했습니다."
     else:
-        reason_2 = "국가 조건은 추가 가점을 만들 정도로 명확하지 않았습니다."
+        reason_2 = "국가 일치도는 낮아 감점이 반영됐습니다."
 
     execution_parts: list[str] = []
-    if score_breakdown["signal_score"] > 0 and normalized_opportunity is not None:
-        signal_type = normalize_text((opportunity_gate or {}).get("signal_type")) or normalize_text(normalized_opportunity.get("signal_type"))
-        execution_parts.append(f"최근 6개월 내 사용 가능한 {signal_type or 'opportunity'} signal이 있습니다")
-    if score_breakdown["recency_score"] > 0:
-        execution_parts.append("신호 시점이 비교적 최근입니다")
-    if score_breakdown["capacity_score"] > 0 and required_capacity is not None:
-        execution_parts.append(f"요구 생산능력 {required_capacity:g} 기준을 충족합니다")
-    if score_breakdown["contact_score"] > 0:
+    if score_breakdown["opportunity_signal_score"] >= 0.9 and normalized_opportunity is not None:
+        signal_type = normalize_text(normalized_opportunity.get("signal_type")) or "opportunity"
+        execution_parts.append(f"{signal_type} 기반 기회 신호가 강합니다")
+    if score_breakdown["activity_score"] >= 0.8:
+        execution_parts.append("최근성 점수가 높습니다")
+    if score_breakdown["contact_score"] >= 1.0:
         execution_parts.append("연락 가능한 contact 정보가 확인됩니다")
+    elif "missing_contact" in gate_classification.get("soft_penalty", []):
+        execution_parts.append("contact 정보 부족으로 감점됐습니다")
+    if "missing_certification" in gate_classification.get("soft_penalty", []):
+        execution_parts.append("인증 정보가 없어 감점됐습니다")
+    if "unclear_moq" in gate_classification.get("soft_penalty", []):
+        execution_parts.append("MOQ 정보가 불명확합니다")
     if not execution_parts:
-        execution_parts.append("실행 가능성 관련 가점은 제한적입니다")
-    reason_3 = ", ".join(execution_parts) + "."
+        execution_parts.append("실행 가능성 정보는 보통 수준입니다")
+    reason_3 = ", ".join(execution_parts[:3]) + "."
 
     return [reason_1, reason_2, reason_3]
 
@@ -441,63 +634,75 @@ def fit_score_v0(
         gate_result=gate_result,
         reference_date=reference_date,
     )
+    match_result = match_hs_or_keywords(buyer, target)
+    overlap_terms = _keyword_overlap(buyer, target)
+    required_capacity = _required_capacity(supplier_profile)
+    gate_classification = _classify_gate_reasons(
+        buyer=buyer,
+        target=target,
+        buyer_gate=buyer_gate,
+        opportunity_gate=opportunity_gate,
+        required_capacity=required_capacity,
+    )
 
-    gate_passed = _normalize_bool(buyer_gate.get("passed"))
-    if opportunity_gate is not None:
-        gate_passed = gate_passed and _normalize_bool(opportunity_gate.get("passed"))
-
-    if not gate_passed:
-        explanation_reasons = _gate_failure_reasons(buyer_gate, opportunity_gate)
+    if gate_classification["hard_fail"]:
+        explanation_reasons = _gate_failure_reasons(
+            gate_classification["hard_fail"],
+            buyer_gate,
+            opportunity_gate,
+        )
         return {
             "final_score": 0,
             "score_breakdown": _zero_breakdown(),
             "explanation_reasons": explanation_reasons,
+            "explanation": explanation_reasons,
             "recommendation_lines": recommendation_lines_v0({"explanation_reasons": explanation_reasons}),
             "decision": "rejected",
             "matched_by": "",
             "matched_terms": [],
+            "gate_classification": gate_classification,
             "gate_result": {
                 "buyer_gate": buyer_gate,
                 "opportunity_gate": opportunity_gate,
             },
         }
 
-    match_result = match_hs_or_keywords(buyer, target)
-    overlap_terms = _keyword_overlap(buyer, target)
-    required_capacity = _required_capacity(supplier_profile)
-
     matched_by = normalize_text(buyer_gate.get("matched_by")) or normalize_text(match_result.get("match_mode"))
-    breakdown = {
-        "hs_score": _hs_score(matched_by),
-        "keyword_score": _keyword_score(matched_by or normalize_text(match_result.get("match_mode")), overlap_terms),
-        "country_score": _country_score(buyer, target),
-        "capacity_score": _capacity_score(buyer, required_capacity),
-        "contact_score": _contact_score(buyer),
-        "recency_score": _recency_score(normalized_opportunity, opportunity_gate, reference_date),
-        "signal_score": _score_signal(opportunity_gate),
+    hs_match_score, hs_match_type = _resolve_hs_match_score(buyer, target, match_result, overlap_terms)
+    component_scores = {
+        "country_match_score": _component_country_match_score(buyer, target),
+        "hs_match_score": hs_match_score,
+        "contact_score": _component_contact_score(buyer),
+        "activity_score": _component_activity_score(normalized_opportunity, opportunity_gate, reference_date),
+        "opportunity_signal_score": _component_signal_score(opportunity_gate),
     }
-    final_score = int(sum(breakdown.values()))
+    weighted_score = _weighted_score(component_scores)
+    soft_penalty_score = _soft_penalty_total(gate_classification["soft_penalty"])
+    final_score = round(max(0.0, min(100.0, weighted_score - soft_penalty_score)), 2)
     decision = "shortlist" if final_score >= SHORTLIST_THRESHOLD else "candidate"
+    breakdown = dict(component_scores)
+    breakdown["soft_penalty_score"] = soft_penalty_score
+    breakdown["final_weighted_score"] = final_score
+    breakdown["hs_match_type"] = hs_match_type
+    breakdown["matched_terms"] = overlap_terms[:5]
     explanation_reasons = _explanation_reasons(
         buyer=buyer,
         target=target,
         normalized_opportunity=normalized_opportunity,
-        buyer_gate=buyer_gate,
-        opportunity_gate=opportunity_gate,
         score_breakdown=breakdown,
-        match_result=match_result,
-        overlap_terms=overlap_terms,
-        required_capacity=required_capacity,
+        gate_classification=gate_classification,
     )
 
     return {
         "final_score": final_score,
         "score_breakdown": breakdown,
         "explanation_reasons": explanation_reasons,
+        "explanation": explanation_reasons,
         "recommendation_lines": recommendation_lines_v0({"explanation_reasons": explanation_reasons}),
         "decision": decision,
         "matched_by": matched_by,
         "matched_terms": overlap_terms[:5],
+        "gate_classification": gate_classification,
         "gate_result": {
             "buyer_gate": buyer_gate,
             "opportunity_gate": opportunity_gate,
@@ -527,9 +732,9 @@ def score_buyers(
             {"shortlist": 2, "candidate": 1, "rejected": 0}.get(item["decision"], 0),
             item["final_score"],
             item["score_breakdown"]["contact_score"],
-            item["score_breakdown"]["keyword_score"],
-            item["score_breakdown"]["hs_score"],
-            item["score_breakdown"]["signal_score"],
+            item["score_breakdown"]["hs_match_score"],
+            item["score_breakdown"]["opportunity_signal_score"],
+            item["score_breakdown"]["country_match_score"],
         ),
         reverse=True,
     )
@@ -565,6 +770,9 @@ def _smoke_opportunity(
                 normalize_text(normalized.get("product_name_norm")),
             ]
         )
+        text_compact = re.sub(r"[^0-9a-z가-힣]+", "", text.casefold())
+        if any(blocked and blocked in text_compact for blocked in BLOCKED_KEYWORD_COMPACTS):
+            continue
         overlap_terms = _keyword_overlap(normalized, supplier_target)
         if not overlap_terms and not SMOKE_KEYWORD_RE.search(text):
             continue
