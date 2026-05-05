@@ -5,13 +5,17 @@ import BuyerReport from "./BuyerReport";
 import { API_BASE, buildApiUrl } from "./config";
 
 const quickStartItems = [
-  { id: "kbeauty", label: "K-뷰티", hsCode: "330499", available: true },
-  { id: "health", label: "건강식품", hsCode: "210690", available: false },
-  { id: "kfashion", label: "K-패션", hsCode: "611030", available: false },
+  { id: "kbeauty", label: "K-뷰티", hsCode: "330499", available: true, status: "지금 시작" },
+  { id: "health", label: "건강식품", hsCode: "210690", available: false, status: "Coming Soon" },
+  { id: "kfashion", label: "K-패션", hsCode: "611030", available: false, status: "Coming Soon" },
 ];
 
 const dummyMessages = [
-  { id: 1, role: "assistant", text: "안녕하세요! 어떤 제품의 해외 바이어를 찾아드릴까요? 아래에서 바로 시작하거나, 직접 입력해 주세요." },
+  {
+    id: 1,
+    role: "assistant",
+    text: "안녕하세요. 어떤 제품의 해외 바이어를 찾아드릴까요? 아래 GTM Pack에서 바로 시작하거나, 직접 입력해 주세요.",
+  },
 ];
 
 function buildBuyerReportFromApi(item, hsLabel) {
@@ -89,7 +93,7 @@ async function fetchPredict(hsCode) {
   return buyers;
 }
 
-export default function ChatModePage({ preset, onBack, onSwitchToForm }) {
+export default function ChatModePage({ preset, onBack, onSwitchToForm, onStartWizard }) {
   const [messages, setMessages] = useState(dummyMessages);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -146,8 +150,28 @@ export default function ChatModePage({ preset, onBack, onSwitchToForm }) {
     }
   };
 
+  const handleUnavailableChip = (item) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        role: "assistant",
+        text: `${item.label} GTM Pack은 아직 준비 중입니다. 지금은 K-뷰티(HS ${quickStartItems[0].hsCode})로 먼저 시작할 수 있습니다.`,
+      },
+    ]);
+  };
+
   const handleChipClick = async (item) => {
-    if (!item.available) return;
+    if (!item.available) {
+      handleUnavailableChip(item);
+      return;
+    }
+
+    if (typeof onStartWizard === "function") {
+      onStartWizard({ hsCode: item.hsCode, label: item.label, source: "chat" });
+      return;
+    }
+
     const userMsg = { id: Date.now(), role: "user", text: `${item.label} 수출하고 싶어요` };
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
@@ -191,6 +215,9 @@ export default function ChatModePage({ preset, onBack, onSwitchToForm }) {
         </button>
         <div className="chat-brand">MarketGate 비서</div>
         <div className="chat-mode-actions">
+          <button className="chat-mode-toggle" aria-current="page">
+            <span>챗 모드</span>
+          </button>
           <button className="chat-mode-toggle" onClick={onSwitchToForm}>
             <LayoutTemplate size={16} />
             <span>폼 모드</span>
@@ -232,7 +259,7 @@ export default function ChatModePage({ preset, onBack, onSwitchToForm }) {
                 onClick={() => handleChipClick(item)}
               >
                 {item.label}
-                {!item.available && <span className="chat-chip-badge">Soon</span>}
+                <span className="chat-chip-badge">{item.status}</span>
               </button>
             ))}
           </div>
@@ -243,7 +270,7 @@ export default function ChatModePage({ preset, onBack, onSwitchToForm }) {
             </button>
             <input
               className="chat-input"
-              placeholder="메시지를 입력하세요..."
+              placeholder="예: K-뷰티 독일 바이어 찾아줘"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend()}

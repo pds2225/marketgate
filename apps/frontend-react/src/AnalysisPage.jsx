@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useState } from "react";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -573,7 +573,7 @@ function MetricBar({ metric }) {
   );
 }
 
-export default function AnalysisPage({ onBack }) {
+export default function AnalysisPage({ onBack, preset }) {
   const [hsCode, setHsCode] = useState("330499");
   const [topN, setTopN] = useState(5);
   const [year, setYear] = useState(2023);
@@ -594,6 +594,13 @@ export default function AnalysisPage({ onBack }) {
     result?.recommendations.find((item) => item.id === deferredSelectedId) ||
     result?.recommendations[0] ||
     null;
+
+  useEffect(() => {
+    if (preset?.hsCode) {
+      setHsCode(String(preset.hsCode));
+      setError("");
+    }
+  }, [preset]);
 
   const handleAnalyze = async () => {
     if (!/^\d{2,6}$/.test(hsCode.trim())) {
