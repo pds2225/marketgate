@@ -16,6 +16,7 @@ class DataStore:
     wb_gdp: pd.DataFrame
     wb_growth: pd.DataFrame
     distance: pd.DataFrame
+    load_errors: list[str] = None
 
 
 _DATASTORE: Optional[DataStore] = None
@@ -29,6 +30,11 @@ def _resolve_path(file_path: str) -> str:
     return str(_PROJECT_ROOT / path)
 
 
+def _empty_trade_df() -> pd.DataFrame:
+    """필수 컬럼만 가진 빈 trade DataFrame"""
+    return pd.DataFrame(columns=["refYear", "reporterISO", "partnerISO", "cmdCode", "trade_value_usd"])
+
+
 def _load_trade(path: str) -> pd.DataFrame:
     """
     trade_data.csv 전용 로더
@@ -36,19 +42,41 @@ def _load_trade(path: str) -> pd.DataFrame:
     2) 인코딩 자동탐지 fallback
     3) 필수 컬럼 검증 후 진단 로그 출력
     """
-    sep = detect_separator(path)
-    logger.info(f"[TRADE] 감지된 구분자: '{sep}'")
-    df = read_csv_safely(path, sep=sep)
+    try:
+        sep = detect_separator(path)
+        logger.info(f"[TRADE] 감지된 구분자: '{sep}'")
+        df = read_csv_safely(path, sep=sep)
 
-    logger.info(f"[TRADE] 컬럼 목록: {df.columns.tolist()}")
-    logger.info(f"[TRADE] shape: {df.shape}")
+        logger.info(f"[TRADE] 컬럼 목록: {df.columns.tolist()}")
+        logger.info(f"[TRADE] shape: {df.shape}")
 
-    required = ["refYear", "reporterISO", "partnerISO", "cmdCode", "primaryValue"]
-    missing = [c for c in required if c not in df.columns]
-    if missing:
-        raise ValueError(f"[TRADE] 필수 컬럼 누락: {missing}\n실제 컬럼: {df.columns.tolist()}")
+        required = ["refYear", "reporterISO", "partnerISO", "cmdCode", "primaryValue"]
+        missing = [c for c in required if c not in df.columns]
+        if missing:
+            logger.warning(f"[TRADE] 필수 컬럼 누락: {missing}")
+            return _empty_trade_df()
 
-    return df
+        return df
+    except Exception as exc:
+        logger.error(f"[TRADE] 로드 실패: {exc}")
+        return _empty_trade_df()
+
+
+def _safe_read_csv(path: str, required_cols: list[str], name: str) -> pd.DataFrame:
+    """CSV 안전 로드: 실패 시 필수 컬럼을 가진 빈 DataFrame 반환"""
+    try:
+        resolved = _resolve_path(path)
+        if not Path(resolved).exists():
+            logger.warning(f"[{name}] 파일 없음: {resolved}")
+            return pd.DataFrame(columns=required_cols)
+        df = read_csv_safely(resolved)
+        missing = [c for c in required_cols if c not in df.columns]
+        if missing:
+            logger.warning(f"[{name}] 컬럼 누락: {missing}")
+        return df
+    except Exception as exc:
+        logger.error(f"[{name}] 로드 실패: {exc}")
+        return pd.DataFrame(columns=required_cols)
 
 
 def load_datastore() -> DataStore:
@@ -56,40 +84,43 @@ def load_datastore() -> DataStore:
     if _DATASTORE is not None:
         return _DATASTORE
 
-    kotra = read_csv_safely(_resolve_path(Files.KOTRA_RECO))
-    mofa = read_csv_safely(_resolve_path(Files.MOFA_ISO3))
+    load_errors: list[str] = []
+
+    kotra = _safe_read_csv(Files.KOTRA_RECO, ["HSCD", "NAT_NAME", "EXP_BHRC_SCR"], "KOTRA_RECO")
+    if kotra.empty:
+        load_errors.append(f"KOTRA_RECO ({Files.KOTRA_RECO})")
+
+    mofa = _safe_read_csv(Files.MOFA_ISO3, ["한글명", "국제표준화기구_3자리"], "MOFA_ISO3")
+    if mofa.empty:
+        load_errors.append(f"MOFA_ISO3 ({Files.MOFA_ISO3})")
+
     trade = _load_trade(_resolve_path(Files.TRADE))
-    wb_gdp = read_csv_safely(_resolve_path(Files.WB_GDP))
-    wb_growth = read_csv_safely(_resolve_path(Files.WB_GDP_GROWTH))
-    distance = read_csv_safely(_resolve_path(Files.DISTANCE))
+    if trade.empty:
+        load_errors.append(f"TRADE ({Files.TRADE})")
 
-    # KOTRA 컬럼 검증
-    for col in ["HSCD", "NAT_NAME"]:
-        if col not in kotra.columns:
-            raise ValueError(f"{Files.KOTRA_RECO} missing column: {col}")
+    wb_gdp = _safe_read_csv(Files.WB_GDP, ["REF_AREA", "TIME_PERIOD", "OBS_VALUE"], "WB_GDP")
+    if wb_gdp.empty:
+        load_errors.append(f"WB_GDP ({Files.WB_GDP})")
 
-    # 외교부 컬럼 검증
-    for col in ["한글명", "국제표준화기구_3자리"]:
-        if col not in mofa.columns:
-            raise ValueError(f"{Files.MOFA_ISO3} missing column: {col}")
+    wb_growth = _safe_read_csv(Files.WB_GDP_GROWTH, ["REF_AREA", "TIME_PERIOD", "OBS_VALUE"], "WB_GDP_GROWTH")
+    if wb_growth.empty:
+        load_errors.append(f"WB_GDP_GROWTH ({Files.WB_GDP_GROWTH})")
 
-    # World Bank 컬럼 검증
-    for df, name in [(wb_gdp, "WB_GDP"), (wb_growth, "WB_GDP_GROWTH")]:
-        for col in ["REF_AREA", "TIME_PERIOD", "OBS_VALUE"]:
-            if col not in df.columns:
-                raise ValueError(f"{name} missing column: {col}")
+    distance = _safe_read_csv(Files.DISTANCE, ["origin_country", "target_country", "distance_km"], "DISTANCE")
+    if distance.empty:
+        load_errors.append(f"DISTANCE ({Files.DISTANCE})")
 
     # Trade 컬럼명 정리 (primaryValue → trade_value_usd)
-    trade = trade.rename(columns={"primaryValue": "trade_value_usd"})
-    trade["trade_value_usd"] = (
-        trade["trade_value_usd"].astype(str).str.replace(",", "", regex=False)
-    )
-    trade["trade_value_usd"] = pd.to_numeric(trade["trade_value_usd"], errors="coerce").fillna(0.0)
+    if "primaryValue" in trade.columns:
+        trade = trade.rename(columns={"primaryValue": "trade_value_usd"})
+    if "trade_value_usd" in trade.columns:
+        trade["trade_value_usd"] = (
+            trade["trade_value_usd"].astype(str).str.replace(",", "", regex=False)
+        )
+        trade["trade_value_usd"] = pd.to_numeric(trade["trade_value_usd"], errors="coerce").fillna(0.0)
 
-    # Distance 컬럼 검증
-    for col in ["origin_country", "target_country", "distance_km"]:
-        if col not in distance.columns:
-            raise ValueError(f"{Files.DISTANCE} missing column: {col}")
+    if load_errors:
+        logger.warning(f"[DataStore] 누락 데이터: {load_errors}")
 
     _DATASTORE = DataStore(
         kotra=kotra,
@@ -98,6 +129,7 @@ def load_datastore() -> DataStore:
         wb_gdp=wb_gdp,
         wb_growth=wb_growth,
         distance=distance,
+        load_errors=load_errors,
     )
     return _DATASTORE
 
