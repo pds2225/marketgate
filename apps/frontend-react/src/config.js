@@ -19,9 +19,35 @@ export function buildApiUrl(path, base = API_BASE) {
   return `${normalizedBase}${normalizedPath}`;
 }
 
+/**
+ * P1 / legacy FastAPI paths. If VITE_* API base is set, call that origin directly.
+ * Otherwise use same-origin `/api/...` (Vite dev proxy strips `/api`; Vercel uses api/[...path].js).
+ */
+export function buildP1Url(path) {
+  const normalizedPath = String(path || "").startsWith("/")
+    ? String(path || "")
+    : `/${String(path || "")}`;
+  let base = normalizeBaseUrl(API_BASE);
+  // If VITE_* points at the same host as the SPA (common misconfig on Vercel),
+  // absolute URLs like https://marketgate.vercel.app/v1/predict hit the static app, not FastAPI.
+  if (base && typeof window !== "undefined") {
+    try {
+      if (new URL(base).origin === window.location.origin) {
+        base = "";
+      }
+    } catch {
+      /* ignore invalid base */
+    }
+  }
+  if (base) {
+    return `${base}${normalizedPath}`;
+  }
+  return `/api${normalizedPath}`;
+}
+
 export const ENDPOINTS = {
-  health: buildApiUrl("/api/v1/health"),
-  predict: buildApiUrl("/v1/predict"),
-  legacyPredict: buildApiUrl("/api/predict"),
-  snapshot: buildApiUrl("/api/v1/snapshot"),
+  health: buildP1Url("/v1/health"),
+  predict: buildP1Url("/v1/predict"),
+  legacyPredict: buildP1Url("/predict"),
+  snapshot: buildP1Url("/v1/snapshot"),
 };

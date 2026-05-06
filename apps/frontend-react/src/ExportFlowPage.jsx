@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { API_BASE, buildApiUrl, ENDPOINTS } from "./config";
+import { buildP1Url, ENDPOINTS } from "./config";
 import BuyerReport from "./BuyerReport";
 
 const hsExamples = [
@@ -252,7 +252,7 @@ async function requestAnalysis(hsCode, topN, year) {
   }
 
   try {
-    const legacyPayload = await fetchJson(buildApiUrl("/predict", API_BASE), {
+    const legacyPayload = await fetchJson(buildP1Url("/predict"), {
       hs_code: normalizedHs,
       exporter_country: "KOR",
       top_n: topN,

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { ArrowLeft, Send, Mic, LayoutTemplate } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import BuyerReport from "./BuyerReport";
-import { API_BASE, buildApiUrl } from "./config";
+import { buildP1Url } from "./config";
 
 const quickStartItems = [
   { id: "kbeauty", label: "K-뷰티", hsCode: "330499", available: true, status: "지금 시작" },
@@ -73,7 +73,7 @@ function buildBuyerReportFromApi(item, hsLabel) {
 }
 
 async function fetchPredict(hsCode) {
-  const res = await fetch(buildApiUrl("/v1/predict", API_BASE), {
+  const res = await fetch(buildP1Url("/v1/predict"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
