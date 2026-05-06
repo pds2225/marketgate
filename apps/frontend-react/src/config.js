@@ -21,7 +21,7 @@ export function buildApiUrl(path, base = API_BASE) {
 
 export const ENDPOINTS = {
   health: buildApiUrl("/api/v1/health"),
-  predict: buildApiUrl("/api/v1/predict"),
+  predict: buildApiUrl("/v1/predict"),
   legacyPredict: buildApiUrl("/api/predict"),
   snapshot: buildApiUrl("/api/v1/snapshot"),
 };
