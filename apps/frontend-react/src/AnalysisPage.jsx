@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { buildP1Url, ENDPOINTS } from "./config";
+import { displayPhone } from "./lib/phone";
 
 const hsExamples = [
   { code: "330499", label: "K-뷰티" },
@@ -409,7 +410,7 @@ function BuyerShortlistPanel({ buyers, onInquiry }) {
                   </div>
                   <div className="analysis-detail-row">
                     <span>전화번호</span>
-                    <strong>{item.contact_phone || "-"}</strong>
+                    <strong>{displayPhone(item.contact_phone)}</strong>
                   </div>
                   <div className="analysis-detail-row">
                     <span>홈페이지</span>

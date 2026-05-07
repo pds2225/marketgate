@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { buildP1Url, ENDPOINTS } from "./config";
+import { displayPhone } from "./lib/phone";
 import BuyerReport from "./BuyerReport";
 
 const hsExamples = [
@@ -845,7 +846,7 @@ export default function ExportFlowPage({ onBack }) {
                         <div className="analysis-detail-grid" style={{ marginTop: 10 }}>
                           <div className="analysis-detail-row"><span>추천 국가</span><strong>{item.source_target_country_name || item.source_target_country_iso3 || "-"}</strong></div>
                           <div className="analysis-detail-row"><span>이메일</span><strong>{item.contact_email || "-"}</strong></div>
-                          <div className="analysis-detail-row"><span>전화</span><strong>{item.contact_phone || "-"}</strong></div>
+                          <div className="analysis-detail-row"><span>전화</span><strong>{displayPhone(item.contact_phone)}</strong></div>
                           <div className="analysis-detail-row"><span>웹사이트</span><strong>{item.contact_website || "-"}</strong></div>
                         </div>
                         {selectedBuyer?.buyer_name === item.buyer_name && (

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Mail, Phone, Globe, FileText, HelpCircle, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { displayPhone } from "./lib/phone";
 
 const trustLabels = {
   verified: { emoji: "✅", label: "검증됨", desc: "공공데이터 직접 확인" },
@@ -96,7 +97,7 @@ export default function BuyerReport({ buyer }) {
           </div>
           <div className="buyer-report-contact-row">
             <Phone size={16} />
-            <span><strong>전화</strong> {buyer.company.phone}</span>
+            <span><strong>전화</strong> {displayPhone(buyer.company.phone)}</span>
           </div>
           <div className="buyer-report-contact-row">
             <Globe size={16} />
