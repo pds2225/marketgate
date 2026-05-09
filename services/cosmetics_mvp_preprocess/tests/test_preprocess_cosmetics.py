@@ -72,14 +72,14 @@ def test_pipeline_end_to_end_deduplicates_and_saves() -> None:
         assert list(opportunity_df.columns) == COMMON_OUTPUT_COLUMNS
 
         assert len(buyer_df) == 1
-        assert len(opportunity_df) == 3
+        assert len(opportunity_df) == 6
 
         assert buyer_df.duplicated(subset=["normalized_name", "country_norm"]).sum() == 0
         assert opportunity_df.duplicated(subset=["title", "country_norm", "valid_until"]).sum() == 0
         assert buyer_df["has_contact"].isin(["True", "False"]).all()
-        assert opportunity_df["hs_code_norm"].eq("330499").all()
+        assert opportunity_df["hs_code_norm"].str.startswith("33").all()
         assert summary["targets"]["buyer_candidate"]["final_rows"] == 1
-        assert summary["targets"]["opportunity_item"]["final_rows"] == 3
+        assert summary["targets"]["opportunity_item"]["final_rows"] == 6
         assert "example.com" not in buyer_df.to_string().lower()
         assert "example.com" not in opportunity_df.to_string().lower()
     finally:

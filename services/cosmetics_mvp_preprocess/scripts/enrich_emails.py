@@ -5,8 +5,10 @@
 """
 
 import re
+import os
 import requests
 import pandas as pd
+from pathlib import Path
 from urllib.parse import urlparse
 
 def extract_domain_from_name(name: str) -> str:
@@ -69,7 +71,10 @@ def enrich_emails(df: pd.DataFrame, hunter_api_key: str = "") -> pd.DataFrame:
     return df
 
 if __name__ == "__main__":
-    # 사용 예시
-    df = pd.read_csv("buyer_candidate.csv", encoding='utf-8-sig')
-    df_enriched = enrich_emails(df, hunter_api_key="YOUR_HUNTER_API_KEY")
+    input_csv = Path(os.getenv("BUYER_CANDIDATE_CSV", "buyer_candidate.csv"))
+    if not input_csv.exists():
+        raise SystemExit(f"BUYER_CANDIDATE_CSV 입력 파일이 없습니다: {input_csv}")
+
+    df = pd.read_csv(input_csv, encoding='utf-8-sig')
+    df_enriched = enrich_emails(df, hunter_api_key=os.getenv("HUNTER_API_KEY", ""))
     df_enriched.to_csv("buyer_candidate_with_emails.csv", index=False, encoding='utf-8-sig')

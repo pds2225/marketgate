@@ -250,19 +250,6 @@ def build_buyer_shortlist(req: Any, country_results: list[dict[str, Any]]) -> Bu
     limit = min(int(getattr(req, "top_n", 5) or 5), 10)
     include_rejected = bool(getattr(req, "include_rejected", False))
 
-    if not (BUYER_CSV.exists() and OPPORTUNITY_CSV.exists()):
-        meta = _empty_buyer_meta(source_countries)
-        meta["missing_output"] = True
-        return BuyerShortlistData(
-            status="ok",
-            target_country_iso3=top_country_iso3,
-            target_country_name=target_country_name or None,
-            source_countries=source_countries,
-            meta=meta,
-            items=[],
-            error=None,
-        )
-
     try:
         shortlist_results: list[dict[str, Any]] = []
         # 키워드를 req에서 가져오거나 HS 코드 기반 추론에 맡김
