@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
 
-from fastapi import Body, FastAPI
+from fastapi import Body, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from app.models import PredictRequest, PredictResponse, InquiryRequest, InquiryResponse
@@ -9,6 +9,7 @@ from app.services.project_snapshot import build_project_snapshot
 from app.services.scoring import recommend_countries
 from app.services.inquiry_service import build_draft
 from app.utils import now_seoul_iso, new_request_id
+from app.credit_store import charge, get_balance
 
 app = FastAPI(title="Export Fit Score API(P1)", version="0.0.1")
 
@@ -86,6 +87,23 @@ def project_snapshot():
         "timestamp": now_seoul_iso(),
         "data": build_project_snapshot(),
     }
+
+
+@app.get("/v1/credits/balance")
+def credits_balance(user_id: str = "default"):
+    return {"user_id": user_id, "balance": get_balance(user_id)}
+
+
+@app.post("/v1/credits/charge")
+def credits_charge(payload: Dict[str, Any] = Body(...)):
+    user_id = str(payload.get("user_id") or "default")
+    try:
+        amount = int(payload.get("amount"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="amount must be > 0")
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="amount must be > 0")
+    return {"user_id": user_id, "balance": charge(user_id, amount)}
 
 
 @app.post("/v1/inquiry", response_model=InquiryResponse)
