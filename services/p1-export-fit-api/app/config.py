@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Files:
-    # csv 파일 로드라서, 일단 상대 경로로 접근. ****** 추후 db화 예정임
+    # TODO: 현재 CSV 파일 기반 로드. DB 전환 시 경로 및 로더 교체 필요
     KOTRA_RECO = "csv/kotra_export_recommend_all.csv"
     MOFA_ISO3 = "csv/외교부_국가표준코드_20251222.csv"
     TRADE = "csv/trade_data.csv"

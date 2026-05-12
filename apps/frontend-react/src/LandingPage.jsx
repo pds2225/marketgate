@@ -1,54 +1,85 @@
 import {
   ArrowRight,
+  BarChart3,
   ChartNoAxesCombined,
+  Clock,
   Database,
   Globe2,
+  MapPin,
   MoveRight,
-  Orbit,
+  Search,
   ShieldCheck,
   Sparkles,
+  Target,
+  TrendingUp,
+  Users,
   Heart,
   Shirt,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
 
-const proofItems = [
+const trustMetrics = [
+  { icon: Globe2, value: "20+", label: "분석 대상 국가" },
+  { icon: Search, value: "6자리", label: "HS 코드 정밀 분석" },
+  { icon: Database, value: "실제 데이터", label: "KOTRA · 무역통계 기반" },
+  { icon: BarChart3, value: "5가지", label: "핵심 추천 지표" },
+];
+
+const problemQuestions = [
+  { icon: MapPin, text: "어느 국가에 팔아야 할지 모르겠나요?" },
+  { icon: Clock, text: "바이어 후보를 찾는 데 시간이 오래 걸리나요?" },
+  { icon: Target, text: "수출 가능성을 빠르게 검토하고 싶나요?" },
+];
+
+const valueItems = [
   {
-    icon: Globe2,
-    label: "추천 엔진",
+    icon: TrendingUp,
+    label: "시장성 분석",
     value: "HS 코드와 수출국 기준으로 유망 국가를 점수화",
   },
   {
     icon: Database,
-    label: "근거 데이터",
-    value: "KOTRA, 무역실적, GDP, 성장률, 국가 간 거리 결합",
+    label: "HS/품목 기반",
+    value: "6자리 HS 코드로 정교한 수출 적합도 측정",
   },
   {
-    icon: ShieldCheck,
-    label: "현재 구조",
-    value: "DB 없이 CSV 파일을 직접 읽는 1차 버전",
+    icon: Globe2,
+    label: "국가별 기회 탐색",
+    value: "GDP, 성장률, 거리, 무역실적을 종합 판단",
+  },
+  {
+    icon: Users,
+    label: "바이어 후보 추천",
+    value: "추천 국가 기반 유력 바이어 숏리스트 제공",
   },
 ];
 
-const workflowRows = [
+const workflowSteps = [
   {
     step: "01",
-    title: "품목 입력",
-    description:
-      "HS 코드(국제 상품 분류 코드)와 수출국을 넣으면 분석이 시작됩니다.",
+    title: "상품 정보 입력",
+    description: "HS 코드와 수출국, 기준 연도를 입력합니다.",
   },
   {
     step: "02",
-    title: "지표 결합",
-    description:
-      "국가코드, 무역 데이터, GDP, 성장률, 거리 정보를 한 줄의 점수로 합칩니다.",
+    title: "시장성 분석",
+    description: "AI가 무역 데이터, GDP, 성장률, 거리 등을 종합해 점수를 계산합니다.",
   },
   {
     step: "03",
-    title: "추천 결과",
-    description:
-      "국가별 추천 점수와 함께 왜 추천됐는지 핵심 지표를 바로 보여줍니다.",
+    title: "추천 국가 확인",
+    description: "국가별 추천 점수와 핵심 지표를 바로 확인합니다.",
+  },
+  {
+    step: "04",
+    title: "바이어 후보 확인",
+    description: "Top 추천 국가 기반 연락 가능한 바이어 후보를 매칭합니다.",
+  },
+  {
+    step: "05",
+    title: "문의/리포트 생성",
+    description: "AI 초안 인콰이어리를 생성하고 PDF 리포트로 저장합니다.",
   },
 ];
 
@@ -87,14 +118,21 @@ const quickStartItems = [
   },
 ];
 
-export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow, onStartBuyerSearch }) {
+export default function LandingPage({
+  onStartAnalysis,
+  onStartChat,
+  onStartFlow,
+  onStartBuyerSearch,
+}) {
   const [toast, setToast] = useState(null);
 
   const handleChipClick = (item) => {
     if (item.available) {
       onStartChat?.({ hsCode: item.hsCode, category: item.label });
     } else {
-      setToast(`🚧 ${item.label}는 아직 준비 중이에요. 오픈되면 가장 먼저 알려드릴게요.`);
+      setToast(
+        `🚧 ${item.label}는 아직 준비 중이에요. 오픈되면 가장 먼저 알려드릴게요.`
+      );
       setTimeout(() => setToast(null), 3000);
     }
   };
@@ -105,12 +143,16 @@ export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow,
         <div className="landing-brand">
           <span className="landing-brand-mark">MarketGate</span>
         </div>
-        <button className="ui-button ui-button--ghost" onClick={() => onStartChat?.()}>
+        <button
+          className="ui-button ui-button--ghost"
+          onClick={() => onStartChat?.()}
+        >
           분석 시작
           <ArrowRight size={16} />
         </button>
       </header>
 
+      {/* === Hero === */}
       <section className="landing-hero">
         <div className="landing-hero-copy">
           <motion.p
@@ -126,7 +168,11 @@ export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow,
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.65, delay: 0.05 }}
           >
-            MarketGate
+            수출 가능성을 분석하고,
+            <br />
+            맞는 바이어를 빠르게 찾는
+            <br />
+            AI 무역 매칭 플랫폼
           </motion.h1>
           <motion.p
             className="landing-hero-description"
@@ -134,23 +180,9 @@ export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow,
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.12 }}
           >
-            이 화면은 바이어 업체를 직접 연결하는 기능이 아니라, 먼저 어떤 나라가
-            유망한지 선별하는 분석 도구입니다. API는 다른 프로그램이 이 기능을
-            호출하는 통로이고, CSV는 엑셀과 비슷한 데이터 파일입니다.
+            HS 코드 기반으로 유망 수출국을 AI가 점수화하고,
+            추천 국가별 실제 바이어 후보까지 매칭해 드립니다.
           </motion.p>
-
-          <motion.div
-            className="landing-data-banner"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.16 }}
-          >
-            <ShieldCheck size={16} />
-            <span>
-              <strong>ChatGPT와 다릅니다.</strong> 모든 추천은 KOTRA 수출입통계, 관세청, World Bank
-              실제 데이터를 정량 분석한 결과입니다.
-            </span>
-          </motion.div>
 
           <motion.div
             className="landing-hero-actions"
@@ -158,40 +190,38 @@ export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow,
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.72, delay: 0.18 }}
           >
-            <button className="ui-button ui-button--solid" onClick={() => onStartChat?.()}>
-              추천 결과 보기
+            <button
+              className="ui-button ui-button--solid"
+              onClick={() => onStartChat?.()}
+            >
+              분석 시작하기
               <MoveRight size={18} />
             </button>
-            <div className="landing-hero-note">
-              <Orbit size={18} />
-              <span>HS 코드 6자리 기준으로 더 정교한 추천 시도</span>
-            </div>
+            <button
+              className="ui-button ui-button--ghost"
+              onClick={onStartBuyerSearch}
+            >
+              바이어 추천 보기
+              <ArrowRight size={16} />
+            </button>
+          </motion.div>
+
+          <motion.div
+            className="landing-hero-note"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+          >
+            <ShieldCheck size={16} />
+            <span>
+              모든 추천은 KOTRA 수출입통계, 관세청, World Bank
+              실제 데이터를 정량 분석한 결과입니다.
+            </span>
           </motion.div>
         </div>
-
-        <motion.aside
-          className="landing-signal-rail"
-          initial={{ opacity: 0, x: 28 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.75, delay: 0.16 }}
-        >
-          <div className="landing-signal-card landing-signal-card--accent">
-            <span className="landing-signal-label">현재 초점</span>
-            <strong>바이어 발굴보다 유망 국가 선별</strong>
-            <p>수출 후보국을 1차로 걸러내는 판단 보조 화면입니다.</p>
-          </div>
-          <div className="landing-signal-card">
-            <span className="landing-signal-label">입력</span>
-            <strong>HS 코드 + 수출국 + 연도 + 제외 국가</strong>
-          </div>
-          <div className="landing-signal-card">
-            <span className="landing-signal-label">출력</span>
-            <strong>추천 국가 목록과 점수</strong>
-          </div>
-        </motion.aside>
       </section>
 
-      {/* Quick Start Chips */}
+      {/* === Quick Start === */}
       <section className="landing-quickstart">
         <div className="landing-section-head">
           <p className="landing-section-kicker">Quick Start</p>
@@ -203,7 +233,9 @@ export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow,
             return (
               <motion.button
                 key={item.id}
-                className={`landing-quickstart-chip ${item.available ? "" : "landing-quickstart-chip--soon"}`}
+                className={`landing-quickstart-chip ${
+                  item.available ? "" : "landing-quickstart-chip--soon"
+                }`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
@@ -214,7 +246,11 @@ export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow,
                   <strong>{item.label}</strong>
                   <span>{item.sub}</span>
                 </div>
-                {!item.available && <span className="landing-quickstart-soon-badge">Coming Soon</span>}
+                {!item.available && (
+                  <span className="landing-quickstart-soon-badge">
+                    Coming Soon
+                  </span>
+                )}
               </motion.button>
             );
           })}
@@ -231,13 +267,63 @@ export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow,
         )}
       </section>
 
+      {/* === Trust Metrics === */}
+      <section className="landing-trust">
+        <div className="landing-section-head">
+          <p className="landing-section-kicker">Trust</p>
+          <h2>실제 데이터 기반, 보수적인 지표로 신뢰를 만듭니다.</h2>
+        </div>
+        <div className="landing-trust-grid">
+          {trustMetrics.map(({ icon: Icon, value, label }, index) => (
+            <motion.div
+              key={label}
+              className="landing-trust-item"
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.35 }}
+              transition={{ duration: 0.55, delay: index * 0.08 }}
+            >
+              <div className="landing-trust-icon">
+                <Icon size={22} />
+              </div>
+              <strong>{value}</strong>
+              <span>{label}</span>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* === Problem Questions === */}
+      <section className="landing-problems">
+        <div className="landing-section-head">
+          <p className="landing-section-kicker">Pain Points</p>
+          <h2>이런 고민, MarketGate가 해결해 드립니다.</h2>
+        </div>
+        <div className="landing-problem-list">
+          {problemQuestions.map(({ icon: Icon, text }, index) => (
+            <motion.div
+              key={index}
+              className="landing-problem-item"
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true, amount: 0.4 }}
+              transition={{ duration: 0.5, delay: index * 0.1 }}
+            >
+              <Icon size={24} />
+              <p>{text}</p>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* === Value Props === */}
       <section className="landing-proof">
         <div className="landing-section-head">
-          <p className="landing-section-kicker">What Is Built</p>
-          <h2>이미 구현된 핵심은 분석 파이프라인입니다.</h2>
+          <p className="landing-section-kicker">Capabilities</p>
+          <h2>수출 전 과정을 AI가 정리해 드립니다.</h2>
         </div>
         <div className="landing-proof-grid">
-          {proofItems.map(({ icon: Icon, label, value }, index) => (
+          {valueItems.map(({ icon: Icon, label, value }, index) => (
             <motion.article
               key={label}
               className="landing-proof-card"
@@ -256,14 +342,15 @@ export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow,
         </div>
       </section>
 
+      {/* === Workflow === */}
       <section className="landing-detail">
         <div className="landing-section-head">
-          <p className="landing-section-kicker">How It Reads</p>
-          <h2>화면은 복잡한 모델 설명보다, 의사결정 흐름이 먼저 보이게 설계합니다.</h2>
+          <p className="landing-section-kicker">How It Works</p>
+          <h2>상품 입력부터 바이어 매칭까지 5단계로 진행됩니다.</h2>
         </div>
 
-        <div className="landing-workflow">
-          {workflowRows.map((row, index) => (
+        <div className="landing-workflow landing-workflow--5">
+          {workflowSteps.map((row, index) => (
             <motion.div
               key={row.step}
               className="landing-workflow-row"
@@ -294,23 +381,21 @@ export default function LandingPage({ onStartAnalysis, onStartChat, onStartFlow,
         </div>
       </section>
 
+      {/* === Bottom CTA === */}
       <section className="landing-cta">
         <div>
-          <p className="landing-section-kicker">Full Export Flow</p>
-          <h2>국가 추천부터 주문서까지 한 번에.</h2>
-          <p>수출 전 과정 One-Stop 플로우를 체험해 보세요.</p>
+          <p className="landing-section-kicker">Get Started</p>
+          <h2>지금 상품 분석 시작하기</h2>
+          <p>
+            HS 코드만 입력하면 10초 만에 유망 국가와 바이어 후보를 확인하세요.
+          </p>
         </div>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <button className="ui-button ui-button--solid" onClick={onStartFlow}>
-            수출 플로우 시작
-            <ArrowRight size={18} />
-          </button>
-          <button className="ui-button ui-button--ghost" onClick={onStartAnalysis}>
-            분석 작업면 열기
-            <ArrowRight size={18} />
-          </button>
-          <button className="ui-button ui-button--solid" style={{ background: '#0f766e', borderColor: '#0f766e' }} onClick={onStartBuyerSearch}>
-            글로벌 바이어 검색
+        <div className="landing-cta-actions">
+          <button
+            className="ui-button ui-button--solid"
+            onClick={() => onStartChat?.()}
+          >
+            분석 시작하기
             <ArrowRight size={18} />
           </button>
         </div>

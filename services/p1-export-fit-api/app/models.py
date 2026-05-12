@@ -29,7 +29,7 @@ class PredictRequest(BaseModel):
     hs_code: str = Field(..., description="6-digit HS code")
     exporter_country_iso3: str = Field(..., description="Exporter ISO3")
     top_n: Optional[int] = Field(10, description="1~20, default 10")
-    year: Optional[int] = Field(2023, description="default 2023")
+    year: Optional[int] = Field(None, description="default: 2023 (latest available data year)")
     filters: Optional[Filters] = Field(default_factory=Filters)
 
     @field_validator("hs_code")
@@ -61,9 +61,13 @@ class PredictRequest(BaseModel):
     @classmethod
     def validate_year(cls, v):
         if v is None:
+            return 2023  # TODO: update to latest data year when CSVs are refreshed
+        v = int(v)
+        # World Bank / Trade data currently available up to 2023
+        # Clamp future years to 2023 to avoid silent empty results
+        if v > 2023:
             return 2023
-        # 안정적으로 일단 2023년을 임시로 넣어둠. 문서엔 없어서 추후 전체 코드 검토 시 공유 필요 
-        return int(v)
+        return v
 
 
 class PredictResult(BaseModel):

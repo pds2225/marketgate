@@ -199,14 +199,10 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
         gdp = get_wb_value(ds.wb_gdp, year, p)
         if gdp is None:
             missing_indicator_counts["gdp_missing"] += 1
-            # 여기는 Hard filter 부분은 아님
-            # (Hard Filter 목록에 GDP/WB 누락 내용은 없지만 개발 과정 중 missing 파악 중 - ************ 최종 개발 시 제거할 것!)
-            logger.warning(f"[WB] GDP missing: {p} year={year}")
 
         growth = get_wb_value(ds.wb_growth, year, p)
         if growth is None:
             missing_indicator_counts["growth_missing"] += 1
-            logger.warning(f"[WB] GDP growth missing: {p} year={year}")
 
         if reasons:
             hard_reasons[p] = reasons
@@ -286,7 +282,8 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
         if r["gdp_growth_pct"] < 0:
             soft += SOFT_RULES["penalty_negative_growth"]
 
-        # restricted/blocked는 데이터 수령 전이라 미적용 !!!!!!!!!  **** 최종 완성 시 누락 주의-요청 드림(2/3)
+        # TODO: restricted/blocked 국가 데이터 확보 후 penalty_restricted (-10.0) 적용 필요
+        # 현재는 제재국 정보 데이터 없이 진행 (2024.02 기준)
 
         fit = base01 * 100.0 + soft
         fit = max(0.0, min(100.0, fit))
