@@ -1,0 +1,19 @@
+{
+  "default": {
+    "balance": 140,
+    "history": [
+      {
+        "action": "charge",
+        "amount": 50,
+        "balance": 150,
+        "timestamp": "2026-05-10T11:08:15.408993+00:00"
+      },
+      {
+        "action": "buyer_fit_lite",
+        "amount": -10,
+        "balance": 140,
+        "timestamp": "2026-05-10T11:08:15.422505+00:00"
+      }
+    ]
+  }
+}
