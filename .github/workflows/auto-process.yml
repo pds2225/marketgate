@@ -15,6 +15,8 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
+  actions: read
 
 jobs:
   process:
@@ -35,8 +37,7 @@ jobs:
     
     - name: Run auto cosmetics filter
       run: |
-        cd services/cosmetics_mvp_preprocess
-        python scripts/auto_filter_cosmetics.py
+        python3 services/cosmetics_mvp_preprocess/scripts/auto_filter_cosmetics.py
     
     - name: Commit processed results
       run: |

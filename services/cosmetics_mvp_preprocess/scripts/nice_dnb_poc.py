@@ -4,6 +4,9 @@ NICE D&B API - 100개 샘플 테스트 코드
 무료 테스트베드 사용 (일 100건)
 """
 
+import os
+import sys
+
 import requests
 import pandas as pd
 import json
@@ -12,7 +15,14 @@ from pathlib import Path
 # NICE D&B Open API 테스트베드 정보
 # 참고: https://openapi.nicednb.com/index.jsp
 BASE_URL = "https://openapi.nicednb.com"
-API_KEY = "YOUR_TEST_API_KEY"  # 테스트베드 신청 후 발급
+API_KEY = os.getenv("NICE_DNB_API_KEY", "").strip()
+DEFAULT_INPUT_CSV = Path(__file__).resolve().parents[1] / "buyer_candidate_CLEANED_20250430.csv"
+
+
+def require_api_key() -> str:
+    if not API_KEY:
+        raise RuntimeError("NICE_DNB_API_KEY 환경변수를 설정해 주세요.")
+    return API_KEY
 
 def search_company_by_name(name: str, country_code: str) -> dict:
     """
@@ -33,7 +43,7 @@ def search_company_by_name(name: str, country_code: str) -> dict:
     """
     url = f"{BASE_URL}/api/search"
     headers = {
-        "Authorization": f"Bearer {API_KEY}",
+        "Authorization": f"Bearer {require_api_key()}",
         "Content-Type": "application/json"
     }
     params = {
@@ -78,7 +88,7 @@ def get_company_detail(duns: str) -> dict:
         }
     """
     url = f"{BASE_URL}/api/company/{duns}"
-    headers = {"Authorization": f"Bearer {API_KEY}"}
+    headers = {"Authorization": f"Bearer {require_api_key()}"}
 
     resp = requests.get(url, headers=headers, timeout=30)
 
@@ -136,8 +146,20 @@ def parse_sales(sales_str: str) -> int:
 
 # 메인 실행
 def main():
+    try:
+        require_api_key()
+    except RuntimeError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    input_csv = Path(os.getenv("NICE_DNB_INPUT_CSV", str(DEFAULT_INPUT_CSV)))
+    if not input_csv.exists():
+        print(f"[ERROR] 입력 CSV가 없습니다: {input_csv}", file=sys.stderr)
+        print("[ERROR] NICE_DNB_INPUT_CSV 환경변수로 입력 파일을 지정할 수 있습니다.", file=sys.stderr)
+        sys.exit(1)
+
     # 우리 데이터 로드
-    df = pd.read_csv("buyer_candidate_CLEANED_20250430.csv", encoding='utf-8-sig')
+    df = pd.read_csv(input_csv, encoding='utf-8-sig')
 
     # 100개 샘플 추출 (국가 다양하게)
     sample = df.groupby('country_iso3').head(5).head(100).copy()
@@ -189,8 +211,7 @@ def main():
     verified = len(df_result[df_result["status"] == "VERIFIED"])
     not_found = len(df_result[df_result["status"] == "NOT_FOUND"])
 
-    print(f"
-=== 결과 요약 ===")
+    print("\n=== 결과 요약 ===")
     print(f"검증 완료: {verified}건")
     print(f"미발견: {not_found}건")
     print(f"A등급: {len(df_result[df_result['grade'] == 'A'])}건")

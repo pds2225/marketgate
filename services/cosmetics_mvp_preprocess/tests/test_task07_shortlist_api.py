@@ -67,7 +67,7 @@ def test_shortlist_api_returns_ranked_items() -> None:
 
         completed = subprocess.run(
             [
-                "python",
+                sys.executable,
                 "task07_shortlist_api.py",
                 "--demo-request",
                 "--output-dir",
@@ -94,7 +94,7 @@ def test_shortlist_api_returns_ranked_items() -> None:
 def test_shortlist_api_rejects_invalid_reference_date() -> None:
     completed = subprocess.run(
         [
-            "python",
+            sys.executable,
             "task07_shortlist_api.py",
             "--demo-request",
             "--output-dir",

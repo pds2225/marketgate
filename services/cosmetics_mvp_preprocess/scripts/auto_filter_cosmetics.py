@@ -6,7 +6,6 @@ Auto Cosmetics Filter
 - 동작: 모든 raw CSV를 읽어 화장품 키워드로 필터링 후 통합 저장
 """
 
-import glob
 import os
 import re
 import sys
@@ -15,9 +14,10 @@ from pathlib import Path
 
 import pandas as pd
 
-# 설정
-RAW_DIR = Path("services/cosmetics_mvp_preprocess/output/raw")
-OUTPUT_DIR = Path("services/cosmetics_mvp_preprocess/output")
+# 설정: GitHub Actions가 하위 폴더에서 실행해도 같은 경로를 보도록 고정
+BASE_DIR = Path(__file__).resolve().parents[1]
+RAW_DIR = BASE_DIR / "output" / "raw"
+OUTPUT_DIR = BASE_DIR / "output"
 
 # 화장품 키워드 (영문 + 한글)
 COSMETICS_KEYWORDS = [
@@ -114,6 +114,15 @@ def standardize_columns(df: pd.DataFrame, filename: str) -> pd.DataFrame:
             new_cols[original_col] = col_map[lower_name]
     
     df = df.rename(columns=new_cols)
+    if df.columns.duplicated().any():
+        merged_cols = []
+        for col in dict.fromkeys(df.columns):
+            same_name = df.loc[:, df.columns == col]
+            if same_name.shape[1] == 1:
+                merged_cols.append(same_name.iloc[:, 0].rename(col))
+            else:
+                merged_cols.append(same_name.bfill(axis=1).iloc[:, 0].rename(col))
+        df = pd.concat(merged_cols, axis=1)
     
     # 통합 스키마 컬럼 추가 (없는 경우 빈값)
     schema_cols = [
@@ -241,8 +250,11 @@ def process_all_raw_files():
     print(f"{'='*50}")
     
     # GitHub Actions용 출력
-    print(f"::set-output name=cosmetics_count::{after}")
-    print(f"::set-output name=output_file::{output_file}")
+    github_output = os.getenv("GITHUB_OUTPUT")
+    if github_output:
+        with open(github_output, "a", encoding="utf-8") as fp:
+            fp.write(f"cosmetics_count={after}\n")
+            fp.write(f"output_file={output_file}\n")
 
 
 if __name__ == "__main__":
