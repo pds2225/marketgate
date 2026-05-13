@@ -47,6 +47,72 @@
   - 원본 태스크: TASK-11
   - 의존성: 없음
   - 검증: 이동 경로 시나리오 테스트 및 사용자 피드백 확인
+
+## PENDING
+
+- [ ] [A1-02] GET /v1/credits/balance 엔드포인트 구현
+  - 원본 PRD: docs/prd/PRD_A1_credit_system.md
+  - 의존성: A1-01 완료
+  - 수정 예상 파일: services/p1-export-fit-api/main.py, services/p1-export-fit-api/app/services/credit_store.py, services/p1-export-fit-api/tests/test_credit_balance.py
+  - 구현 내용: 기본 사용자(default) 기준 크레딧 잔액을 반환하는 GET /v1/credits/balance 엔드포인트 추가
+  - 완료 기준: 응답에 user_id, balance 포함
+  - 검증: cd services/p1-export-fit-api; python -m pytest --tb=short -q
+
+- [ ] [A1-03] POST /v1/credits/charge 엔드포인트 구현
+  - 원본 PRD: docs/prd/PRD_A1_credit_system.md
+  - 의존성: A1-02 완료
+  - 수정 예상 파일: services/p1-export-fit-api/main.py, services/p1-export-fit-api/app/services/credit_store.py, services/p1-export-fit-api/tests/test_credit_charge.py
+  - 구현 내용: user_id와 amount를 입력받아 크레딧을 충전하고 변경된 balance를 반환하는 POST /v1/credits/charge 엔드포인트 추가
+  - 완료 기준: amount > 0이면 balance 증가, amount <= 0이면 400 Bad Request
+  - 검증: cd services/p1-export-fit-api; python -m pytest --tb=short -q
+
+- [ ] [A1-04] POST /v1/credits/deduct 엔드포인트와 유료 기능 차감 연결
+  - 원본 PRD: docs/prd/PRD_A1_credit_system.md
+  - 의존성: A1-03 완료
+  - 수정 예상 파일: services/p1-export-fit-api/main.py, services/p1-export-fit-api/app/services/credit_store.py, services/p1-export-fit-api/tests/test_credit_deduct.py
+  - 구현 내용: action별 차감액을 적용하는 POST /v1/credits/deduct 엔드포인트를 추가하고 잔액 부족 시 402 insufficient_credits를 반환
+  - 완료 기준: Buyer Fit Lite 3C, Buyer Fit Pro 25C, Buyer Contact 발송 5C, Buyer Contact 응답 13C 차감 규칙 반영
+  - 검증: cd services/p1-export-fit-api; python -m pytest --tb=short -q
+
+- [ ] [A1-05] GET /v1/credits/history 엔드포인트와 프론트 잔액 표시
+  - 원본 PRD: docs/prd/PRD_A1_credit_system.md
+  - 의존성: A1-04 완료
+  - 수정 예상 파일: services/p1-export-fit-api/main.py, services/p1-export-fit-api/app/services/credit_store.py, apps/frontend-react/src/AnalysisPage.jsx, services/p1-export-fit-api/tests/test_credit_history.py
+  - 구현 내용: 크레딧 충전/차감 이력을 반환하는 GET /v1/credits/history 엔드포인트를 추가하고 프론트 헤더 또는 분석 화면에 잔액 badge 표시
+  - 완료 기준: history 항목에 action, amount, balance, timestamp 포함
+  - 검증: cd services/p1-export-fit-api; python -m pytest --tb=short -q
+
+- [ ] [A2-01] 구독 저장소와 플랜 상수 정의
+  - 원본 PRD: docs/prd/PRD_A2_subscription_plan.md
+  - 의존성: A1-05 완료
+  - 수정 예상 파일: services/p1-export-fit-api/app/services/subscription_store.py, services/p1-export-fit-api/data/subscriptions.json, services/p1-export-fit-api/tests/test_subscription_store.py
+  - 구현 내용: Basic/Pro/Advanced 플랜 정보, 월 포함 크레딧, 기능 권한 매핑 상수를 JSON 저장소 기반으로 추가
+  - 완료 기준: default 사용자의 구독 상태를 읽고 만료 시 Basic으로 처리
+  - 검증: cd services/p1-export-fit-api; python -m pytest --tb=short -q
+
+- [ ] [A2-02] GET/POST /v1/subscription 엔드포인트 구현
+  - 원본 PRD: docs/prd/PRD_A2_subscription_plan.md
+  - 의존성: A2-01 완료
+  - 수정 예상 파일: services/p1-export-fit-api/main.py, services/p1-export-fit-api/app/services/subscription_store.py, services/p1-export-fit-api/tests/test_subscription_endpoint.py
+  - 구현 내용: 현재 구독 조회, 플랜 업그레이드, 플랜 다운그레이드 API를 추가하고 동일 플랜 재신청은 400으로 처리
+  - 완료 기준: GET /v1/subscription, POST /v1/subscription/upgrade, POST /v1/subscription/downgrade 동작
+  - 검증: cd services/p1-export-fit-api; python -m pytest --tb=short -q
+
+- [ ] [B1-01] 관세율·물류비 데이터 로더 구현
+  - 원본 PRD: docs/prd/PRD_B1_profit_simulation.md
+  - 의존성: A1-05 완료
+  - 수정 예상 파일: services/p1-export-fit-api/app/services/simulation_data.py, services/p1-export-fit-api/data/simulation_rates.json, services/p1-export-fit-api/tests/test_simulation_data.py
+  - 구현 내용: HS코드, 국가, 물류방식 기준 Landed Cost 계산에 필요한 관세율과 물류비 기준 데이터를 로드
+  - 완료 기준: 330499 + USA 케이스를 읽고 데이터가 없는 국가는 5% 관세율 fallback과 warning 반환
+  - 검증: cd services/p1-export-fit-api; python -m pytest --tb=short -q
+
+- [ ] [B3-01] 바이어 DB MOQ 필드 확인 및 보완
+  - 원본 PRD: docs/prd/PRD_B3_moq_filter.md
+  - 의존성: A1-05 완료
+  - 수정 예상 파일: services/p1-export-fit-api/app/services/data_loaders.py, services/p1-export-fit-api/tests/test_buyer_moq_data.py
+  - 구현 내용: 바이어 데이터에 moq_required 필드가 있는지 확인하고, 없거나 비어 있으면 null로 정규화해 기존 조회 흐름을 깨지 않게 처리
+  - 완료 기준: moq_required가 없는 바이어는 필터 대상에서 제외되지 않고 포함 유지
+  - 검증: cd services/p1-export-fit-api; python -m pytest --tb=short -q
 ## Done
 
 - [x] TASK-00: 통합 작업본 기준 폴더 정리
