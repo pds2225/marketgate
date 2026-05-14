@@ -14,6 +14,13 @@
 - 결제 이력 조회
 - 환불 처리 (관리자)
 
+### 크레딧 충전 패키지
+| 패키지 | 크레딧 | 가격 | 단가 |
+|--------|--------|------|------|
+| 소형 | 10C | 20,000원 | 2,000원/C |
+| 중형 | 30C | 54,000원 | 1,800원/C (10% 할인) |
+| 대형 | 100C | 160,000원 | 1,600원/C (20% 할인) |
+
 ## 4. 필요한 데이터
 - `data/payments.json`: 결제 이력
 - PG사 API Key (환경변수: `PG_SECRET_KEY`, `PG_CLIENT_KEY`)
@@ -25,6 +32,36 @@ POST /v1/payment/webhook          → PG사 결제 결과 수신
 GET  /v1/payment/history          → [{payment_id, amount, status, timestamp}]
 POST /v1/payment/refund           → {payment_id} (관리자 전용)
 ```
+
+### 결제 플로우
+```
+프론트 → POST /checkout → 서버가 토스페이먼츠 결제창 URL 생성
+→ 프론트 리다이렉트 → 토스페이먼츠 결제창 → 사용자 결제
+→ 토스페이먼츠 → POST /webhook (서버) → 크레딧/플랜 반영
+→ 프론트 콜백 페이지 도착 (성공/실패)
+```
+
+### Webhook 페이로드 구조 (토스페이먼츠)
+```json
+{
+  "paymentKey": "toss_pk_xxxx",
+  "orderId": "order_20260514_abc123",
+  "status": "DONE",
+  "totalAmount": 20000,
+  "method": "카드",
+  "requestedAt": "2026-05-14T10:00:00+09:00",
+  "approvedAt": "2026-05-14T10:00:05+09:00"
+}
+```
+- `orderId` 형식: `{product_type}_{user_id}_{timestamp}`
+- `status`: `DONE`(성공), `CANCELED`(취소), `ABORTED`(실패)
+
+### 환경변수
+| 변수명 | 설명 |
+|--------|------|
+| `TOSS_SECRET_KEY` | 토스페이먼츠 시크릿 키 (서버 전용) |
+| `TOSS_CLIENT_KEY` | 토스페이먼츠 클라이언트 키 (프론트용) |
+| `TOSS_WEBHOOK_SECRET` | Webhook HMAC 서명 검증 키 |
 
 ## 6. 예외처리
 - 결제 실패 → 크레딧/플랜 미변경, 에러 메시지 반환
@@ -38,7 +75,7 @@ POST /v1/payment/refund           → {payment_id} (관리자 전용)
 - 결제 실패 → 잔액 변동 없음 확인
 
 ## 8. 개발 TASK
-- A3-01: PG사 선택 및 SDK 설치 (포트원 권장)
+- A3-01: 토스페이먼츠 SDK 설치 및 환경변수 설정
 - A3-02: 결제창 연동 (프론트 → PG → Webhook)
 - A3-03: Webhook 수신 및 크레딧/플랜 반영 (A1·A2 연동)
 - A3-04: 결제 이력 API

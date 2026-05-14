@@ -27,6 +27,32 @@ POST /v1/credits/charge           → {user_id, amount} → {balance}
 POST /v1/credits/deduct           → {user_id, action} → {balance, deducted}
 GET  /v1/credits/history          → [{action, amount, balance, timestamp}]
 ```
+
+### action 타입 정의 (deduct 요청 시)
+| action 값 | 차감 크레딧 | 설명 |
+|-----------|------------|------|
+| `buyer_fit_lite` | 3C | 바이어 상세정보 열람 |
+| `buyer_fit_pro` | 25C | 바이어 신용레포트 생성 |
+| `contact_send` | 5C | 바이어 컨택 발송 |
+| `contact_reply` | 13C | 바이어 컨택 응답 수신 |
+
+### history 항목 구조
+```json
+{
+  "action": "buyer_fit_lite",
+  "amount": -3,
+  "balance": 97,
+  "timestamp": "2026-05-14T10:00:00Z",
+  "note": "바이어 상세정보 열람"
+}
+```
+- `amount` 양수 = 충전, 음수 = 차감
+- `balance` = 해당 거래 직후 잔액
+
+### 주의: 동시 접근 위험
+- JSON 파일 기반이므로 다중 요청 시 race condition 가능
+- deduct는 반드시 read→validate→write 원자적 처리 필요 (파일 lock 또는 순차 처리)
+
 - 프론트: 헤더 잔액 badge, 차감 후 실시간 갱신
 
 ## 6. 예외처리

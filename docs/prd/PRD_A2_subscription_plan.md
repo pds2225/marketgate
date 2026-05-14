@@ -15,6 +15,22 @@ Basic/Pro/Advanced 플랜별 기능 접근 권한을 제어하고 구독 상태�
 | Pro | 9,900원 | 월 5C | Buyer Fit Lite, 수익분석 |
 | Advanced | 29,000원 | 월 15C | Buyer Fit Pro, 컨택, 리포트 |
 
+### 플랜별 기능 접근 권한 상세
+| 기능 | Basic | Pro | Advanced |
+|------|-------|-----|----------|
+| 수출국 탐색 (`/v1/buyers`) | ✅ | ✅ | ✅ |
+| BEP·수익성 계산 (`/v1/profit`) | ✅ | ✅ | ✅ |
+| 바이어 상세정보 (`buyer_fit_lite`) | ❌ | ✅ | ✅ |
+| 수익분석 고급 (`/v1/profit/advanced`) | ❌ | ✅ | ✅ |
+| 바이어 신용레포트 (`buyer_fit_pro`) | ❌ | ❌ | ✅ |
+| 바이어 컨택 발송/추적 | ❌ | ❌ | ✅ |
+| K-SURE·D&B 연동 리포트 | ❌ | ❌ | ✅ |
+
+### expires_at 계산 규칙
+- 구독 시작일 기준 +1개월 (정확히 30일이 아닌 월말 기준)
+- 예: `2026-05-14` 구독 → `expires_at: 2026-06-14T23:59:59Z`
+- 만료 당일 23:59:59까지 유효, 이후 자동 Basic 전환
+
 ## 4. 필요한 데이터
 - `data/subscriptions.json`: `{user_id: {plan, started_at, expires_at}}`
 - 플랜별 권한 매핑 상수
