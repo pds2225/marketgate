@@ -50,7 +50,6 @@
 
 ## PENDING
 
-- [ ] [A1-02] GET /v1/credits/balance 엔드포인트 구현
   - 원본 PRD: docs/prd/PRD_A1_credit_system.md
   - 의존성: A1-01 완료
   - 수정 예상 파일: services/p1-export-fit-api/main.py, services/p1-export-fit-api/app/services/credit_store.py, services/p1-export-fit-api/tests/test_credit_balance.py
@@ -58,7 +57,6 @@
   - 완료 기준: 응답에 user_id, balance 포함
   - 검증: cd services/p1-export-fit-api; python -m pytest --tb=short -q
 
-- [ ] [A1-03] POST /v1/credits/charge 엔드포인트 구현
   - 원본 PRD: docs/prd/PRD_A1_credit_system.md
   - 의존성: A1-02 완료
   - 수정 예상 파일: services/p1-export-fit-api/main.py, services/p1-export-fit-api/app/services/credit_store.py, services/p1-export-fit-api/tests/test_credit_charge.py
@@ -66,7 +64,6 @@
   - 완료 기준: amount > 0이면 balance 증가, amount <= 0이면 400 Bad Request
   - 검증: cd services/p1-export-fit-api; python -m pytest --tb=short -q
 
-- [ ] [A1-04] POST /v1/credits/deduct 엔드포인트와 유료 기능 차감 연결
   - 원본 PRD: docs/prd/PRD_A1_credit_system.md
   - 의존성: A1-03 완료
   - 수정 예상 파일: services/p1-export-fit-api/main.py, services/p1-export-fit-api/app/services/credit_store.py, services/p1-export-fit-api/tests/test_credit_deduct.py
@@ -74,7 +71,6 @@
   - 완료 기준: Buyer Fit Lite 3C, Buyer Fit Pro 25C, Buyer Contact 발송 5C, Buyer Contact 응답 13C 차감 규칙 반영
   - 검증: cd services/p1-export-fit-api; python -m pytest --tb=short -q
 
-- [ ] [A1-05] GET /v1/credits/history 엔드포인트와 프론트 잔액 표시
   - 원본 PRD: docs/prd/PRD_A1_credit_system.md
   - 의존성: A1-04 완료
   - 수정 예상 파일: services/p1-export-fit-api/main.py, services/p1-export-fit-api/app/services/credit_store.py, apps/frontend-react/src/AnalysisPage.jsx, services/p1-export-fit-api/tests/test_credit_history.py
@@ -82,7 +78,6 @@
   - 완료 기준: history 항목에 action, amount, balance, timestamp 포함
   - 검증: cd services/p1-export-fit-api; python -m pytest --tb=short -q
 
-- [ ] [A2-01] 구독 저장소와 플랜 상수 정의
   - 원본 PRD: docs/prd/PRD_A2_subscription_plan.md
   - 의존성: A1-05 완료
   - 수정 예상 파일: services/p1-export-fit-api/app/services/subscription_store.py, services/p1-export-fit-api/data/subscriptions.json, services/p1-export-fit-api/tests/test_subscription_store.py
@@ -90,7 +85,6 @@
   - 완료 기준: default 사용자의 구독 상태를 읽고 만료 시 Basic으로 처리
   - 검증: cd services/p1-export-fit-api; python -m pytest --tb=short -q
 
-- [ ] [A2-02] GET/POST /v1/subscription 엔드포인트 구현
   - 원본 PRD: docs/prd/PRD_A2_subscription_plan.md
   - 의존성: A2-01 완료
   - 수정 예상 파일: services/p1-export-fit-api/main.py, services/p1-export-fit-api/app/services/subscription_store.py, services/p1-export-fit-api/tests/test_subscription_endpoint.py
@@ -98,7 +92,6 @@
   - 완료 기준: GET /v1/subscription, POST /v1/subscription/upgrade, POST /v1/subscription/downgrade 동작
   - 검증: cd services/p1-export-fit-api; python -m pytest --tb=short -q
 
-- [ ] [B1-01] 관세율·물류비 데이터 로더 구현
   - 원본 PRD: docs/prd/PRD_B1_profit_simulation.md
   - 의존성: A1-05 완료
   - 수정 예상 파일: services/p1-export-fit-api/app/services/simulation_data.py, services/p1-export-fit-api/data/simulation_rates.json, services/p1-export-fit-api/tests/test_simulation_data.py
@@ -106,7 +99,6 @@
   - 완료 기준: 330499 + USA 케이스를 읽고 데이터가 없는 국가는 5% 관세율 fallback과 warning 반환
   - 검증: cd services/p1-export-fit-api; python -m pytest --tb=short -q
 
-- [ ] [B3-01] 바이어 DB MOQ 필드 확인 및 보완
   - 원본 PRD: docs/prd/PRD_B3_moq_filter.md
   - 의존성: A1-05 완료
   - 수정 예상 파일: services/p1-export-fit-api/app/services/data_loaders.py, services/p1-export-fit-api/tests/test_buyer_moq_data.py
@@ -115,6 +107,14 @@
   - 검증: cd services/p1-export-fit-api; python -m pytest --tb=short -q
 ## Done
 
+- [x] [B3-01] 바이어 DB MOQ 필드 확인 및 보완 (2026-05-13)
+- [x] [B1-01] 관세율·물류비 데이터 로더 구현 (2026-05-13)
+- [x] [A2-02] GET/POST /v1/subscription 엔드포인트 구현 (2026-05-13)
+- [x] [A2-01] 구독 저장소와 플랜 상수 정의 (2026-05-13)
+- [x] [A1-05] GET /v1/credits/history 엔드포인트와 프론트 잔액 표시 (2026-05-13)
+- [x] [A1-04] POST /v1/credits/deduct 엔드포인트와 유료 기능 차감 연결 (2026-05-13)
+- [x] [A1-03] POST /v1/credits/charge 엔드포인트 구현 (2026-05-13)
+- [x] [A1-02] GET /v1/credits/balance 엔드포인트 구현 (2026-05-13)
 - [x] TASK-00: 통합 작업본 기준 폴더 정리
 - [x] TASK-01: P1 추천 API 기본 엔드포인트 구현
 - [x] TASK-02: CSV 로더, ISO3 정규화, 거리/무역/WB 조회 구현

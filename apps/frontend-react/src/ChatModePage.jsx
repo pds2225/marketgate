@@ -215,7 +215,7 @@ export default function ChatModePage({ preset, onBack, onSwitchToForm, onStartWi
         </button>
         <div className="chat-brand">MarketGate 비서</div>
         <div className="chat-mode-actions">
-          <button className="chat-mode-toggle" aria-current="page">
+          <button className="chat-mode-toggle" type="button" aria-current="page">
             <span>챗 모드</span>
           </button>
           <button className="chat-mode-toggle" onClick={onSwitchToForm}>
@@ -258,7 +258,8 @@ export default function ChatModePage({ preset, onBack, onSwitchToForm, onStartWi
                 className={`chat-chip ${item.available ? "" : "chat-chip--soon"}`}
                 onClick={() => handleChipClick(item)}
               >
-                {item.label}
+                <span>{item.label}</span>
+                <small>HS {item.hsCode}</small>
                 <span className="chat-chip-badge">{item.status}</span>
               </button>
             ))}
