@@ -13,10 +13,14 @@ from app.credit_store import charge, get_balance, deduct, get_history
 from app.auth_deps import get_current_user
 from app.routers import auth as auth_router
 from app.routers import simulation as simulation_router
+from app.routers import subscription as subscription_router
+from app.routers import payment as payment_router
 
 app = FastAPI(title="Export Fit Score API(P1)", version="0.0.1")
 app.include_router(auth_router.router)
 app.include_router(simulation_router.router)
+app.include_router(subscription_router.router)
+app.include_router(payment_router.router)
 
 app.add_middleware(
     CORSMiddleware,

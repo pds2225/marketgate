@@ -7,6 +7,8 @@ import ExportFlowPage from './ExportFlowPage'
 import BuyerSearchPage from './pages/BuyerSearch'
 import AuthPage from './AuthPage'
 import SimulationPage from './SimulationPage'
+import PricingPage from './PricingPage'
+import PaymentCallbackPage from './PaymentCallbackPage'
 import api from './lib/api'
 import './App.css'
 
@@ -62,6 +64,13 @@ function App() {
           )}
           <button
             className="app-admin-toggle"
+            onClick={() => navigate('pricing')}
+            style={{ marginRight: 0 }}
+          >
+            요금제
+          </button>
+          <button
+            className="app-admin-toggle"
             onClick={() => navigate('simulation')}
             style={{ marginRight: 0 }}
           >
@@ -101,6 +110,14 @@ function App() {
 
       {page === 'exportFlow' && (
         <ExportFlowPage onBack={() => navigate('landing')} />
+      )}
+
+      {page === 'pricing' && (
+        <PricingPage onBack={() => navigate('landing')} />
+      )}
+
+      {page === 'paymentCallback' && (
+        <PaymentCallbackPage onBack={() => navigate('landing')} onBalanceRefresh={refreshBalance} />
       )}
 
       {page === 'chat' && (
