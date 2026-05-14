@@ -79,6 +79,12 @@ export default function AuthPage({ onSuccess }) {
             {mode === 'login' ? '회원가입' : '로그인'}
           </button>
         </p>
+        <button
+          onClick={() => { localStorage.setItem('access_token', 'guest'); onSuccess() }}
+          style={{ width: '100%', background: 'transparent', border: '1px solid #30363d', borderRadius: 6, padding: '10px 0', color: '#8b949e', fontWeight: 600, cursor: 'pointer', fontSize: 14, marginTop: 12 }}
+        >
+          둘러보기 (게스트 모드)
+        </button>
       </div>
     </div>
   )
