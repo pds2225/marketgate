@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
 
-from fastapi import Body, FastAPI, HTTPException
+from fastapi import Body, Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from app.models import PredictRequest, PredictResponse, InquiryRequest, InquiryResponse
@@ -9,9 +9,14 @@ from app.services.project_snapshot import build_project_snapshot
 from app.services.scoring import recommend_countries
 from app.services.inquiry_service import build_draft
 from app.utils import now_seoul_iso, new_request_id
-from app.credit_store import charge, get_balance
+from app.credit_store import charge, get_balance, deduct, get_history
+from app.auth_deps import get_current_user
+from app.routers import auth as auth_router
+from app.routers import simulation as simulation_router
 
 app = FastAPI(title="Export Fit Score API(P1)", version="0.0.1")
+app.include_router(auth_router.router)
+app.include_router(simulation_router.router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -90,20 +95,58 @@ def project_snapshot():
 
 
 @app.get("/v1/credits/balance")
-def credits_balance(user_id: str = "default"):
-    return {"user_id": user_id, "balance": get_balance(user_id)}
+def credits_balance(user: dict = Depends(get_current_user)):
+    return {"user_id": user["user_id"], "balance": get_balance(user["user_id"])}
 
 
 @app.post("/v1/credits/charge")
-def credits_charge(payload: Dict[str, Any] = Body(...)):
-    user_id = str(payload.get("user_id") or "default")
+def credits_charge(
+    payload: Dict[str, Any] = Body(...),
+    user: dict = Depends(get_current_user),
+):
     try:
         amount = int(payload.get("amount"))
     except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail="amount must be > 0")
     if amount <= 0:
         raise HTTPException(status_code=400, detail="amount must be > 0")
-    return {"user_id": user_id, "balance": charge(user_id, amount)}
+    return {"user_id": user["user_id"], "balance": charge(user["user_id"], amount)}
+
+
+@app.post("/v1/credits/deduct")
+def credits_deduct(
+    payload: Dict[str, Any] = Body(...),
+    user: dict = Depends(get_current_user),
+):
+    action = str(payload.get("action", ""))
+    CREDIT_MAP = {
+        "buyer_fit_lite": 3,
+        "buyer_fit_pro": 25,
+        "contact_send": 5,
+        "contact_reply": 13,
+    }
+    NOTE_MAP = {
+        "buyer_fit_lite": "바이어 적합성 분석 (Lite)",
+        "buyer_fit_pro": "바이어 적합성 분석 (Pro)",
+        "contact_send": "컨택 메시지 발송",
+        "contact_reply": "컨택 답변 작성",
+    }
+    if action not in CREDIT_MAP:
+        raise HTTPException(status_code=400, detail=f"unknown action: {action}")
+    amount = CREDIT_MAP[action]
+    note = NOTE_MAP[action]
+    try:
+        balance = deduct(user["user_id"], amount, action, note)
+    except ValueError as e:
+        if "insufficient" in str(e):
+            raise HTTPException(status_code=402, detail="insufficient_credits")
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"user_id": user["user_id"], "deducted": amount, "balance": balance}
+
+
+@app.get("/v1/credits/history")
+def credits_history(user: dict = Depends(get_current_user)):
+    return get_history(user["user_id"])
 
 
 @app.post("/v1/inquiry", response_model=InquiryResponse)

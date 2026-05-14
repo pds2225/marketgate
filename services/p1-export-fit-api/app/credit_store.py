@@ -1,9 +1,11 @@
 import json
 import os
+import threading
 from datetime import datetime, timezone
 
 CREDITS_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "credits.json")
 DEFAULT_BALANCE = 100
+_lock = threading.Lock()
 
 
 def _load() -> dict:
@@ -35,35 +37,45 @@ def get_balance(user_id: str = "default") -> int:
     return data[user_id]["balance"]
 
 
-def charge(user_id: str = "default", amount: int = 0) -> int:
+def charge(user_id: str = "default", amount: int = 0, note: str = "") -> int:
     if amount <= 0:
         raise ValueError("amount must be > 0")
+    with _lock:
+        data = _load()
+        data = _ensure_user(data, user_id)
+        data[user_id]["balance"] += amount
+        data[user_id]["history"].append({
+            "action": "charge",
+            "amount": amount,
+            "balance": data[user_id]["balance"],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "note": note,
+        })
+        _save(data)
+        return data[user_id]["balance"]
+
+
+def get_history(user_id: str = "default") -> list:
     data = _load()
     data = _ensure_user(data, user_id)
-    data[user_id]["balance"] += amount
-    data[user_id]["history"].append({
-        "action": "charge",
-        "amount": amount,
-        "balance": data[user_id]["balance"],
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    })
-    _save(data)
-    return data[user_id]["balance"]
+    return data[user_id]["history"]
 
 
-def deduct(user_id: str = "default", amount: int = 0, action: str = "") -> int:
+def deduct(user_id: str = "default", amount: int = 0, action: str = "", note: str = "") -> int:
     if amount <= 0:
         raise ValueError("amount must be > 0")
-    data = _load()
-    data = _ensure_user(data, user_id)
-    if data[user_id]["balance"] < amount:
-        raise ValueError("insufficient_credits")
-    data[user_id]["balance"] -= amount
-    data[user_id]["history"].append({
-        "action": action or "deduct",
-        "amount": -amount,
-        "balance": data[user_id]["balance"],
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    })
-    _save(data)
-    return data[user_id]["balance"]
+    with _lock:
+        data = _load()
+        data = _ensure_user(data, user_id)
+        if data[user_id]["balance"] < amount:
+            raise ValueError("insufficient_credits")
+        data[user_id]["balance"] -= amount
+        data[user_id]["history"].append({
+            "action": action or "deduct",
+            "amount": -amount,
+            "balance": data[user_id]["balance"],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "note": note,
+        })
+        _save(data)
+        return data[user_id]["balance"]

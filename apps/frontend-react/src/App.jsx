@@ -1,15 +1,21 @@
-import { startTransition, useState } from 'react'
+import { startTransition, useEffect, useState } from 'react'
 import LandingPage from './LandingPage'
 import AnalysisPage from './AnalysisPage'
 import AdminDashboard from './AdminDashboard'
 import ChatModePage from './ChatModePage'
 import ExportFlowPage from './ExportFlowPage'
 import BuyerSearchPage from './pages/BuyerSearch'
+import AuthPage from './AuthPage'
+import SimulationPage from './SimulationPage'
+import api from './lib/api'
 import './App.css'
 
 function App() {
   const [page, setPage] = useState('landing')
   const [chatPreset, setChatPreset] = useState(null)
+  const [authed, setAuthed] = useState(!!localStorage.getItem('access_token'))
+  const [balance, setBalance] = useState(null)
+
   const navigate = (nextPage, preset = null) => {
     startTransition(() => {
       setPage(nextPage)
@@ -17,12 +23,61 @@ function App() {
     })
   }
 
+  const logout = async () => {
+    try { await api.post('/v1/auth/logout') } catch {}
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+    setAuthed(false)
+    setBalance(null)
+    navigate('landing')
+  }
+
+  useEffect(() => {
+    const onLogout = () => { setAuthed(false); setBalance(null); navigate('landing') }
+    window.addEventListener('auth:logout', onLogout)
+    return () => window.removeEventListener('auth:logout', onLogout)
+  }, [])
+
+  const refreshBalance = () => {
+    api.get('/v1/credits/balance').then(r => setBalance(r.data.balance)).catch(() => {})
+  }
+
+  useEffect(() => {
+    if (!authed) return
+    refreshBalance()
+  }, [authed, page])
+
+  if (!authed) {
+    return <AuthPage onSuccess={() => setAuthed(true)} />
+  }
+
   return (
     <div className="app-shell">
       {page !== 'admin' && (
-        <button className="app-admin-toggle" onClick={() => navigate('admin')}>
-          관리자
-        </button>
+        <div style={{ position: 'fixed', top: 8, right: 8, display: 'flex', gap: 8, zIndex: 100, alignItems: 'center' }}>
+          {balance !== null && (
+            <span style={{ background: '#1f6feb', color: '#fff', borderRadius: 12, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>
+              {balance}C
+            </span>
+          )}
+          <button
+            className="app-admin-toggle"
+            onClick={() => navigate('simulation')}
+            style={{ marginRight: 0 }}
+          >
+            시뮬레이션
+          </button>
+          <button className="app-admin-toggle" onClick={() => navigate('admin')} style={{ marginRight: 0 }}>
+            관리자
+          </button>
+          <button
+            className="app-admin-toggle"
+            onClick={logout}
+            style={{ background: '#da3633', marginRight: 0 }}
+          >
+            로그아웃
+          </button>
+        </div>
       )}
 
       {page === 'landing' && (
@@ -36,7 +91,7 @@ function App() {
 
       {page === 'buyerSearch' && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
-          <BuyerSearchPage onClose={() => navigate('landing')} />
+          <BuyerSearchPage onClose={() => navigate('landing')} onBalanceRefresh={refreshBalance} />
         </div>
       )}
 
@@ -55,6 +110,10 @@ function App() {
           onSwitchToForm={() => navigate('analysis')}
           onStartWizard={(preset) => navigate('analysis', preset)}
         />
+      )}
+
+      {page === 'simulation' && (
+        <SimulationPage onBack={() => navigate('landing')} />
       )}
 
       {page === 'admin' && (
