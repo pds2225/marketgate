@@ -5,3 +5,6 @@ pandas
 numpy
 streamlit
 requests
+PyJWT
+passlib[bcrypt]
+bcrypt
