@@ -30,3 +30,6 @@ temp_*
 # Buyer search development artifacts
 Kimi_Agent_사이트 개선 제안/
 logs/
+
+auto_prompt_*.md
+
