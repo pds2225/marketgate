@@ -10,7 +10,7 @@ from app.services.scoring import recommend_countries
 from app.services.inquiry_service import build_draft
 from app.utils import now_seoul_iso, new_request_id
 from app.credit_store import charge, get_balance, deduct, get_history
-from app.auth_deps import get_current_user
+from app.auth_deps import get_current_user, require_plan
 from app.routers import auth as auth_router
 from app.routers import simulation as simulation_router
 from app.routers import subscription as subscription_router
@@ -71,7 +71,7 @@ def health_legacy():
 
 
 @app.post("/v1/predict", response_model=PredictResponse)
-def predict(req: PredictRequest):
+def predict(req: PredictRequest, user: dict = Depends(get_current_user)):
     request_id = new_request_id()
     results, input_echo, diagnostics = recommend_countries(req)
     buyers = build_buyer_shortlist(req, results)
@@ -90,7 +90,7 @@ def predict(req: PredictRequest):
 
 
 @app.get("/v1/snapshot")
-def project_snapshot():
+def project_snapshot(user: dict = Depends(get_current_user)):
     return {
         "status": "ok",
         "timestamp": now_seoul_iso(),
@@ -154,7 +154,7 @@ def credits_history(user: dict = Depends(get_current_user)):
 
 
 @app.post("/v1/inquiry", response_model=InquiryResponse)
-def create_inquiry(req: InquiryRequest):
+def create_inquiry(req: InquiryRequest, _: dict = Depends(require_plan("Advanced"))):
     result = build_draft(
         buyer_name=req.buyer_name,
         contact_email=req.contact_email,
@@ -211,7 +211,7 @@ def _legacy_top_countries(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]
 
 
 @app.post("/predict")
-def predict_legacy(payload: Dict[str, Any] = Body(...)):
+def predict_legacy(payload: Dict[str, Any] = Body(...), user: dict = Depends(get_current_user)):
     request_id = new_request_id()
     normalized_payload = dict(payload or {})
     normalized_payload["hs_code"] = normalized_payload.get("hs_code", "").strip()
