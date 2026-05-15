@@ -3,6 +3,7 @@ import { ArrowLeft, Send, Mic, LayoutTemplate } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import BuyerReport from "./BuyerReport";
 import { buildP1Url } from "./config";
+import api from './lib/api';
 
 const quickStartItems = [
   { id: "kbeauty", label: "K-뷰티", hsCode: "330499", available: true, status: "지금 시작" },
@@ -73,20 +74,14 @@ function buildBuyerReportFromApi(item, hsLabel) {
 }
 
 async function fetchPredict(hsCode) {
-  const res = await fetch(buildP1Url("/v1/predict"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      hs_code: hsCode,
-      exporter_country_iso3: "KOR",
-      top_n: 5,
-      year: 2023,
-      filters: { min_trade_value_usd: 0 },
-    }),
+  const res = await api.post("/v1/predict", {
+    hs_code: hsCode,
+    exporter_country_iso3: "KOR",
+    top_n: 5,
+    year: 2023,
+    filters: { min_trade_value_usd: 0 },
   });
-  if (!res.ok) throw new Error("분석 요청에 실패했습니다.");
-  const payload = await res.json();
-  const buyers = payload?.data?.buyers;
+  const buyers = res.data?.data?.buyers;
   if (!buyers || buyers.status !== "ok" || !buyers.items?.length) {
     throw new Error("현재 조건에 맞는 바이어를 찾지 못했습니다.");
   }
@@ -122,6 +117,7 @@ export default function ChatModePage({ preset, onBack, onSwitchToForm, onStartWi
     setApiError("");
 
     try {
+      await api.post("/v1/credits/deduct", { action: "buyer_fit_lite" });
       const buyers = await fetchPredict("330499");
       const first = buyers.items[0];
       const report = buildBuyerReportFromApi(first, "스킨케어");
@@ -136,13 +132,16 @@ export default function ChatModePage({ preset, onBack, onSwitchToForm, onStartWi
         },
       ]);
     } catch (err) {
-      setApiError(err.message || "분석 중 오류가 발생했습니다.");
+      const msg = err.response?.status === 402
+        ? "크레딧이 부족합니다. 요금제 페이지에서 충전해 주세요."
+        : (err.message || "분석 중 오류가 발생했습니다.");
+      setApiError(msg);
       setMessages((prev) => [
         ...prev,
         {
           id: Date.now() + 1,
           role: "assistant",
-          text: `죄송합니다. ${err.message || "분석 중 오류가 발생했습니다."} 폼 모드에서 직접 시도해 보세요.`,
+          text: `죄송합니다. ${msg} 폼 모드에서 직접 시도해 보세요.`,
         },
       ]);
     } finally {
@@ -178,6 +177,7 @@ export default function ChatModePage({ preset, onBack, onSwitchToForm, onStartWi
     setApiError("");
 
     try {
+      await api.post("/v1/credits/deduct", { action: "buyer_fit_lite" });
       const buyers = await fetchPredict(item.hsCode);
       const first = buyers.items[0];
       const report = buildBuyerReportFromApi(first, item.label);
@@ -192,13 +192,16 @@ export default function ChatModePage({ preset, onBack, onSwitchToForm, onStartWi
         },
       ]);
     } catch (err) {
-      setApiError(err.message || "분석 중 오류가 발생했습니다.");
+      const msg = err.response?.status === 402
+        ? "크레딧이 부족합니다. 요금제 페이지에서 충전해 주세요."
+        : (err.message || "분석 중 오류가 발생했습니다.");
+      setApiError(msg);
       setMessages((prev) => [
         ...prev,
         {
           id: Date.now() + 1,
           role: "assistant",
-          text: `죄송합니다. ${err.message || "분석 중 오류가 발생했습니다."} 폼 모드에서 직접 시도해 보세요.`,
+          text: `죄송합니다. ${msg} 폼 모드에서 직접 시도해 보세요.`,
         },
       ]);
     } finally {

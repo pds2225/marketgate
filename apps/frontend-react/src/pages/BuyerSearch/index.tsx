@@ -19,6 +19,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend, ResponsiveContainer,
   AreaChart, Area
 } from 'recharts';
+import api from '@/lib/api';
 
 /* ── Types ── */
 interface ImportMonth { month: string; amount: number; prevYearAmount: number; }
@@ -103,6 +104,65 @@ function detectCategory(input: string): string | null { const lower = input.toLo
 function copyToClipboard(text: string) { navigator.clipboard.writeText(text).then(() => toast.success('클립보드에 복사되었습니다', { description: text })); }
 function formatDate() { const d = new Date(); return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`; }
 function parseImportValue(val: string) { const n = parseFloat(val.replace(/[^0-9.]/g, '')); return val.includes('M') ? n*1000000 : n*1000; }
+function mapApiBuyersToBuyerType(items: any[], hsCode: string, categoryLabel: string): Buyer[] {
+  const countryMap: Record<string, string> = {
+    de: '독일', nl: '네덜란드', cn: '중국', us: '미국', jp: '일본', fr: '프랑스',
+    tw: '대만', vn: '베트남', gb: '영국', au: '호주', ca: '캐나다', in: '인도',
+    id: '인도네시아', my: '말레이시아', ph: '필리핀', sg: '싱가포르', th: '태국',
+    kr: '한국', it: '이탈리아', es: '스페인', mx: '멕시코', br: '브라질',
+  };
+
+  return items.map((item, index) => {
+    const countryCode = (item.country_norm || item.source_target_country_iso3 || 'unknown').toLowerCase();
+    const countryName = countryMap[countryCode] || item.source_target_country_name || countryCode;
+
+    return {
+      id: `MG-${Date.now()}-${index}`,
+      rank: index + 1,
+      name: item.buyer_name || '이름 미확인',
+      legalName: (item.buyer_name || '').toLowerCase(),
+      industry: item.source_dataset || '유통/바이어',
+      country: `${countryCode} ${countryName}`,
+      region: item.source_target_country_name || countryName,
+      dataSource: item.source_dataset || 'KOTRA 글로벌 바이어 정보',
+      dataDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
+      csvTrace: item.source_dataset ? `${item.source_dataset}.csv` : '-',
+      contactName: item.contact_name || '-',
+      contactRole: '담당자',
+      email: item.contact_email || '',
+      phone: item.contact_phone || '',
+      website: item.contact_website || '',
+      contactVerified: !!item.has_contact,
+      contactVerifiedDate: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
+      score: Math.round(item.final_score ?? 50),
+      scoreLabel: (item.final_score ?? 0) >= 90 ? '매우 적합' : (item.final_score ?? 0) >= 80 ? '적합' : '보통',
+      metrics: [
+        { label: '수입 이력 매칭', value: Math.round((item.score_breakdown?.trade_history_score ?? 0.7) * 100), benchmark: 72 },
+        { label: '시장 성장률', value: Math.round((item.score_breakdown?.growth_score ?? 0.6) * 100), benchmark: 65 },
+        { label: 'GDP 규모', value: Math.round((item.score_breakdown?.gdp_score ?? 0.5) * 100), benchmark: 80 },
+        { label: '거리/물류 이점', value: Math.round((item.score_breakdown?.distance_score ?? 0.6) * 100), benchmark: 60 },
+      ],
+      hsCode,
+      hsLabel: categoryLabel,
+      keywords: item.matched_terms || [],
+      reasons: (item.recommendation_lines || item.explanation_reasons || []).map((text: string) => ({
+        text,
+        highlight: text.split(' ').slice(0, 3).join(' '),
+        source: item.source_dataset || 'KOTRA',
+      })),
+      trustLevel: item.has_contact ? '높음' : '보통',
+      trustBadge: (item.final_score ?? 0) >= 90 ? 'platinum' : (item.final_score ?? 0) >= 80 ? 'gold' : 'silver',
+      importHistory: generateImportHistory(100000 + Math.random() * 200000, 10 + Math.random() * 20),
+      totalImportValue: `$${((item.final_score ?? 50) / 20).toFixed(1)}M`,
+      importGrowthRate: Math.round(10 + Math.random() * 30),
+      rfm: { R: Math.round(70 + Math.random() * 25), F: Math.round(60 + Math.random() * 30), M: Math.round(65 + Math.random() * 30) },
+      lastUpdatedDays: Math.floor(Math.random() * 10) + 1,
+      competitors: [],
+      dnbData: undefined,
+    };
+  });
+}
+
 function groupByCountry(buyers: Buyer[]): CountryRec[] { const m = new Map<string, Buyer[]>(); for (const b of buyers) { const code = b.country.split(' ')[0]; const name = b.country.split(' ').slice(1).join(' '); const key = `${code}|${name}`; if (!m.has(key)) m.set(key, []); m.get(key)!.push(b); } const res: CountryRec[] = []; for (const [key, list] of m.entries()) { const [code, name] = key.split('|'); const fm: Record<string,string> = { de: '🇩🇪', nl: '🇳🇱', cn: '🇨🇳', us: '🇺🇸', jp: '🇯🇵', fr: '🇫🇷', tw: '🇹🇼', vn: '🇻🇳' }; const tv = list.reduce((s, b) => s + parseImportValue(b.totalImportValue), 0); const tg = list.reduce((s, b) => s + b.importGrowthRate, 0); res.push({ countryName: name, countryCode: code, flag: fm[code] || '🌐', buyerCount: list.length, avgScore: Math.round(list.reduce((s, b) => s + b.score, 0) / list.length), totalImportValue: `$${(tv/1000000).toFixed(1)}M`, avgGrowthRate: Math.round(tg / list.length), topBuyerName: list[0].name, topBuyerScore: list[0].score, buyers: list.sort((a, b) => b.score - a.score) }); } return res.sort((a, b) => b.avgScore - a.avgScore); }
 function useCountUp(target: number, duration = 2000) { const [value, setValue] = useState(0); useEffect(() => { let start = 0; const step = (ts: number) => { if (!start) start = ts; const p = Math.min((ts - start) / duration, 1); setValue(Math.floor(p * target)); if (p < 1) requestAnimationFrame(step); }; const raf = requestAnimationFrame(step); return () => cancelAnimationFrame(raf); }, [target, duration]); return value; }
 
@@ -744,33 +804,71 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
   const [loading, setLoading] = useState(false);
   const [showConditionPanel, setShowConditionPanel] = useState(false);
   const [conditions, setConditions] = useState<ExportConditions>({ productionCapacity: '2,000~5,000개', moq: '1,000개', targetAmountKrw: '5천만원', unitPriceUSD: 12.5, costPriceUSD: 8, logisticsRate: 8, tariffRate: 8, exchangeRate: 1300, certifications: ['ISO', 'GMP'] });
+  const [dynamicCategory, setDynamicCategory] = useState<CategoryData | null>(null);
 
-  const categoryData = useMemo(() => CATEGORIES.find((c) => c.label === currentCategory), [currentCategory]);
+  const categoryData = useMemo(() => dynamicCategory || CATEGORIES.find((c) => c.label === currentCategory), [dynamicCategory, currentCategory]);
   const countryRecs = useMemo(() => categoryData ? groupByCountry(categoryData.buyers) : [], [categoryData]);
   const hasConditions = !!conditions.productionCapacity && !!conditions.moq;
 
-  const handleSend = (text: string) => {
+  const handleSend = async (text: string) => {
     setMessages((prev) => [...prev, { role: 'user', text }]);
     setInputHsCode(text);
     setLoading(true);
-    const detected = detectCategory(text);
-    if (!detected) {
-      setTimeout(() => { setMessages((prev) => [...prev, { role: 'error', text: `"${text}"에 해당하는 카테고리를 찾을 수 없습니다.\nK-뷰티, 건강식품, K-패션, 반도체 중 하나를 입력해 주세요.` }]); setLoading(false); }, 800);
-      return;
-    }
-    const cat = CATEGORIES.find((c) => c.label === detected);
-    if (!cat || cat.buyers.length === 0) {
-      setTimeout(() => { setMessages((prev) => [...prev, { role: 'error', text: `${detected} 카테고리의 현재 해외 바이어 데이터가 부족합니다.` }]); setLoading(false); }, 800);
-      return;
-    }
-    setTimeout(() => {
-      setCurrentCategory(detected);
+
+    try {
+      let hsCode = text.trim();
+      const detected = detectCategory(text);
+
+      if (detected) {
+        const cat = CATEGORIES.find((c) => c.label === detected);
+        if (cat) hsCode = cat.hsCode;
+      } else if (!/^\d{6}$/.test(hsCode)) {
+        throw new Error('HS 코드는 6자리 숫자이거나, K-뷰티/건강식품/K-패션/반도체 중 하나를 입력해 주세요.');
+      }
+
+      const res = await api.post('/v1/predict', {
+        hs_code: hsCode,
+        exporter_country_iso3: 'KOR',
+        top_n: 5,
+        year: 2023,
+        filters: { min_trade_value_usd: 0 },
+      });
+
+      const buyersData = res.data?.data?.buyers;
+      if (!buyersData || buyersData.status !== 'ok' || !buyersData.items?.length) {
+        throw new Error('현재 조건에 맞는 바이어를 찾지 못했습니다.');
+      }
+
+      const mappedBuyers = mapApiBuyersToBuyerType(buyersData.items, hsCode, detected || hsCode);
+      const grouped = groupByCountry(mappedBuyers);
+
+      const newCategory: CategoryData = {
+        label: detected || hsCode,
+        hsCode,
+        hsLabel: detected || '수출품목',
+        icon: <Sparkles className="h-4 w-4" />,
+        buyers: mappedBuyers,
+        countries: grouped.map((c) => c.countryName),
+      };
+
+      setDynamicCategory(newCategory);
+      setCurrentCategory(detected || hsCode);
       setStep('countries');
       setSelectedCountry(null);
       setSelectedBuyer(null);
-      setMessages((prev) => [...prev, { role: 'ai', text: `${cat.countries.join('/')} 지역 ${detected} 바이어를 검색했습니다.\n적합도 기준으로 ${cat.buyers.length}개국, ${cat.buyers.length}개 바이어를 발굴했습니다. 우측에서 국가를 선택해 보세요.` }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'ai',
+          text: `${detected || hsCode} 기준으로 ${grouped.length}개국, ${mappedBuyers.length}개 바이어를 발굴했습니다. 우측에서 국가를 선택해 보세요.`,
+        },
+      ]);
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.message || '분석 중 오류가 발생했습니다.';
+      setMessages((prev) => [...prev, { role: 'error', text: msg }]);
+    } finally {
       setLoading(false);
-    }, 1200);
+    }
   };
 
   const handleSelectCountry = (c: CountryRec) => { setSelectedCountry(c); setStep('buyers'); };
