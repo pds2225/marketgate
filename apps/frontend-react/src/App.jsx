@@ -56,36 +56,86 @@ function App() {
   return (
     <div className="app-shell">
       {page !== 'admin' && (
-        <div style={{ position: 'fixed', top: 8, right: 8, display: 'flex', gap: 8, zIndex: 100, alignItems: 'center' }}>
-          {balance !== null && (
-            <span style={{ background: '#1f6feb', color: '#fff', borderRadius: 12, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>
-              {balance}C
-            </span>
-          )}
-          <button
-            className="app-admin-toggle"
-            onClick={() => navigate('pricing')}
-            style={{ marginRight: 0 }}
-          >
-            요금제
-          </button>
-          <button
-            className="app-admin-toggle"
-            onClick={() => navigate('simulation')}
-            style={{ marginRight: 0 }}
-          >
-            시뮬레이션
-          </button>
-          <button className="app-admin-toggle" onClick={() => navigate('admin')} style={{ marginRight: 0 }}>
-            관리자
-          </button>
-          <button
-            className="app-admin-toggle"
-            onClick={logout}
-            style={{ background: '#da3633', marginRight: 0 }}
-          >
-            로그아웃
-          </button>
+        <div style={{
+          position: 'fixed', top: 0, right: 0, left: 0,
+          zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 20px',
+          height: 48,
+          background: 'rgba(12,10,9,0.88)',
+          backdropFilter: 'blur(12px)',
+          borderBottom: '1px solid rgba(245,158,11,0.07)',
+          fontFamily: "'DM Mono', 'Cascadia Code', monospace",
+        }}>
+          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.12em', color: '#f59e0b', cursor: 'pointer' }} onClick={() => navigate('landing')}>
+            MARKETGATE
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {balance !== null && (
+              <span
+                onClick={() => navigate('pricing')}
+                style={{
+                  cursor: 'pointer',
+                  background: 'rgba(245,158,11,0.1)',
+                  border: '1px solid rgba(245,158,11,0.25)',
+                  color: '#f59e0b',
+                  borderRadius: 3,
+                  padding: '3px 10px',
+                  fontSize: 11,
+                  fontFamily: "'DM Mono', monospace",
+                  letterSpacing: '0.08em',
+                  fontWeight: 500,
+                }}
+                title="크레딧 잔액 — 클릭하여 충전"
+              >
+                {balance}C
+              </span>
+            )}
+            {[
+              { label: '요금제', page: 'pricing' },
+              { label: '시뮬레이션', page: 'simulation' },
+              { label: '관리자', page: 'admin' },
+            ].map(({ label, page: p }) => (
+              <button
+                key={p}
+                onClick={() => navigate(p)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#57534e',
+                  cursor: 'pointer',
+                  fontSize: 11,
+                  letterSpacing: '0.08em',
+                  padding: '6px 10px',
+                  fontFamily: "'DM Mono', monospace",
+                  transition: 'color 0.15s',
+                }}
+                onMouseEnter={e => e.target.style.color = '#e7e5e4'}
+                onMouseLeave={e => e.target.style.color = '#57534e'}
+              >
+                {label}
+              </button>
+            ))}
+            <button
+              onClick={logout}
+              style={{
+                background: 'none',
+                border: '1px solid rgba(239,68,68,0.2)',
+                color: '#78716c',
+                cursor: 'pointer',
+                fontSize: 11,
+                letterSpacing: '0.08em',
+                padding: '5px 10px',
+                fontFamily: "'DM Mono', monospace",
+                borderRadius: 3,
+                transition: 'color 0.15s, border-color 0.15s',
+              }}
+              onMouseEnter={e => { e.target.style.color='#fca5a5'; e.target.style.borderColor='rgba(239,68,68,0.5)' }}
+              onMouseLeave={e => { e.target.style.color='#78716c'; e.target.style.borderColor='rgba(239,68,68,0.2)' }}
+            >
+              로그아웃
+            </button>
+          </div>
         </div>
       )}
 
