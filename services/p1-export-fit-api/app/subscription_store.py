@@ -3,6 +3,8 @@ import os
 import threading
 from datetime import datetime, timezone, timedelta
 
+from app.auth_store import update_user
+
 SUBSCRIPTIONS_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "subscriptions.json")
 _lock = threading.Lock()
 
@@ -44,6 +46,7 @@ def get_subscription(user_id: str) -> dict:
                 sub = {"plan": "Basic", "started_at": None, "expires_at": None}
                 data[user_id] = sub
                 _save(data)
+                update_user(user_id, {"plan": "Basic"})
         return sub
 
 
@@ -60,4 +63,5 @@ def change_plan(user_id: str, plan: str) -> dict:
             "expires_at": expires.isoformat(),
         }
         _save(data)
-        return data[user_id]
+    update_user(user_id, {"plan": plan})
+    return data[user_id]
