@@ -81,7 +81,9 @@ async def webhook(request: Request):
         return {"status": "ignored"}
 
     order_id = str(data.get("orderId", ""))
-    parts = order_id.split("-", 2)
+    # order_id = "{user_id}-{product_type}-{item_key}".  user_id is a UUID which
+    # contains 4 hyphens, so we must split from the right to preserve it intact.
+    parts = order_id.rsplit("-", 2)
     if len(parts) < 3:
         raise HTTPException(status_code=400, detail="invalid_orderId format")
 
