@@ -81,11 +81,15 @@ async def webhook(request: Request):
         return {"status": "ignored"}
 
     order_id = str(data.get("orderId", ""))
-    parts = order_id.split("-", 2)
-    if len(parts) < 3:
+    # order_id format: "{uuid}-{product_type}-{item_key}"
+    # UUIDs contain 4 hyphens (5 segments), so we need at least 7 parts total.
+    parts = order_id.split("-")
+    if len(parts) < 7:
         raise HTTPException(status_code=400, detail="invalid_orderId format")
 
-    user_id, product_type, item_key = parts[0], parts[1], parts[2]
+    user_id = "-".join(parts[:5])
+    product_type = parts[5]
+    item_key = "-".join(parts[6:])
 
     if product_type == "credit":
         pkg = CREDIT_PACKAGES.get(item_key)

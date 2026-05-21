@@ -7,6 +7,7 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from app.auth_store import find_user_by_id, is_blacklisted
+from app.subscription_store import get_subscription
 
 JWT_SECRET = os.environ.get("JWT_SECRET", "dev-secret-change-in-prod")
 JWT_ALGORITHM = "HS256"
@@ -78,7 +79,8 @@ def decode_refresh(token: str) -> dict:
 
 def require_plan(min_plan: str):
     def _check(user: dict = Depends(get_current_user)) -> dict:
-        if PLAN_ORDER.get(user.get("plan", "Basic"), 0) < PLAN_ORDER.get(min_plan, 0):
+        current_plan = get_subscription(user["user_id"]).get("plan", "Basic")
+        if PLAN_ORDER.get(current_plan, 0) < PLAN_ORDER.get(min_plan, 0):
             raise HTTPException(status_code=403, detail=f"requires_{min_plan}_plan")
         return user
     return _check
