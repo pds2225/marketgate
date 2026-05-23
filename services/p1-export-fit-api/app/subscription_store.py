@@ -3,6 +3,8 @@ import os
 import threading
 from datetime import datetime, timezone, timedelta
 
+from app.auth_store import update_user
+
 SUBSCRIPTIONS_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "subscriptions.json")
 _lock = threading.Lock()
 
@@ -31,6 +33,7 @@ def _save(data: dict) -> None:
 
 
 def get_subscription(user_id: str) -> dict:
+    downgrade_user = False
     with _lock:
         data = _load()
         if user_id not in data:
@@ -44,7 +47,11 @@ def get_subscription(user_id: str) -> dict:
                 sub = {"plan": "Basic", "started_at": None, "expires_at": None}
                 data[user_id] = sub
                 _save(data)
-        return sub
+                downgrade_user = True
+    if downgrade_user:
+        # Sync expiry back to users.json so require_plan() revokes access correctly.
+        update_user(user_id, {"plan": "Basic"})
+    return sub
 
 
 def change_plan(user_id: str, plan: str) -> dict:
@@ -60,4 +67,6 @@ def change_plan(user_id: str, plan: str) -> dict:
             "expires_at": expires.isoformat(),
         }
         _save(data)
-        return data[user_id]
+    # Keep users.json plan field in sync so require_plan() sees the new tier.
+    update_user(user_id, {"plan": plan})
+    return data[user_id]
