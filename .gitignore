@@ -16,3 +16,5 @@ services/**/.tmp*/
 services/**/.test_artifacts/
 .env
 .DS_Store
+
+desktop.ini
