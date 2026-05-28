@@ -21,6 +21,7 @@
 | C3 | [PRD_C3_dnb_api.md](PRD_C3_dnb_api.md) | D&B 신용데이터 | ⬜ 대기 |
 | D1 | [PRD_D1_order_rpa.md](PRD_D1_order_rpa.md) | 주문서·계약서 자동생성 | ⬜ 대기 |
 | D2 | [PRD_D2_brokerage_fee.md](PRD_D2_brokerage_fee.md) | 중개 수수료 2% 정산 | ⬜ 대기 |
+| E1 | [PRD_E1_remove_chat_wizard_ui.md](PRD_E1_remove_chat_wizard_ui.md) | 채팅 UI 제거·폼/위자드 통일 (React) | ⬜ 대기 |
 
 ---
 
@@ -47,6 +48,9 @@ Phase C — 외부 API (B 진행 중 병행)
 Phase D — RPA·결제 (전체 후반)
   D1 주문서 자동생성   ← A3 + B4 완료 후
   D2 중개 수수료       ← D1 + A3 완료 후
+
+Phase E — 프론트 UX (백엔드 독립, A~D와 병행 가능)
+  E1 채팅 제거·위자드 통일 ← design/ 설계 참고, Phase 1은 ChatMode 제거만
 ```
 
 ---

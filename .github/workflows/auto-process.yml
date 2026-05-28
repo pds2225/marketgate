@@ -21,6 +21,8 @@ permissions:
 jobs:
   process:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     
     steps:
     - uses: actions/checkout@v4
@@ -40,10 +42,12 @@ jobs:
         python3 services/cosmetics_mvp_preprocess/scripts/auto_filter_cosmetics.py
     
     - name: Commit processed results
+      env:
+        FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       run: |
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
-        git add output/COS_combined_*.csv
+        git add services/cosmetics_mvp_preprocess/output/COS_combined_*.csv
         if git diff --cached --quiet; then
           echo "No changes to commit"
         else
