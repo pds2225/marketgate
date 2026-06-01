@@ -19,6 +19,8 @@ from pathlib import Path
 from typing import Any
 
 import requests
+from dotenv import load_dotenv as _load_shared
+_load_shared(r"D:\.env.shared")
 from dotenv import load_dotenv
 
 # .env 로드

@@ -9,6 +9,8 @@ from typing import Any
 from urllib.parse import urljoin
 
 import requests
+from dotenv import load_dotenv as _load_shared
+_load_shared(r"D:\.env.shared")
 from dotenv import load_dotenv
 
 
