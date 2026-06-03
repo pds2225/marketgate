@@ -78,7 +78,12 @@ def decode_refresh(token: str) -> dict:
 
 def require_plan(min_plan: str):
     def _check(user: dict = Depends(get_current_user)) -> dict:
-        if PLAN_ORDER.get(user.get("plan", "Basic"), 0) < PLAN_ORDER.get(min_plan, 0):
+        # Import here to avoid a circular-import; subscription_store → auth_store is fine,
+        # but auth_deps must not be imported by subscription_store.
+        from app.subscription_store import get_subscription
+        sub = get_subscription(user["user_id"])
+        actual_plan = sub.get("plan", "Basic")
+        if PLAN_ORDER.get(actual_plan, 0) < PLAN_ORDER.get(min_plan, 0):
             raise HTTPException(status_code=403, detail=f"requires_{min_plan}_plan")
         return user
     return _check
