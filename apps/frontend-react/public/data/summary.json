@@ -1,0 +1,176 @@
+{
+  "total": 36241,
+  "generatedFrom": "buyer_candidate.csv",
+  "byCountry": [
+    {
+      "name": "인도",
+      "iso3": "IND",
+      "flag": "🇮🇳",
+      "count": 6653
+    },
+    {
+      "name": "미국",
+      "iso3": "USA",
+      "flag": "🇺🇸",
+      "count": 3553
+    },
+    {
+      "name": "필리핀",
+      "iso3": "PHL",
+      "flag": "🇵🇭",
+      "count": 1950
+    },
+    {
+      "name": "파키스탄",
+      "iso3": "PAK",
+      "flag": "🇵🇰",
+      "count": 1950
+    },
+    {
+      "name": "베트남",
+      "iso3": "VNM",
+      "flag": "🇻🇳",
+      "count": 1235
+    },
+    {
+      "name": "인도네시아",
+      "iso3": "IDN",
+      "flag": "🇮🇩",
+      "count": 1195
+    },
+    {
+      "name": "나이지리아",
+      "iso3": "NGA",
+      "flag": "🇳🇬",
+      "count": 1125
+    },
+    {
+      "name": "중국",
+      "iso3": "CHN",
+      "flag": "🇨🇳",
+      "count": 928
+    },
+    {
+      "name": "아르헨티나",
+      "iso3": "ARG",
+      "flag": "🇦🇷",
+      "count": 773
+    },
+    {
+      "name": "일본",
+      "iso3": "JPN",
+      "flag": "🇯🇵",
+      "count": 730
+    },
+    {
+      "name": "가나",
+      "iso3": "GHA",
+      "flag": "🇬🇭",
+      "count": 730
+    },
+    {
+      "name": "방글라데시",
+      "iso3": "BGD",
+      "flag": "🇧🇩",
+      "count": 673
+    }
+  ],
+  "byHs": [
+    {
+      "hs": "330499",
+      "label": "기초화장품·스킨케어",
+      "count": 6158
+    },
+    {
+      "hs": "210690",
+      "label": "건강기능식품",
+      "count": 1005
+    },
+    {
+      "hs": "340130",
+      "label": "비누",
+      "count": 535
+    },
+    {
+      "hs": "854370",
+      "label": "전기기기",
+      "count": 510
+    },
+    {
+      "hs": "854140",
+      "label": "반도체소자",
+      "count": 503
+    },
+    {
+      "hs": "300490",
+      "label": "의약품",
+      "count": 472
+    },
+    {
+      "hs": "853649",
+      "label": "전기접속기",
+      "count": 427
+    },
+    {
+      "hs": "330410",
+      "label": "색조화장품",
+      "count": 416
+    },
+    {
+      "hs": "330510",
+      "label": "헤어케어",
+      "count": 408
+    },
+    {
+      "hs": "190590",
+      "label": "베이커리·과자",
+      "count": 395
+    }
+  ],
+  "bySource": [
+    {
+      "name": "KOTRA SNS",
+      "count": 33446,
+      "official": true
+    },
+    {
+      "name": "NIPA ICT",
+      "count": 1847,
+      "official": true
+    },
+    {
+      "name": "무역보험공사",
+      "count": 621,
+      "official": true
+    },
+    {
+      "name": "GoBizKorea",
+      "count": 202,
+      "official": true
+    },
+    {
+      "name": "EC21",
+      "count": 103,
+      "official": false
+    },
+    {
+      "name": "KOTRA buyKOREA",
+      "count": 11,
+      "official": true
+    },
+    {
+      "name": "ITC TradeMap",
+      "count": 11,
+      "official": true
+    }
+  ],
+  "contact": {
+    "hasContact": 2220,
+    "hasContactPct": 6.1,
+    "email": 2136,
+    "phone": 2189,
+    "website": 2094,
+    "emailEstimated": 1918
+  },
+  "countryCount": 204
+}
