@@ -122,6 +122,13 @@ for row in rows:
 
 source_counter = Counter(source_short(norm(row,"source_dataset")) for row in rows)
 
+# 데이터 수집 추이(연도별) — '바이어 데이터 수집' 현황용
+year_counter = Counter()
+for row in rows:
+    sd = norm(row, "source_snapshot_date")
+    y = sd[:4] if len(sd) >= 4 and sd[:4].isdigit() else "미상"
+    year_counter[y] += 1
+
 has_contact = sum(1 for r in rows if norm(r,"has_contact") in ("1","True","true"))
 email = sum(1 for r in rows if norm(r,"contact_email"))
 phone = sum(1 for r in rows if norm(r,"contact_phone"))
@@ -150,6 +157,10 @@ summary = {
     },
     "countryCount": len({norm(r,"country_iso3") for r in rows
                          if re.fullmatch(r"[A-Z]{3}", norm(r,"country_iso3") or "")}),
+    "bySnapshotYear": [
+        {"year": y, "count": ct}
+        for y, ct in sorted(year_counter.items()) if y != "미상"
+    ],
 }
 
 # --- sample buyers for the list view ---
@@ -170,17 +181,18 @@ for r in contactful:
     by_country[norm(r,"country_norm")].append(r)
 
 # 라운드로빈으로 국가 다양성 확보, 최대 60건
+SAMPLE_N = 240  # 필터·매칭이 의미있게 동작하도록 국가 다양성 확보한 샘플 수
 selected = []
 order = [cn for cn,_ in country_counter.most_common() if cn in by_country]
 idx = defaultdict(int)
-while len(selected) < 60:
+while len(selected) < SAMPLE_N:
     progressed = False
     for cn in order:
         lst = by_country[cn]
         i = idx[cn]
         if i < len(lst):
             selected.append(lst[i]); idx[cn]+=1; progressed=True
-            if len(selected) >= 60: break
+            if len(selected) >= SAMPLE_N: break
     if not progressed: break
 
 def kw_product(row):

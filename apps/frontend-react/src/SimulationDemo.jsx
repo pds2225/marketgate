@@ -108,7 +108,7 @@ export default function SimulationDemo() {
       <header className="sf-top">
         <div className="sf-brand" onClick={() => { window.location.hash = 'buyers' }}>MARKETGATE</div>
         <nav className="sf-tabs">
-          <button className="sf-tab" onClick={() => { window.location.hash = 'buyers' }}>바이어 검색</button>
+          <button className="sf-tab" onClick={() => { window.location.hash = 'buyers' }}>바이어 매칭</button>
           <button className="sf-tab active">수익성 시뮬레이션</button>
         </nav>
         <span className="sf-top-tag">Landed Cost · BEP</span>
