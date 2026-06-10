@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Send, Mic, ArrowLeft, LayoutGrid, Building2, Mail, Phone, Globe, CheckCircle2,
+  ArrowLeft, LayoutGrid, Building2, Mail, Phone, Globe, CheckCircle2,
   Download, Share2, Info, ChevronRight, Star, FileText, BarChart3, Sparkles,
-  Loader2, Hash, Database, AlertCircle, RefreshCw, ShieldCheck, Shield,
+  Loader2, Database, AlertCircle, RefreshCw, ShieldCheck, Shield,
   TrendingUp, Clock, ExternalLink, Search, Zap, Cpu, Shirt, Stethoscope,
   Settings2, X, Calculator, DollarSign, Percent, TrendingDown, ArrowUpRight,
   Globe2, Users, Activity, ChevronLeft, MapPin, Award, FileDown,
@@ -62,7 +62,6 @@ interface Buyer {
   dnbData?: DNBData;
 }
 interface CategoryData { label: string; hsCode: string; hsLabel: string; icon: React.ReactNode; buyers: Buyer[]; countries: string[]; }
-interface Message { role: 'user' | 'ai' | 'error'; text: string; chips?: string[]; }
 interface CountryRec { countryName: string; countryCode: string; flag: string; buyerCount: number; avgScore: number; totalImportValue: string; avgGrowthRate: number; topBuyerName: string; topBuyerScore: number; buyers: Buyer[]; }
 type Step = 'countries' | 'buyers' | 'detail';
 
@@ -500,36 +499,39 @@ const ExportConditionPanel: React.FC<{ open: boolean; onClose: () => void; condi
   );
 };
 
-/* ── ChatPanel ── */
-const ChatPanel: React.FC<{ messages: Message[]; onSend: (text: string) => void; activeCategory: string; }> = ({ messages, onSend, activeCategory }) => {
+/* ── SearchBar ── */
+const SUGGESTED_KEYWORDS = ['스킨케어', '홍삼', '여성의류', '메모리 반도체'];
+const SearchBar: React.FC<{ onSearch: (text: string) => void; activeCategory: string; loading: boolean; }> = ({ onSearch, activeCategory, loading }) => {
   const [input, setInput] = useState('');
-  const scrollRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages]);
-  const handleSend = () => { if (!input.trim()) return; onSend(input.trim()); setInput(''); };
+  const submit = () => { if (!input.trim() || loading) return; onSearch(input.trim()); };
   return (
-    <div className="flex flex-col h-full bg-white border-r border-slate-200">
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100"><Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="h-4 w-4 text-slate-600" /></Button><span className="text-sm font-medium text-slate-700">위로</span></div>
-      <ScrollArea className="flex-1 px-4 py-4" ref={scrollRef}>
-        <div className="space-y-5">
-          {messages.map((msg, i) => (
-            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {msg.role === 'ai' && <div className="mr-2 mt-1 flex-shrink-0"><div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center"><Sparkles className="h-3.5 w-3.5 text-blue-600" /></div></div>}
-              {msg.role === 'error' && <div className="mr-2 mt-1 flex-shrink-0"><div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center"><AlertCircle className="h-3.5 w-3.5 text-red-600" /></div></div>}
-              <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-md' : msg.role === 'error' ? 'bg-red-50 text-red-700 border border-red-100 rounded-bl-md' : 'bg-slate-50 text-slate-700 border border-slate-100 rounded-bl-md'}`}>
-                {msg.text}
-                {msg.chips && <div className="flex flex-wrap gap-2 mt-3">{msg.chips.map((chip) => <Badge key={chip} variant="outline" className="cursor-pointer bg-white hover:bg-slate-50 text-slate-600 border-slate-200 text-xs font-normal py-1 px-2.5"><Hash className="h-3 w-3 mr-1 text-slate-400" />{chip}</Badge>)}</div>}
-              </div>
-            </div>
-          ))}
-          {messages.length === 1 && <div className="mt-2"><p className="text-xs text-slate-400 mb-2 ml-10">추천 검색어</p><div className="flex flex-wrap gap-2 ml-10">{['스킨케어','홍삼','여성의류','메모리 반도체'].map((kw) => <button key={kw} onClick={() => onSend(kw)} className="text-xs bg-white border border-slate-200 rounded-full px-3 py-1.5 text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors"><Search className="h-3 w-3 inline mr-1" />{kw}</button>)}</div></div>}
+    <div className="bg-white border-b border-slate-200">
+      <div className="max-w-3xl mx-auto px-5 py-4">
+        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 focus-within:border-blue-300 transition-colors">
+          <Search className="h-4 w-4 text-slate-400 flex-shrink-0" />
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+            placeholder="제품 키워드 또는 HS코드 입력 (예: K-뷰티, 스킨케어, 330499)"
+            className="flex-1 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 outline-none"
+          />
+          <Button size="sm" className="h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white gap-1.5 px-4" onClick={submit} disabled={!input.trim() || loading}>
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+            검색
+          </Button>
         </div>
-      </ScrollArea>
-      <div className="px-4 py-3 border-t border-slate-100"><div className="flex gap-2 overflow-x-auto pb-2">{CATEGORIES.map((cat) => <button key={cat.label} onClick={() => onSend(cat.label)} className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 ${activeCategory === cat.label ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'}`}>{cat.icon} {cat.label}</button>)}</div></div>
-      <div className="px-4 py-3 border-t border-slate-100">
-        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-slate-600"><Mic className="h-4 w-4" /></Button>
-          <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder="제품명, HS 코드, 키워드를 입력하세요 (예: 스킨케어, 330499, 홍삼)" className="flex-1 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 outline-none" />
-          <Button size="icon" className="h-8 w-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white" onClick={handleSend} disabled={!input.trim()}><Send className="h-3.5 w-3.5" /></Button>
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          <span className="text-[11px] text-slate-400 mr-1">카테고리</span>
+          {CATEGORIES.map((cat) => (
+            <button key={cat.label} onClick={() => !loading && onSearch(cat.label)} disabled={loading} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50 ${activeCategory === cat.label ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'}`}>{cat.icon} {cat.label}</button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <span className="text-[11px] text-slate-400 mr-1">추천 검색어</span>
+          {SUGGESTED_KEYWORDS.map((kw) => (
+            <button key={kw} onClick={() => !loading && onSearch(kw)} disabled={loading} className="text-xs bg-white border border-slate-200 rounded-full px-3 py-1.5 text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors disabled:opacity-50"><Search className="h-3 w-3 inline mr-1" />{kw}</button>
+          ))}
         </div>
       </div>
     </div>
@@ -795,13 +797,13 @@ interface BuyerSearchPageProps {
 }
 
 export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
-  const [messages, setMessages] = useState<Message[]>([{ role: 'ai', text: '안녕하세요! 어떤 제품의 해외 바이어를 찾아드릴까요?\n\n현재 KOTRA·관세청·World Bank 연계 데이터 기준으로,\n→ 47개국, 12,800+ 개 바이어를 검색할 수 있습니다.\n\n아래에서 바로 시작하거나, 직접 입력해 주세요.', chips: ['K-뷰티', '건강식품', 'K-패션', '반도체'] }]);
-  const [currentCategory, setCurrentCategory] = useState<string>('K-뷰티');
+  const [currentCategory, setCurrentCategory] = useState<string>('');
   const [step, setStep] = useState<Step>('countries');
   const [selectedCountry, setSelectedCountry] = useState<CountryRec | null>(null);
   const [selectedBuyer, setSelectedBuyer] = useState<Buyer | null>(null);
   const [inputHsCode, setInputHsCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [showConditionPanel, setShowConditionPanel] = useState(false);
   const [conditions, setConditions] = useState<ExportConditions>({ productionCapacity: '2,000~5,000개', moq: '1,000개', targetAmountKrw: '5천만원', unitPriceUSD: 12.5, costPriceUSD: 8, logisticsRate: 8, tariffRate: 8, exchangeRate: 1300, certifications: ['ISO', 'GMP'] });
   const [dynamicCategory, setDynamicCategory] = useState<CategoryData | null>(null);
@@ -810,8 +812,7 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
   const countryRecs = useMemo(() => categoryData ? groupByCountry(categoryData.buyers) : [], [categoryData]);
   const hasConditions = !!conditions.productionCapacity && !!conditions.moq;
 
-  const handleSend = async (text: string) => {
-    setMessages((prev) => [...prev, { role: 'user', text }]);
+  const handleSearch = async (text: string) => {
     setInputHsCode(text);
     setLoading(true);
 
@@ -856,16 +857,12 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
       setStep('countries');
       setSelectedCountry(null);
       setSelectedBuyer(null);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'ai',
-          text: `${detected || hsCode} 기준으로 ${grouped.length}개국, ${mappedBuyers.length}개 바이어를 발굴했습니다. 우측에서 국가를 선택해 보세요.`,
-        },
-      ]);
+      setSearchError(null);
+      toast.success(`${detected || hsCode} 기준 ${grouped.length}개국, ${mappedBuyers.length}개 바이어를 발굴했습니다`);
     } catch (err: any) {
       const msg = err.response?.data?.detail || err.message || '분석 중 오류가 발생했습니다.';
-      setMessages((prev) => [...prev, { role: 'error', text: msg }]);
+      setSearchError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -879,7 +876,23 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
   const handleApplyConditions = () => { toast.success('수출 조건이 적용되었습니다', { description: `MOQ ${conditions.moq} · 희망금액 ${conditions.targetAmountKrw}` }); };
 
   const renderRightPanel = () => {
-    if (!categoryData) return <div className="h-full flex flex-col items-center justify-center text-slate-400"><Search className="h-12 w-12 mb-4 text-slate-200" /><p className="text-sm">검색어를 입력하면 국가 추천 리스트가 표시됩니다</p><p className="text-xs mt-1">예: 스킨케어, 홍삼, 여성의류, 반도체</p></div>;
+    if (!categoryData) return (
+      <div className="h-full flex flex-col items-center justify-center text-slate-400 px-6 text-center">
+        {searchError ? (
+          <>
+            <AlertCircle className="h-12 w-12 mb-4 text-amber-300" />
+            <p className="text-sm text-amber-600">{searchError}</p>
+            <p className="text-xs mt-1">검색어를 바꿔 다시 시도해 보세요 (예: 스킨케어, 홍삼, 여성의류, 반도체)</p>
+          </>
+        ) : (
+          <>
+            <Search className="h-12 w-12 mb-4 text-slate-200" />
+            <p className="text-sm">위 검색바에 제품 키워드나 HS코드를 입력해 바이어를 찾아보세요</p>
+            <p className="text-xs mt-1">예: 스킨케어, 홍삼, 여성의류, 반도체</p>
+          </>
+        )}
+      </div>
+    );
     if (step === 'countries') return <CountryListPanel countries={countryRecs} categoryLabel={currentCategory} categoryHs={categoryData.hsCode} onSelectCountry={handleSelectCountry} onOpenConditions={() => setShowConditionPanel(true)} hasConditions={hasConditions} />;
     if (step === 'buyers' && selectedCountry) return <BuyerListPanel country={selectedCountry} onSelectBuyer={handleSelectBuyer} onBack={handleBackToCountries} onOpenConditions={() => setShowConditionPanel(true)} hasConditions={hasConditions} />;
     if (step === 'detail' && selectedBuyer) return <BuyerDetailPanel buyer={selectedBuyer} onBack={handleBackToBuyers} inputHsCode={inputHsCode || '330303'} category={currentCategory} onRefreshBuyer={handleRefreshBuyer} />;
@@ -904,13 +917,11 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
           <div className="flex items-center gap-2"><Button variant="outline" size="sm" className="h-7 text-xs gap-1.5"><LayoutGrid className="h-3.5 w-3.5" />품 모드</Button></div>
         </div>
         <DataStatsBanner />
+        <SearchBar onSearch={handleSearch} activeCategory={currentCategory} loading={loading} />
       </header>
-      <div className="flex-1 flex overflow-hidden">
-        <div className="w-[420px] flex-shrink-0 h-full"><ChatPanel messages={messages} onSend={handleSend} activeCategory={currentCategory} /></div>
-        <div className="flex-1 h-full relative">
-          {loading && <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center"><Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-3" /><p className="text-sm text-slate-600">바이어 데이터를 분석 중입니다...</p><p className="text-xs text-slate-400 mt-1">KOTRA, 관세청, World Bank 데이터 연동 중</p></div>}
-          {renderRightPanel()}
-        </div>
+      <div className="flex-1 overflow-hidden relative">
+        {loading && <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center"><Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-3" /><p className="text-sm text-slate-600">바이어 데이터를 분석 중입니다...</p><p className="text-xs text-slate-400 mt-1">KOTRA, 관세청, World Bank 데이터 연동 중</p></div>}
+        {renderRightPanel()}
       </div>
       <ExportConditionPanel open={showConditionPanel} onClose={() => setShowConditionPanel(false)} conditions={conditions} onChange={setConditions} onApply={handleApplyConditions} />
     </div>
