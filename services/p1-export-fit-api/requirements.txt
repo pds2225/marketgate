@@ -7,4 +7,5 @@ streamlit
 requests
 PyJWT
 passlib[bcrypt]
-bcrypt
+# passlib 1.7.4는 bcrypt>=4.1과 비호환(__about__ 제거, 72바이트 자체검사 크래시) — 핀 고정
+bcrypt==4.0.1

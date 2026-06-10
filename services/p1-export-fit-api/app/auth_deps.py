@@ -8,7 +8,16 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from app.auth_store import find_user_by_id, is_blacklisted
 
-JWT_SECRET = os.environ.get("JWT_SECRET", "dev-secret-change-in-prod")
+def _resolve_jwt_secret() -> str:
+    secret = os.environ.get("JWT_SECRET", "")
+    if secret:
+        return secret
+    if os.environ.get("APP_ENV", "").lower() in ("prod", "production"):
+        raise RuntimeError("JWT_SECRET must be set when APP_ENV=production")
+    return "dev-secret-change-in-prod"
+
+
+JWT_SECRET = _resolve_jwt_secret()
 JWT_ALGORITHM = "HS256"
 ACCESS_EXPIRE_MIN = 30
 REFRESH_EXPIRE_DAYS = 7

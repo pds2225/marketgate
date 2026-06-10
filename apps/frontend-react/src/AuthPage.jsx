@@ -26,7 +26,8 @@ export default function AuthPage({ onSuccess }) {
         localStorage.setItem('refresh_token', data.refresh_token)
       } else {
         const { data } = await api.post('/v1/auth/register', { email, password })
-        localStorage.setItem('access_token', data.token)
+        localStorage.setItem('access_token', data.access_token || data.token)
+        if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token)
       }
       onSuccess()
     } catch (err) {
@@ -360,15 +361,6 @@ export default function AuthPage({ onSuccess }) {
                 {loading ? '처리중...' : mode === 'login' ? '로그인 →' : '계정 생성 →'}
               </button>
             </form>
-
-            <div className="auth-divider" style={{ margin: '20px 0' }}>OR</div>
-
-            <button
-              className="auth-guest"
-              onClick={() => { localStorage.setItem('access_token', 'guest'); onSuccess() }}
-            >
-              게스트로 둘러보기
-            </button>
           </div>
         </div>
       </div>

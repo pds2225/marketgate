@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+import logging
 import sys
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 from app.models import BuyerShortlistData
+
+logger = logging.getLogger(__name__)
 
 
 ROOT = Path(__file__).resolve().parents[4]

@@ -21,9 +21,10 @@ PLAN_PRICES = {
 
 
 def verify_webhook_signature(payload_bytes: bytes, signature: str) -> bool:
+    # fail-closed: 시크릿 미설정 시 어떤 웹훅도 신뢰하지 않는다
     secret = os.environ.get("TOSS_WEBHOOK_SECRET", "")
-    if not secret:
-        return True
+    if not secret or not signature:
+        return False
     expected = hmac.new(secret.encode(), payload_bytes, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, signature)
 
@@ -67,6 +68,9 @@ def record_payment(
         return record
 
 
-def get_payment_history() -> list:
+def get_payment_history(user_id: str | None = None) -> list:
     with _lock:
-        return _load()
+        data = _load()
+    if user_id is None:
+        return data
+    return [r for r in data if r.get("user_id") == user_id]

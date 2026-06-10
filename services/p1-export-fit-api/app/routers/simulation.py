@@ -3,6 +3,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from app.auth_deps import get_current_user
+from app.services.compliance import assert_country_allowed
 from app.services.simulation import calc_landed_cost, calc_bep
 
 router = APIRouter(prefix="/v1/simulation", tags=["simulation"])
@@ -21,6 +22,7 @@ def landed_cost(
         raise HTTPException(status_code=400, detail="hs_code required")
     if not country:
         raise HTTPException(status_code=400, detail="country required")
+    assert_country_allowed(country)
     if logistics not in ("air", "sea"):
         raise HTTPException(status_code=400, detail="logistics must be 'air' or 'sea'")
 

@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from app.models import PredictRequest, PredictResponse, InquiryRequest, InquiryResponse
 from app.services.buyer_shortlist import build_buyer_shortlist
+from app.services.compliance import filter_blocked_results
 from app.services.project_snapshot import build_project_snapshot
 from app.services.scoring import recommend_countries
 from app.services.inquiry_service import build_draft
@@ -74,6 +75,7 @@ def health_legacy():
 def predict(req: PredictRequest, user: dict = Depends(get_current_user)):
     request_id = new_request_id()
     results, input_echo, diagnostics = recommend_countries(req)
+    results = filter_blocked_results(results)
     buyers = build_buyer_shortlist(req, results)
 
     return {
@@ -225,6 +227,7 @@ def predict_legacy(payload: Dict[str, Any] = Body(...), user: dict = Depends(get
 
     req = PredictRequest(**normalized_payload)
     results, input_echo, diagnostics = recommend_countries(req)
+    results = filter_blocked_results(results)
 
     return {
         "request_id": request_id,
