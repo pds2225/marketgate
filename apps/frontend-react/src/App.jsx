@@ -2,7 +2,6 @@ import { startTransition, useEffect, useState } from 'react'
 import LandingPage from './LandingPage'
 import AnalysisPage from './AnalysisPage'
 import AdminDashboard from './AdminDashboard'
-import ChatModePage from './ChatModePage'
 import ExportFlowPage from './ExportFlowPage'
 import BuyerSearchPage from './pages/BuyerSearch'
 import AuthPage from './AuthPage'
@@ -141,7 +140,6 @@ function App() {
 
       {page === 'landing' && (
         <LandingPage
-          onStartChat={(preset) => navigate('chat', preset)}
           onStartFlow={() => navigate('exportFlow')}
           onStartBuyerSearch={() => navigate('buyerSearch')}
           onStartAnalysis={() => navigate('analysis')}
@@ -168,15 +166,6 @@ function App() {
 
       {page === 'paymentCallback' && (
         <PaymentCallbackPage onBack={() => navigate('landing')} onBalanceRefresh={refreshBalance} />
-      )}
-
-      {page === 'chat' && (
-        <ChatModePage
-          preset={chatPreset}
-          onBack={() => navigate('landing')}
-          onSwitchToForm={() => navigate('analysis')}
-          onStartWizard={(preset) => navigate('analysis', preset)}
-        />
       )}
 
       {page === 'simulation' && (

@@ -120,7 +120,6 @@ const quickStartItems = [
 
 export default function LandingPage({
   onStartAnalysis,
-  onStartChat,
   onStartFlow,
   onStartBuyerSearch,
 }) {
@@ -128,7 +127,7 @@ export default function LandingPage({
 
   const handleChipClick = (item) => {
     if (item.available) {
-      onStartChat?.({ hsCode: item.hsCode, category: item.label });
+      onStartBuyerSearch?.();
     } else {
       setToast(
         `🚧 ${item.label}는 아직 준비 중이에요. 오픈되면 가장 먼저 알려드릴게요.`
@@ -145,9 +144,9 @@ export default function LandingPage({
         </div>
         <button
           className="ui-button ui-button--ghost"
-          onClick={() => onStartChat?.()}
+          onClick={() => onStartBuyerSearch?.()}
         >
-          분석 시작
+          바이어 검색
           <ArrowRight size={16} />
         </button>
       </header>
@@ -192,17 +191,10 @@ export default function LandingPage({
           >
             <button
               className="ui-button ui-button--solid"
-              onClick={() => onStartChat?.()}
+              onClick={() => onStartBuyerSearch?.()}
             >
-              분석 시작하기
+              바이어 검색 시작
               <MoveRight size={18} />
-            </button>
-            <button
-              className="ui-button ui-button--ghost"
-              onClick={onStartBuyerSearch}
-            >
-              바이어 추천 보기
-              <ArrowRight size={16} />
             </button>
           </motion.div>
 
@@ -393,9 +385,9 @@ export default function LandingPage({
         <div className="landing-cta-actions">
           <button
             className="ui-button ui-button--solid"
-            onClick={() => onStartChat?.()}
+            onClick={() => onStartBuyerSearch?.()}
           >
-            분석 시작하기
+            바이어 검색 시작
             <ArrowRight size={18} />
           </button>
         </div>
