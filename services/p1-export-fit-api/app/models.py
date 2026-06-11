@@ -76,6 +76,10 @@ class PredictResult(BaseModel):
     fit_score: float
     score_components: Dict[str, float]
     explanation: Dict[str, Any]
+    # B1 추가 필드 (additive — 기존 구조 불변, SIM_SPEC §2.3/§3.3)
+    compliance: Optional[Dict[str, Any]] = None
+    data_coverage: Optional[Dict[str, Any]] = None
+    warnings: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class PredictDiagnostics(BaseModel):

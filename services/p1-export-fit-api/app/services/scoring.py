@@ -4,6 +4,8 @@ import numpy as np
 
 from app.models import PredictRequest
 from app.config import WEIGHTS, SOFT_RULES
+from app.services import compliance
+from app.services.confidence import build_data_coverage
 from app.services.data_loaders import (
     load_datastore,
     kotra_candidate_scores,
@@ -282,8 +284,13 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
         if r["gdp_growth_pct"] < 0:
             soft += SOFT_RULES["penalty_negative_growth"]
 
-        # TODO: restricted/blocked 국가 데이터 확보 후 penalty_restricted (-10.0) 적용 필요
-        # 현재는 제재국 정보 데이터 없이 진행 (2024.02 기준)
+        # restricted 국가 감점 — 목록 단일 출처는 compliance.py (SIM_SPEC §2.3 / ADR-2026-06-10)
+        compliance_penalty = 0.0
+        restricted_block = compliance.restricted_info(r["partner_iso3"])
+        if restricted_block is not None:
+            compliance_penalty = SOFT_RULES["penalty_restricted"]
+            soft += compliance_penalty
+            restricted_block["penalty_applied"] = compliance_penalty
 
         fit = base01 * 100.0 + soft
         fit = max(0.0, min(100.0, fit))
@@ -301,10 +308,50 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
         if len(contributions) > 1:
             top_factors.append({"factor": contributions[1][0], "direction": contributions[1][2]})
 
+        # 신뢰도(data_coverage) — SIM_SPEC §3. news_risk는 데이터 소스 미구현으로 항상 결측.
+        data_coverage = build_data_coverage(
+            {
+                "export_score": r["kotra_weight_score"],
+                "gdp": None if r["missing_indicators"]["gdp_missing"] else r["gdp_usd"],
+                "growth_rate": None if r["missing_indicators"]["growth_missing"] else r["gdp_growth_pct"],
+                "market_size": r["trade_value_usd"],
+                "news_risk": None,
+            }
+        )
+
+        result_warnings = []
+        if restricted_block is not None:
+            result_warnings.append(
+                {
+                    "code": "RESTRICTED_COUNTRY",
+                    "severity": "high",
+                    "message": (
+                        f"{restricted_block['country_name']}({restricted_block['country_code']}) — "
+                        f"수출 제한 국가. 수출 허가 필요, 점수 {compliance_penalty:+.0f} 반영 "
+                        f"(제한 시작: {restricted_block['restricted_since']})"
+                    ),
+                }
+            )
+        if data_coverage["confidence_level"] in ("low", "very_low"):
+            result_warnings.append(
+                {
+                    "code": "LOW_CONFIDENCE",
+                    "severity": "medium",
+                    "message": (
+                        f"데이터 신뢰도 {data_coverage['confidence_level']} "
+                        f"(confidence={data_coverage['confidence']}, "
+                        f"결측: {', '.join(data_coverage['missing_fields'])})"
+                    ),
+                }
+            )
+
         results.append(
             {
                 "partner_country_iso3": r["partner_iso3"],
                 "fit_score": fit,
+                "compliance": restricted_block,
+                "data_coverage": data_coverage,
+                "warnings": result_warnings,
                 "score_components": {
                     # 0~100 점수로 노출하고 싶으면
                     "trade_volume_score": round(comp["trade_volume_score"], 4),
@@ -312,6 +359,7 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
                     "gdp_score": round(comp["gdp_score"], 4),
                     "distance_score": round(comp["distance_score"], 4),
                     "soft_adjustment": round(soft, 1),
+                    "compliance_penalty": round(compliance_penalty, 1),
                 },
                 "explanation": {
                     "top_factors": top_factors,

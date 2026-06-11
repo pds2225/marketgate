@@ -79,6 +79,20 @@ def assert_country_allowed(code: str) -> None:
         )
 
 
+def restricted_info(code: str) -> dict | None:
+    """restricted 국가면 SPEC §2.3 플래그 블록을, 아니면 None을 반환한다."""
+    norm = normalize_country_code(code)
+    if norm not in RESTRICTED_COUNTRIES:
+        return None
+    return {
+        "status": "restricted",
+        "country_code": norm,
+        "country_name": RESTRICTED_NAMES.get(norm),
+        "requires_export_license": True,
+        "restricted_since": RESTRICTED_COUNTRIES[norm],
+    }
+
+
 def filter_blocked_results(results: list) -> list:
     """국가 추천 결과에서 blocked 국가를 제거하고 rank를 다시 매긴다."""
     filtered = [
