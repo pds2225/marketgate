@@ -1,4 +1,9 @@
 import { useEffect, useState } from 'react'
+import api from './lib/api'
+
+const VERIFY_ATTEMPTS = 5
+const VERIFY_INTERVAL_MS = 1500
+const RECENT_WINDOW_MS = 15 * 60 * 1000
 
 export default function PaymentCallbackPage({ onBack, onBalanceRefresh }) {
   const [status, setStatus] = useState('loading')
@@ -7,11 +12,44 @@ export default function PaymentCallbackPage({ onBack, onBalanceRefresh }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const s = params.get('status')
-    const t = setTimeout(() => {
-      setStatus(s === 'success' ? 'success' : 'fail')
-      if (s === 'success' && onBalanceRefresh) onBalanceRefresh()
-    }, 800)
-    return () => clearTimeout(t)
+    const type = params.get('type')
+    const item = params.get('item')
+
+    if (s !== 'success') {
+      setStatus('fail')
+      return
+    }
+
+    // 쿼리스트링만 믿지 않고 서버 결제내역으로 실제 완료를 검증한다
+    let cancelled = false
+    const verify = async (attempt) => {
+      try {
+        const { data } = await api.get('/v1/payment/history')
+        const cutoff = Date.now() - RECENT_WINDOW_MS
+        const confirmed = (Array.isArray(data) ? data : []).some(r =>
+          r.status === 'DONE' &&
+          (!type || r.product_type === type) &&
+          (!item || r.package === item || r.plan === item) &&
+          new Date(r.timestamp).getTime() >= cutoff
+        )
+        if (cancelled) return
+        if (confirmed) {
+          setStatus('success')
+          if (onBalanceRefresh) onBalanceRefresh()
+          return
+        }
+      } catch {
+        // 일시 오류는 재시도
+      }
+      if (cancelled) return
+      if (attempt < VERIFY_ATTEMPTS - 1) {
+        setTimeout(() => verify(attempt + 1), VERIFY_INTERVAL_MS)
+      } else {
+        setStatus('pending')
+      }
+    }
+    verify(0)
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
@@ -149,6 +187,21 @@ export default function PaymentCallbackPage({ onBack, onBalanceRefresh }) {
               <p className="cb-desc">
                 결제가 완료되었습니다.<br />
                 크레딧 또는 플랜이 즉시 반영됩니다.
+              </p>
+              <button className="cb-btn ok" onClick={onBack}>
+                ← 대시보드로
+              </button>
+            </>
+          )}
+
+          {status === 'pending' && (
+            <>
+              <div className="cb-icon">⏳</div>
+              <div className="cb-title loading">VERIFYING<br />PAYMENT</div>
+              <div className="cb-divider" />
+              <p className="cb-desc">
+                결제 승인을 아직 확인하지 못했습니다.<br />
+                잠시 후 결제 내역에서 반영 여부를 확인해주세요.
               </p>
               <button className="cb-btn ok" onClick={onBack}>
                 ← 대시보드로

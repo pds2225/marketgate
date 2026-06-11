@@ -29,7 +29,14 @@ def register(payload: Dict[str, Any] = Body(...)):
     if find_user_by_email(email):
         raise HTTPException(status_code=409, detail="email_already_exists")
     user = create_user(email, pwd_ctx.hash(password))
-    return {"user_id": user["user_id"], "token": create_access_token(user["user_id"])}
+    access = create_access_token(user["user_id"])
+    return {
+        "user_id": user["user_id"],
+        "access_token": access,
+        "refresh_token": create_refresh_token(user["user_id"]),
+        # legacy 키 — 기존 클라이언트 호환
+        "token": access,
+    }
 
 
 @router.post("/login")

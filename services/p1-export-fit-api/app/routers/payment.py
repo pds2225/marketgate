@@ -109,5 +109,5 @@ async def webhook(request: Request):
 
 
 @router.get("/history")
-def payment_history():
-    return get_payment_history()
+def payment_history(user: dict = Depends(get_current_user)):
+    return get_payment_history(user["user_id"])
