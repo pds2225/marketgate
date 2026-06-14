@@ -3,7 +3,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from app.auth_deps import get_current_user
-from app.services.compliance import assert_country_allowed
+from app.services.compliance import assert_country_allowed, restricted_info
 from app.services.simulation import calc_landed_cost, calc_bep
 
 router = APIRouter(prefix="/v1/simulation", tags=["simulation"])
@@ -35,7 +35,24 @@ def landed_cost(
     if unit_price <= 0 or qty <= 0:
         raise HTTPException(status_code=400, detail="unit_price and qty must be > 0")
 
-    return calc_landed_cost(hs_code, country, unit_price, qty, logistics)
+    result = calc_landed_cost(hs_code, country, unit_price, qty, logistics)
+
+    # restricted 국가는 HTTP 200 + 경고 플래그 (SIM_SPEC §2.3 — blocked만 400)
+    restricted = restricted_info(country)
+    if restricted is not None:
+        result["compliance"] = restricted
+        result.setdefault("warnings", []).append(
+            {
+                "code": "RESTRICTED_COUNTRY",
+                "severity": "high",
+                "message": (
+                    f"{restricted['country_name']}({restricted['country_code']}) — "
+                    f"수출 제한 국가. 수출 허가가 필요합니다 "
+                    f"(제한 시작: {restricted['restricted_since']})"
+                ),
+            }
+        )
+    return result
 
 
 @router.post("/bep")
