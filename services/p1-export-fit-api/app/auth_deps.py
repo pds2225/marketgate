@@ -7,6 +7,7 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from app.auth_store import find_user_by_id, is_blacklisted
+from app.subscription_store import get_subscription
 
 def _resolve_jwt_secret() -> str:
     secret = os.environ.get("JWT_SECRET", "")
@@ -87,7 +88,15 @@ def decode_refresh(token: str) -> dict:
 
 def require_plan(min_plan: str):
     def _check(user: dict = Depends(get_current_user)) -> dict:
-        if PLAN_ORDER.get(user.get("plan", "Basic"), 0) < PLAN_ORDER.get(min_plan, 0):
+        # subscriptions.json is the authoritative source for plan; users.json is
+        # only a fallback for legacy records and test mocks that never go through
+        # the payment/subscription flow.
+        sub = get_subscription(user["user_id"])
+        if sub.get("started_at") is not None:
+            effective_plan = sub.get("plan", "Basic")
+        else:
+            effective_plan = user.get("plan", "Basic")
+        if PLAN_ORDER.get(effective_plan, 0) < PLAN_ORDER.get(min_plan, 0):
             raise HTTPException(status_code=403, detail=f"requires_{min_plan}_plan")
         return user
     return _check
