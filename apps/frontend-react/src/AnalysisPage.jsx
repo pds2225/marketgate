@@ -443,9 +443,12 @@ function BuyerShortlistPanel({ buyers, onInquiry }) {
 }
 
 async function fetchJson(url, body) {
+  const token = localStorage.getItem("access_token");
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
   });
 
@@ -656,9 +659,12 @@ export default function AnalysisPage({ onBack, preset }) {
     setInquiryLoading(true);
     setInquiryError("");
     try {
+      const inquiryToken = localStorage.getItem("access_token");
+      const inquiryHeaders = { "Content-Type": "application/json" };
+      if (inquiryToken) inquiryHeaders["Authorization"] = `Bearer ${inquiryToken}`;
       const res = await fetch(buildP1Url("/v1/inquiry"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: inquiryHeaders,
         body: JSON.stringify({
           buyer_name: inquiryBuyer.buyer_name || "Unknown",
           contact_email: inquiryBuyer.contact_email || "",
