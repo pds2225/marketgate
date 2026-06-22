@@ -99,7 +99,13 @@ export default function PricingPage({ onBack }) {
         ? { product_type, package: item }
         : { product_type, plan: item }
       const res = await api.post('/v1/payment/checkout', payload)
-      window.location.href = res.data.checkout_url
+      const checkoutUrl = res?.data?.checkout_url
+      if (!checkoutUrl || typeof checkoutUrl !== 'string') {
+        setError('결제 페이지 주소를 받지 못했습니다. 잠시 후 다시 시도해주세요.')
+        setLoading(null)
+        return
+      }
+      window.location.href = checkoutUrl
     } catch (e) {
       setError(e?.response?.data?.detail || '결제 요청 실패')
       setLoading(null)
