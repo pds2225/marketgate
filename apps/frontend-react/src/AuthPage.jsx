@@ -31,12 +31,18 @@ export default function AuthPage({ onSuccess }) {
       }
       onSuccess()
     } catch (err) {
-      const detail = err.response?.data?.detail
-      const msg = {
-        email_already_exists: '이미 가입된 이메일입니다.',
-        invalid_credentials: '이메일 또는 비밀번호가 틀립니다.',
-        account_locked: '로그인 시도 초과. 15분 후 재시도하세요.',
-      }[detail] || '오류가 발생했습니다.'
+      let msg
+      if (!err.response) {
+        // 서버 무응답 — 네트워크 끊김·서버 다운·CORS. 비번이 틀린 게 아님을 분명히 안내.
+        msg = '서버에 연결하지 못했습니다. 인터넷 연결을 확인하고 잠시 후 다시 시도해 주세요.'
+      } else {
+        const detail = err.response?.data?.detail
+        msg = {
+          email_already_exists: '이미 가입된 이메일입니다.',
+          invalid_credentials: '이메일 또는 비밀번호가 틀립니다.',
+          account_locked: '로그인 시도 초과. 15분 후 재시도하세요.',
+        }[detail] || (typeof detail === 'string' && detail) || '오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
+      }
       setError(msg)
     } finally {
       setLoading(false)
