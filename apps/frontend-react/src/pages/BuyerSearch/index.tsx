@@ -804,6 +804,8 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
   const [inputHsCode, setInputHsCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchErrorKind, setSearchErrorKind] = useState<'network' | 'empty' | 'input' | null>(null);
+  const [lastQuery, setLastQuery] = useState<string>('');
   const [showConditionPanel, setShowConditionPanel] = useState(false);
   const [conditions, setConditions] = useState<ExportConditions>({ productionCapacity: '2,000~5,000개', moq: '1,000개', targetAmountKrw: '5천만원', unitPriceUSD: 12.5, costPriceUSD: 8, logisticsRate: 8, tariffRate: 8, exchangeRate: 1300, certifications: ['ISO', 'GMP'] });
   const [dynamicCategory, setDynamicCategory] = useState<CategoryData | null>(null);
@@ -814,7 +816,10 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
 
   const handleSearch = async (text: string) => {
     setInputHsCode(text);
+    setLastQuery(text);
     setLoading(true);
+    setSearchError(null);
+    setSearchErrorKind(null);
 
     try {
       let hsCode = text.trim();
@@ -824,7 +829,9 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
         const cat = CATEGORIES.find((c) => c.label === detected);
         if (cat) hsCode = cat.hsCode;
       } else if (!/^\d{6}$/.test(hsCode)) {
-        throw new Error('HS 코드는 6자리 숫자이거나, K-뷰티/건강식품/K-패션/반도체 중 하나를 입력해 주세요.');
+        const inputErr: any = new Error('HS 코드는 6자리 숫자이거나, K-뷰티/건강식품/K-패션/반도체 중 하나를 입력해 주세요.');
+        inputErr.errorKind = 'input';
+        throw inputErr;
       }
 
       const res = await api.post('/v1/predict', {
@@ -837,7 +844,9 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
 
       const buyersData = res.data?.data?.buyers;
       if (!buyersData || buyersData.status !== 'ok' || !buyersData.items?.length) {
-        throw new Error('현재 조건에 맞는 바이어를 찾지 못했습니다.');
+        const emptyErr: any = new Error('현재 조건에 맞는 바이어를 찾지 못했습니다.');
+        emptyErr.errorKind = 'empty';
+        throw emptyErr;
       }
 
       const mappedBuyers = mapApiBuyersToBuyerType(buyersData.items, hsCode, detected || hsCode);
@@ -858,10 +867,33 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
       setSelectedCountry(null);
       setSelectedBuyer(null);
       setSearchError(null);
+      setSearchErrorKind(null);
       toast.success(`${detected || hsCode} 기준 ${grouped.length}개국, ${mappedBuyers.length}개 바이어를 발굴했습니다`);
     } catch (err: any) {
-      const msg = err.response?.data?.detail || err.message || '분석 중 오류가 발생했습니다.';
+      // Classify the failure so the user sees an actionable message instead of stale results.
+      let kind: 'network' | 'empty' | 'input' = err.errorKind || 'network';
+      let msg: string;
+      const status = err.response?.status;
+      if (kind === 'input') {
+        msg = err.message;
+      } else if (kind === 'empty') {
+        msg = '현재 조건에 맞는 바이어를 찾지 못했습니다.';
+      } else if (status && status >= 500) {
+        msg = '바이어 분석 서버에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.';
+      } else if (status) {
+        msg = err.response?.data?.detail || '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+      } else {
+        // No response at all → backend down / network error.
+        msg = '서버에 연결하지 못했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.';
+      }
+      // Clear stale results so the error panel is shown instead of the previous search's data.
+      setDynamicCategory(null);
+      setCurrentCategory('');
+      setStep('countries');
+      setSelectedCountry(null);
+      setSelectedBuyer(null);
       setSearchError(msg);
+      setSearchErrorKind(kind);
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -879,11 +911,37 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
     if (!categoryData) return (
       <div className="h-full flex flex-col items-center justify-center text-slate-400 px-6 text-center">
         {searchError ? (
-          <>
-            <AlertCircle className="h-12 w-12 mb-4 text-amber-300" />
-            <p className="text-sm text-amber-600">{searchError}</p>
-            <p className="text-xs mt-1">검색어를 바꿔 다시 시도해 보세요 (예: 스킨케어, 홍삼, 여성의류, 반도체)</p>
-          </>
+          searchErrorKind === 'network' ? (
+            <>
+              <AlertCircle className="h-12 w-12 mb-4 text-rose-300" />
+              <p className="text-sm font-medium text-rose-600">{searchError}</p>
+              <p className="text-xs mt-1 text-slate-500">서버 연결이 일시적으로 끊겼을 수 있어요.</p>
+              {lastQuery && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-4 gap-1.5"
+                  disabled={loading}
+                  onClick={() => handleSearch(lastQuery)}
+                >
+                  {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  다시 시도
+                </Button>
+              )}
+            </>
+          ) : searchErrorKind === 'empty' ? (
+            <>
+              <Database className="h-12 w-12 mb-4 text-slate-200" />
+              <p className="text-sm text-slate-600">{searchError}</p>
+              <p className="text-xs mt-1">다른 키워드나 HS코드로 다시 검색해 보세요 (예: 스킨케어, 홍삼, 여성의류, 반도체)</p>
+            </>
+          ) : (
+            <>
+              <AlertCircle className="h-12 w-12 mb-4 text-amber-300" />
+              <p className="text-sm text-amber-600">{searchError}</p>
+              <p className="text-xs mt-1">검색어를 바꿔 다시 시도해 보세요 (예: 스킨케어, 홍삼, 여성의류, 반도체)</p>
+            </>
+          )
         ) : (
           <>
             <Search className="h-12 w-12 mb-4 text-slate-200" />
