@@ -706,7 +706,7 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
                   <Separator className="my-1" />
                   <ContactRow icon={<Phone className="h-4 w-4" />} label="전화" value={buyer.phone} action="phone" href={`tel:${buyer.phone}`} />
                   <Separator className="my-1" />
-                  <ContactRow icon={<Globe className="h-4 w-4" />} label="웹사이트" value={buyer.website} action="link" href={`https://${buyer.website}`} />
+                  <ContactRow icon={<Globe className="h-4 w-4" />} label="웹사이트" value={buyer.website} action="link" href={/^https?:\/\//i.test(buyer.website.trim()) ? buyer.website.trim() : `https://${buyer.website.trim()}`} />
                 </div>
                 {buyer.contactVerified ? (
                   <div className="flex items-center gap-2 mt-4 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 w-fit"><CheckCircle2 className="h-4 w-4 text-emerald-600" /><span className="text-xs font-medium text-emerald-700">연락처 확인됨</span><span className="text-[10px] text-emerald-500">{buyer.contactVerifiedDate} 확인</span></div>
