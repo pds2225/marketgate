@@ -259,10 +259,20 @@ function buildLegacyRecommendation(country, rank) {
   };
 }
 
+// P1 점수 항목별로, 그 점수를 만들 때 쓰인 원본 데이터가 비어 있는지 알려주는 키 매핑.
+// 백엔드는 결측 시 0으로 대체하므로, 결측 여부를 함께 알아야 "진짜 0점"과 "데이터 없음"을 구분할 수 있다.
+const p1MetricMissingKey = {
+  gdp_score: "gdp_missing",
+  growth_score: "growth_missing",
+};
+
 function buildP1Recommendation(entry) {
   const meta = getCountryMeta(entry.partner_country_iso3);
   const components = entry.score_components || {};
   const explanation = entry.explanation || {};
+  const missingIndicators = explanation.missing_indicators || {};
+  const dataCoverage = entry.data_coverage || null;
+  const warnings = Array.isArray(entry.warnings) ? entry.warnings : [];
   const topFactors = (explanation.top_factors || [])
     .map((item) => factorNames[item.factor] || item.factor)
     .filter(Boolean);
@@ -273,17 +283,24 @@ function buildP1Recommendation(entry) {
     rank: entry.rank,
     score: Number(entry.fit_score || 0),
     badge: "P1 API",
+    dataCoverage,
+    warnings,
     summary:
       topFactors.length > 0
         ? `${topFactors.join(" · ")} 쪽에서 점수가 높게 반영됐습니다.`
         : "CSV 기반 지표를 합산한 적합도 점수입니다.",
-    metrics: Object.entries(p1MetricMeta).map(([key, metaInfo]) => ({
-      key,
-      label: metaInfo.label,
-      tone: metaInfo.tone,
-      value: clampMetric(key, components[key]),
-      displayValue: formatMetricValue(key, components[key]),
-    })),
+    metrics: Object.entries(p1MetricMeta).map(([key, metaInfo]) => {
+      const missingKey = p1MetricMissingKey[key];
+      const missing = Boolean(missingKey && missingIndicators[missingKey]);
+      return {
+        key,
+        label: metaInfo.label,
+        tone: metaInfo.tone,
+        missing,
+        value: missing ? 0 : clampMetric(key, components[key]),
+        displayValue: missing ? "데이터 없음" : formatMetricValue(key, components[key]),
+      };
+    }),
     detailRows: [
       { label: "주요 근거", value: topFactors.join(", ") || "표시 가능한 상위 요인 없음" },
       {
@@ -562,16 +579,77 @@ async function requestAnalysis(hsCode, topN, year) {
 
 function MetricBar({ metric }) {
   return (
-    <div className="analysis-metric">
+    <div className={`analysis-metric ${metric.missing ? "analysis-metric--missing" : ""}`}>
       <div className="analysis-metric-head">
         <span>{metric.label}</span>
         <strong>{metric.displayValue}</strong>
       </div>
       <div className="analysis-metric-track">
-        <div
-          className={`analysis-metric-fill analysis-metric-fill--${metric.tone}`}
-          style={{ width: `${metric.value * 100}%` }}
-        />
+        {metric.missing ? (
+          <div className="analysis-metric-empty">데이터가 없어 점수에 반영하지 못했습니다</div>
+        ) : (
+          <div
+            className={`analysis-metric-fill analysis-metric-fill--${metric.tone}`}
+            style={{ width: `${metric.value * 100}%` }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function levelLabel(level) {
+  if (level === "high") return "높음";
+  if (level === "medium") return "보통";
+  if (level === "low") return "낮음";
+  if (level === "very_low") return "매우 낮음";
+  return level || "-";
+}
+
+function ConfidenceNotice({ recommendation }) {
+  const coverage = recommendation?.dataCoverage;
+  const warnings = recommendation?.warnings || [];
+  const lowConfidence =
+    coverage && (coverage.confidence_level === "low" || coverage.confidence_level === "very_low");
+
+  if (!lowConfidence && warnings.length === 0) {
+    return null;
+  }
+
+  const missingFieldLabels = {
+    export_score: "수출 행동 점수",
+    gdp: "GDP 규모",
+    growth_rate: "GDP 성장률",
+    market_size: "시장 규모",
+    news_risk: "뉴스 리스크",
+  };
+  const missingFields = (coverage?.missing_fields || [])
+    .map((field) => missingFieldLabels[field] || field)
+    .filter(Boolean);
+
+  return (
+    <div
+      className="analysis-inline-alert"
+      style={{ marginBottom: 16, alignItems: "flex-start" }}
+      role="status"
+    >
+      <CircleAlert size={16} style={{ marginTop: 2, flexShrink: 0 }} />
+      <div>
+        {lowConfidence ? (
+          <div>
+            데이터 신뢰도 <strong>{levelLabel(coverage.confidence_level)}</strong>
+            {coverage.confidence != null ? ` (${Math.round(coverage.confidence * 100)}%)` : ""}
+            {missingFields.length > 0 ? ` · 결측: ${missingFields.join(" · ")}` : ""}. 일부 점수가
+            0으로 보일 수 있으나 이는 데이터가 비어 있어서이며 실제 0점이 아닙니다.
+          </div>
+        ) : null}
+        {warnings
+          .filter((item) => item && item.code !== "LOW_CONFIDENCE")
+          .map((item, index) => (
+            <div key={`${item.code}-${index}`} style={{ marginTop: lowConfidence || index > 0 ? 6 : 0 }}>
+              {item.message || item.code}
+            </div>
+          ))}
       </div>
     </div>
   );
@@ -943,6 +1021,8 @@ export default function AnalysisPage({ onBack, preset }) {
                             <ArrowUpRight size={16} />
                           </a>
                         </div>
+
+                        <ConfidenceNotice recommendation={selectedRecommendation} />
 
                         <div className="analysis-metrics">
                           {selectedRecommendation.metrics.map((metric) => (

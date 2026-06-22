@@ -816,6 +816,25 @@
   background: linear-gradient(90deg, #0f172a, #475569);
 }
 
+.analysis-metric--missing .analysis-metric-head strong {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.analysis-metric--missing .analysis-metric-track {
+  height: auto;
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px dashed rgba(148, 163, 184, 0.5);
+}
+
+.analysis-metric-empty {
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #64748b;
+}
+
 .analysis-detail-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
