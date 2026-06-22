@@ -11,13 +11,33 @@ import PaymentCallbackPage from './PaymentCallbackPage'
 import api from './lib/api'
 import './App.css'
 
+// 결제 게이트웨이(successUrl/failUrl)가 SPA로 돌려보내는 경로를 초기 화면으로 매핑한다.
+// 이 처리가 없으면 결제 후 /payment/callback 으로 돌아와도 항상 landing 이 떠서
+// 결제 확인 화면(PaymentCallbackPage)이 영영 보이지 않는다(정상 결제인데 고장처럼 보임).
+function getInitialPage() {
+  if (typeof window === 'undefined') return 'landing'
+  if (window.location.pathname.replace(/\/+$/, '') === '/payment/callback') {
+    return 'paymentCallback'
+  }
+  return 'landing'
+}
+
 function App() {
-  const [page, setPage] = useState('landing')
+  const [page, setPage] = useState(getInitialPage)
   const [chatPreset, setChatPreset] = useState(null)
   const [authed, setAuthed] = useState(!!localStorage.getItem('access_token'))
   const [balance, setBalance] = useState(null)
 
   const navigate = (nextPage, preset = null) => {
+    // 결제 콜백 경로(/payment/callback?status=...)에서 다른 화면으로 이동할 때
+    // 주소창을 정리해, 새로고침 시 지난 결제 결과 화면이 다시 뜨지 않게 한다.
+    if (
+      nextPage !== 'paymentCallback' &&
+      typeof window !== 'undefined' &&
+      window.location.pathname.replace(/\/+$/, '') === '/payment/callback'
+    ) {
+      window.history.replaceState(null, '', '/')
+    }
     startTransition(() => {
       setPage(nextPage)
       setChatPreset(preset)
