@@ -670,6 +670,7 @@ export default function AnalysisPage({ onBack, preset }) {
   const [inquiryLoading, setInquiryLoading] = useState(false);
   const [inquiryResult, setInquiryResult] = useState(null);
   const [inquiryError, setInquiryError] = useState("");
+  const [copyStatus, setCopyStatus] = useState("");
 
   const deferredSelectedId = useDeferredValue(selectedId);
   const selectedRecommendation =
@@ -719,6 +720,7 @@ export default function AnalysisPage({ onBack, preset }) {
     setInquiryForm({ sender_company: "", sender_name: "", message: "" });
     setInquiryResult(null);
     setInquiryError("");
+    setCopyStatus("");
     setShowInquiryModal(true);
   };
 
@@ -727,6 +729,25 @@ export default function AnalysisPage({ onBack, preset }) {
     setInquiryBuyer(null);
     setInquiryResult(null);
     setInquiryError("");
+    setCopyStatus("");
+  };
+
+  const handleCopyDraft = async (text, label) => {
+    const value = String(text || "");
+    if (!value) {
+      setCopyStatus("복사할 내용이 없습니다.");
+      return;
+    }
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        throw new Error("clipboard unavailable");
+      }
+      setCopyStatus(`${label} 초안을 복사했습니다.`);
+    } catch {
+      setCopyStatus("자동 복사가 막혀 있어요. 초안을 길게 눌러(드래그) 직접 복사해 주세요.");
+    }
   };
 
   const handleInquirySubmit = async () => {
@@ -1191,14 +1212,22 @@ export default function AnalysisPage({ onBack, preset }) {
                           {inquiryResult.draft_ko}
                         </div>
                       </div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button className="ui-button ui-button--solid" style={{ flex: 1 }} onClick={() => {navigator.clipboard?.writeText?.(inquiryResult.draft_en);}}>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button className="ui-button ui-button--solid" style={{ flex: 1, minWidth: 120 }} onClick={() => handleCopyDraft(inquiryResult.draft_ko, "한국어")}>
+                          한국어 복사
+                        </button>
+                        <button className="ui-button ui-button--solid" style={{ flex: 1, minWidth: 120 }} onClick={() => handleCopyDraft(inquiryResult.draft_en, "영문")}>
                           영문 복사
                         </button>
-                        <button className="ui-button ui-button--ghost" style={{ flex: 1 }} onClick={handleCloseInquiry}>
+                        <button className="ui-button ui-button--ghost" style={{ flex: 1, minWidth: 120 }} onClick={handleCloseInquiry}>
                           닫기
                         </button>
                       </div>
+                      {copyStatus ? (
+                        <p role="status" style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: "#94a3b8" }}>
+                          {copyStatus}
+                        </p>
+                      ) : null}
                     </>
                   )}
                 </motion.div>
