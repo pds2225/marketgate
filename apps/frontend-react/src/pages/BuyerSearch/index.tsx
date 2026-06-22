@@ -102,6 +102,101 @@ const KEYWORD_MAP: Record<string, string> = { 'k-뷰티': 'K-뷰티', 'k뷰티':
 function detectCategory(input: string): string | null { const lower = input.toLowerCase().replace(/[\s\-]/g, ''); for (const [k, v] of Object.entries(KEYWORD_MAP)) { if (lower.includes(k.replace(/[\s\-]/g, ''))) return v; } if (input.startsWith('33')) return 'K-뷰티'; if (input.startsWith('21')) return '건강식품'; if (input.startsWith('62')) return 'K-패션'; if (input.startsWith('85')) return '반도체'; return null; }
 function copyToClipboard(text: string) { navigator.clipboard.writeText(text).then(() => toast.success('클립보드에 복사되었습니다', { description: text })); }
 function formatDate() { const d = new Date(); return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`; }
+// 보고서 내용은 화면에 이미 렌더링된 데이터로 클라이언트에서 직접 파일을 만들어 내려준다.
+// (서버가 보내주는 파일 본문 contentObject 가 비어 있어 PDF 바이너리가 없으므로, 한글이 깨지지 않는
+//  텍스트 파일로 저장해 실제로 다운로드되도록 한다. jsPDF 기본 폰트는 한글을 렌더링하지 못한다.)
+function downloadTextFile(fileName: string, text: string) {
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function buildDNBReportText(data: DNBData): string {
+  const o = data.organization;
+  const fmtCur = (v: number) => v >= 1000000 ? `$${(v/1000000).toFixed(1)}M` : v >= 1000 ? `$${(v/1000).toFixed(0)}K` : `$${v}`;
+  const lines: string[] = [];
+  lines.push('D&B 기업 보고서');
+  lines.push('데이터 제공: Dun & Bradstreet, Inc. · 리셀러: NICEDNB');
+  lines.push(`발행일: ${formatDate()}`);
+  lines.push('='.repeat(50));
+  lines.push('');
+  lines.push('[조회 거래 정보]');
+  lines.push(`거래번호: ${data.transactionDetail.transactionID}`);
+  lines.push(`조회시각: ${new Date(data.transactionDetail.transactionTimestamp).toLocaleString('ko-KR')}`);
+  lines.push(`상태: ${data.transactionDetail.status}`);
+  lines.push('');
+  lines.push('[기업 개요]');
+  lines.push(`상호: ${o.primaryName}`);
+  lines.push(`DUNS: ${o.duns}`);
+  lines.push(`국가: ${o.countryName} (${o.countryISOAlpha2Code})`);
+  lines.push(`주소: ${o.primaryAddress.streetAddress}, ${o.primaryAddress.addressLocality}, ${o.primaryAddress.addressRegion} ${o.primaryAddress.postalCode}`);
+  lines.push(`전화: ${o.telephone}` + (o.fax ? ` · 팩스: ${o.fax}` : ''));
+  lines.push(`임직원 수: ${o.numberOfEmployees.toLocaleString()}명`);
+  lines.push(`매출액: ${fmtCur(o.salesRevenue)} · 자본: ${fmtCur(o.capitalDetails)}`);
+  if (o.registerNumbers.length) {
+    lines.push('');
+    lines.push('[등록번호]');
+    o.registerNumbers.forEach(r => lines.push(`- ${r.type}: ${r.number}`));
+  }
+  if (o.industryCodes.length) {
+    lines.push('');
+    lines.push('[산업 코드]');
+    o.industryCodes.forEach(c => lines.push(`- ${c.type} ${c.code}: ${c.description}`));
+  }
+  if (o.currentPrincipals.length) {
+    lines.push('');
+    lines.push('[주요 경영진]');
+    o.currentPrincipals.forEach(p => lines.push(`- ${p.name} (${p.title})`));
+  }
+  if (o.competitors.length) {
+    lines.push('');
+    lines.push('[주요 경쟁사]');
+    o.competitors.forEach(c => lines.push(`- ${c.name}: 매출 ${c.salesRevenue} · 임직원 ${c.employees}명`));
+  }
+  if (o.formerPrimaryNames.length) {
+    lines.push('');
+    lines.push(`[이전 상호] ${o.formerPrimaryNames.join(', ')}`);
+  }
+  return lines.join('\n');
+}
+function buildBuyerReportText(buyer: Buyer): string {
+  const lines: string[] = [];
+  lines.push('바이어 상세 보고서 (BUYER DETAIL REPORT)');
+  lines.push(`리포트 ID: #${buyer.id}`);
+  lines.push(`발행일: ${formatDate()}`);
+  lines.push('데이터 제공: KOTRA · 관세청 · World Bank 결합 분석');
+  lines.push('='.repeat(50));
+  lines.push('');
+  lines.push('[기본 프로필]');
+  lines.push(`기업명: ${buyer.name}${buyer.legalName ? ` (${buyer.legalName})` : ''}`);
+  lines.push(`적합도 점수: ${buyer.score}점 (${buyer.scoreLabel})`);
+  lines.push(`업종: ${buyer.industry}`);
+  lines.push(`국가/지역: ${buyer.country} · ${buyer.region}`);
+  lines.push(`HS 코드: ${buyer.hsCode} (${buyer.hsLabel})`);
+  lines.push(`데이터 출처: ${buyer.dataSource}`);
+  lines.push(`원본 추적: ${buyer.csvTrace}`);
+  lines.push(`데이터 수집일: ${buyer.dataDate}`);
+  lines.push('');
+  lines.push('[연락처]');
+  lines.push(`담당자: ${buyer.contactName || '정보 없음'}${buyer.contactRole ? ` (${buyer.contactRole})` : ''}`);
+  lines.push(`이메일: ${buyer.email || '정보 없음'}`);
+  lines.push(`전화: ${buyer.phone || '정보 없음'}`);
+  lines.push(`웹사이트: ${buyer.website || '정보 없음'}`);
+  lines.push(`연락처 확인: ${buyer.contactVerified ? `확인됨 (${buyer.contactVerifiedDate})` : '미확인 (공공데이터에 연락처 없음)'}`);
+  lines.push('');
+  lines.push('[수입 동향]');
+  lines.push(`누적 수입액: ${buyer.totalImportValue} · 성장률: ${buyer.importGrowthRate >= 0 ? '+' : ''}${buyer.importGrowthRate}%`);
+  lines.push(`RFM: 최근성 ${buyer.rfm.R} · 빈도 ${buyer.rfm.F} · 금액 ${buyer.rfm.M}`);
+  if (buyer.reasons.length) {
+    lines.push('');
+    lines.push('[매칭 근거]');
+    buyer.reasons.forEach(r => lines.push(`- ${r.text}${r.source ? ` (출처: ${r.source})` : ''}`));
+  }
+  return lines.join('\n');
+}
 function parseImportValue(val: string) { const n = parseFloat(val.replace(/[^0-9.]/g, '')); return val.includes('M') ? n*1000000 : n*1000; }
 function mapApiBuyersToBuyerType(items: any[], hsCode: string, categoryLabel: string): Buyer[] {
   const countryMap: Record<string, string> = {
@@ -303,7 +398,9 @@ const ContactRow: React.FC<{ icon: React.ReactNode; label: string; value: string
 const DNBReportPanel: React.FC<{ data: DNBData }> = ({ data }) => {
   const org = data.organization;
   const handleDownload = () => {
-    toast.success('D&B 기업보고서 다운로드를 시작합니다', { description: `파일: ${data.contents.fileName} · 형식: ${data.contents.contentFormat}` });
+    const fileName = `dnb_report_${org.duns || 'report'}.txt`;
+    downloadTextFile(fileName, buildDNBReportText(data));
+    toast.success('D&B 기업보고서를 저장했습니다', { description: `파일: ${fileName}` });
   };
   const fmtCur = (v: number) => v >= 1000000 ? `$${(v/1000000).toFixed(1)}M` : v >= 1000 ? `$${(v/1000).toFixed(0)}K` : `$${v}`;
 
@@ -411,7 +508,7 @@ const DNBReportPanel: React.FC<{ data: DNBData }> = ({ data }) => {
         </div>
         <div className="flex gap-2">
           <Button className="flex-1 text-sm bg-blue-600 hover:bg-blue-700" onClick={handleDownload}><FileDown className="h-4 w-4 mr-1.5" />PDF 보고서 다운로드</Button>
-          <Button variant="outline" className="flex-1 text-sm" onClick={() => toast.info('텍스트 보고서 미리보기', { description: 'D&B 보고서 텍스트 추출 내용이 표시됩니다.' })}><FileText className="h-4 w-4 mr-1.5" />텍스트 보기</Button>
+          <Button variant="outline" className="flex-1 text-sm" onClick={() => { navigator.clipboard?.writeText?.(buildDNBReportText(data)); toast.success('보고서 텍스트를 클립보드에 복사했습니다'); }}><FileText className="h-4 w-4 mr-1.5" />텍스트 복사</Button>
         </div>
       </div>
 
@@ -632,7 +729,7 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
 
   const handleFavorite = () => { setFavorited(!favorited); toast.success(favorited ? '관심 바이어에서 제거했습니다' : '관심 바이어로 등록했습니다'); };
   const handleShare = () => { copyToClipboard(`${window.location.origin}?buyer=${buyer.id}`); };
-  const handleDownloadPDF = () => { toast.success('PDF 다운로드를 시작합니다', { description: `${buyer.name} 리포트` }); };
+  const handleDownloadPDF = () => { const fileName = `buyer_report_${buyer.id}.txt`; downloadTextFile(fileName, buildBuyerReportText(buyer)); toast.success('바이어 보고서를 저장했습니다', { description: `파일: ${fileName}` }); };
   const handleRefresh = () => { toast.promise(new Promise((resolve) => { setTimeout(() => resolve(true), 1500); }), { loading: 'KOTRA 데이터를 갱신 중입니다...', success: () => { onRefreshBuyer(buyer.id); return '데이터가 갱신되었습니다'; }, error: '갱신에 실패했습니다' }); };
   const isMismatch = inputHsCode !== buyer.hsCode && inputHsCode !== category;
 
