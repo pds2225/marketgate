@@ -50,4 +50,5 @@ export const ENDPOINTS = {
   predict: buildP1Url("/v1/predict"),
   legacyPredict: buildP1Url("/predict"),
   snapshot: buildP1Url("/v1/snapshot"),
+  demoSnapshot: buildP1Url("/v1/demo/snapshot"),
 };
