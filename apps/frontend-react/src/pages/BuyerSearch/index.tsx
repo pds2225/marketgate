@@ -277,15 +277,22 @@ const ScoreBar: React.FC<{ label: string; value: number; benchmark: number }> = 
 );
 
 const ContactRow: React.FC<{ icon: React.ReactNode; label: string; value: string; action?: 'copy' | 'link' | 'phone'; href?: string }> = ({ icon, label, value, action, href }) => {
-  const handleClick = () => { if (action === 'copy') copyToClipboard(value); else if (action === 'link' && href) window.open(href, '_blank', 'noopener,noreferrer'); else if (action === 'phone' && href) window.location.href = href; };
+  // 연락처 값이 비어 있으면(공공데이터에 미수록) 클릭 가능한 링크 대신 "정보 없음"을 보여준다.
+  // 빈 값에 링크를 걸면 tel: / https:// 로만 이동해 전화가 걸리지 않거나 빈 탭이 열려 고객이 막힌다.
+  const hasValue = !!(value && value.trim());
+  const handleClick = () => { if (!hasValue) return; if (action === 'copy') copyToClipboard(value); else if (action === 'link' && href) window.open(href, '_blank', 'noopener,noreferrer'); else if (action === 'phone' && href) window.location.href = href; };
   return (
     <div className="flex items-start gap-3 py-2 group">
       <div className="mt-0.5 text-slate-400">{icon}</div>
       <div className="flex-1 min-w-0">
         <div className="text-xs text-slate-500 mb-0.5">{label}</div>
-        <button onClick={handleClick} className={`text-sm text-slate-800 break-all text-left ${action ? 'hover:text-blue-600 hover:underline cursor-pointer' : ''}`}>{value}</button>
+        {hasValue ? (
+          <button onClick={handleClick} className={`text-sm text-slate-800 break-all text-left ${action ? 'hover:text-blue-600 hover:underline cursor-pointer' : ''}`}>{value}</button>
+        ) : (
+          <span className="text-sm text-slate-400">정보 없음</span>
+        )}
       </div>
-      {action === 'copy' && (
+      {action === 'copy' && hasValue && (
         <TooltipProvider><Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" onClick={handleClick}><FileText className="h-3.5 w-3.5" /></Button></TooltipTrigger><TooltipContent side="left"><p>복사하기</p></TooltipContent></Tooltip></TooltipProvider>
       )}
     </div>
@@ -701,7 +708,11 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
                   <Separator className="my-1" />
                   <ContactRow icon={<Globe className="h-4 w-4" />} label="웹사이트" value={buyer.website} action="link" href={`https://${buyer.website}`} />
                 </div>
-                <div className="flex items-center gap-2 mt-4 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 w-fit"><CheckCircle2 className="h-4 w-4 text-emerald-600" /><span className="text-xs font-medium text-emerald-700">연락처 확인됨</span><span className="text-[10px] text-emerald-500">{buyer.contactVerifiedDate} 확인</span></div>
+                {buyer.contactVerified ? (
+                  <div className="flex items-center gap-2 mt-4 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 w-fit"><CheckCircle2 className="h-4 w-4 text-emerald-600" /><span className="text-xs font-medium text-emerald-700">연락처 확인됨</span><span className="text-[10px] text-emerald-500">{buyer.contactVerifiedDate} 확인</span></div>
+                ) : (
+                  <div className="flex items-center gap-2 mt-4 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 w-fit"><AlertCircle className="h-4 w-4 text-amber-600" /><span className="text-xs font-medium text-amber-700">연락처 미확인</span><span className="text-[10px] text-amber-500">공공데이터에 연락처가 없어요</span></div>
+                )}
               </div>
             </div>
           )}
