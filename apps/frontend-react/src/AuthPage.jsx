@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from './lib/api'
 
-export default function AuthPage({ onSuccess }) {
+export default function AuthPage({ onSuccess, sessionExpired = false }) {
   const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -227,6 +227,19 @@ export default function AuthPage({ onSuccess }) {
           letter-spacing: 0.04em;
         }
 
+        .auth-notice {
+          font-family: 'DM Mono', monospace;
+          font-size: 0.68rem;
+          line-height: 1.6;
+          color: #fcd34d;
+          background: rgba(245,158,11,0.07);
+          border: 1px solid rgba(245,158,11,0.22);
+          padding: 12px 14px;
+          border-radius: 3px;
+          letter-spacing: 0.03em;
+          margin-bottom: 24px;
+        }
+
         .auth-submit {
           width: 100%;
           padding: 13px;
@@ -325,6 +338,11 @@ export default function AuthPage({ onSuccess }) {
         {/* RIGHT */}
         <div className="auth-right">
           <div className={`auth-panel ${visible ? 'in' : ''}`}>
+            {sessionExpired && (
+              <div className="auth-notice" role="status">
+                보안을 위해 로그인 세션이 만료되었습니다. 작업을 이어가려면 다시 로그인해 주세요.
+              </div>
+            )}
             <div className="auth-mode-row">
               <button
                 className={`auth-mode-btn ${mode === 'login' ? 'active' : ''}`}

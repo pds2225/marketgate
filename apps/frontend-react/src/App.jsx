@@ -27,6 +27,9 @@ function App() {
   const [chatPreset, setChatPreset] = useState(null)
   const [authed, setAuthed] = useState(!!localStorage.getItem('access_token'))
   const [balance, setBalance] = useState(null)
+  // 세션이 본인 의사와 무관하게(토큰 만료 → 재발급 실패) 끊겼을 때만 true.
+  // 직접 누른 로그아웃과 구분해, 로그인 화면에서 "다시 로그인" 안내를 띄운다.
+  const [sessionExpired, setSessionExpired] = useState(false)
 
   const navigate = (nextPage, preset = null) => {
     // 결제 콜백 경로(/payment/callback?status=...)에서 다른 화면으로 이동할 때
@@ -48,13 +51,16 @@ function App() {
     try { await api.post('/v1/auth/logout') } catch {}
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
+    setSessionExpired(false)
     setAuthed(false)
     setBalance(null)
     navigate('landing')
   }
 
   useEffect(() => {
-    const onLogout = () => { setAuthed(false); setBalance(null); navigate('landing') }
+    // api.js 인터셉터가 토큰 재발급 실패 시 발생시키는 이벤트.
+    // 사용자가 직접 로그아웃한 게 아니라 세션이 만료돼 강제로 끊긴 경우다.
+    const onLogout = () => { setSessionExpired(true); setAuthed(false); setBalance(null); navigate('landing') }
     window.addEventListener('auth:logout', onLogout)
     return () => window.removeEventListener('auth:logout', onLogout)
   }, [])
@@ -69,7 +75,12 @@ function App() {
   }, [authed, page])
 
   if (!authed) {
-    return <AuthPage onSuccess={() => setAuthed(true)} />
+    return (
+      <AuthPage
+        sessionExpired={sessionExpired}
+        onSuccess={() => { setSessionExpired(false); setAuthed(true) }}
+      />
+    )
   }
 
   return (
