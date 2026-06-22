@@ -198,6 +198,23 @@ function buildBuyerReportText(buyer: Buyer): string {
   return lines.join('\n');
 }
 function parseImportValue(val: string) { const n = parseFloat(val.replace(/[^0-9.]/g, '')); return val.includes('M') ? n*1000000 : n*1000; }
+// 수출 MOQ(최소 주문 단위)가 클수록 대량 출고이므로, 그 물량을 받아줄 수 있는 큰 규모(누적 수입액)의
+// 바이어만 적합하다. MOQ 구간별로 바이어에게 요구되는 최소 누적 수입액(USD)을 매핑한다.
+function minImportForMoq(moq: string): number {
+  const n = parseInt(moq.replace(/[^0-9]/g, '')) || 1000;
+  if (n <= 500) return 0;            // 소량: 모든 바이어 적합
+  if (n <= 1000) return 1_000_000;   // $1M+
+  if (n <= 2000) return 2_000_000;   // $2M+
+  if (n <= 5000) return 3_000_000;   // $3M+
+  return 4_000_000;                  // 1만개 이상: 대형 바이어($4M+)만
+}
+function filterBuyersByConditions(buyers: Buyer[], c: ExportConditions): Buyer[] {
+  const minImport = minImportForMoq(c.moq);
+  if (minImport <= 0) return buyers;
+  const matched = buyers.filter((b) => parseImportValue(b.totalImportValue) >= minImport);
+  // 조건이 지나치게 엄격해 후보가 0이 되면 빈 화면으로 막히므로 전체를 유지한다(거짓 0건 방지).
+  return matched.length > 0 ? matched : buyers;
+}
 function mapApiBuyersToBuyerType(items: any[], hsCode: string, categoryLabel: string): Buyer[] {
   const countryMap: Record<string, string> = {
     de: '독일', nl: '네덜란드', cn: '중국', us: '미국', jp: '일본', fr: '프랑스',
@@ -540,7 +557,7 @@ function simulateExport(c: ExportConditions) {
   return { revenueUSD, profitUSD, marginRate, dealsNeeded, bepDeals, tariffUSD, logisticsUSD, customsFeeUSD, totalCostUSD };
 }
 
-const ExportConditionPanel: React.FC<{ open: boolean; onClose: () => void; conditions: ExportConditions; onChange: (c: ExportConditions) => void; onApply: () => void; }> = ({ open, onClose, conditions, onChange, onApply }) => {
+const ExportConditionPanel: React.FC<{ open: boolean; onClose: () => void; conditions: ExportConditions; onChange: (c: ExportConditions) => void; onApply: () => void; onReset: () => void; }> = ({ open, onClose, conditions, onChange, onApply, onReset }) => {
   const sim = simulateExport(conditions);
   const isProfitable = sim.marginRate > 0;
   const update = (patch: Partial<ExportConditions>) => onChange({ ...conditions, ...patch });
@@ -593,7 +610,7 @@ const ExportConditionPanel: React.FC<{ open: boolean; onClose: () => void; condi
           <div className="px-5 py-4 border-t border-slate-200 bg-slate-50">
             <div className="flex items-center justify-between mb-3"><span className="text-xs text-slate-500">입력한 조건으로 바이어 필터링</span><Badge variant="outline" className="text-xs">{conditions.moq} · {conditions.targetAmountKrw}</Badge></div>
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 text-sm" onClick={() => update({ productionCapacity: '', moq: '1,000개', targetAmountKrw: '5천만원', unitPriceUSD: 12.5, costPriceUSD: 8, logisticsRate: 8, tariffRate: 8, exchangeRate: 1300, certifications: [] })}>초기화</Button>
+              <Button variant="outline" className="flex-1 text-sm" onClick={() => { update({ productionCapacity: '', moq: '1,000개', targetAmountKrw: '5천만원', unitPriceUSD: 12.5, costPriceUSD: 8, logisticsRate: 8, tariffRate: 8, exchangeRate: 1300, certifications: [] }); onReset(); }}>초기화</Button>
               <Button className="flex-1 bg-blue-600 hover:bg-blue-700 text-sm" onClick={() => { onApply(); onClose(); }}><ArrowUpRight className="h-4 w-4 mr-1" /> 이 조건으로 적합 바이어 찾기</Button>
             </div>
           </div>
@@ -916,11 +933,21 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
   const [lastQuery, setLastQuery] = useState<string>('');
   const [showConditionPanel, setShowConditionPanel] = useState(false);
   const [conditions, setConditions] = useState<ExportConditions>({ productionCapacity: '2,000~5,000개', moq: '1,000개', targetAmountKrw: '5천만원', unitPriceUSD: 12.5, costPriceUSD: 8, logisticsRate: 8, tariffRate: 8, exchangeRate: 1300, certifications: ['ISO', 'GMP'] });
+  // 사용자가 "이 조건으로 적합 바이어 찾기"를 눌렀을 때만 채워진다(null = 아직 적용 안 함).
+  // 기본값으로 두면 "필터링 적용 중" 안내가 거짓이 되므로, 실제 적용 시점에만 set 한다.
+  const [appliedConditions, setAppliedConditions] = useState<ExportConditions | null>(null);
   const [dynamicCategory, setDynamicCategory] = useState<CategoryData | null>(null);
 
   const categoryData = useMemo(() => dynamicCategory || CATEGORIES.find((c) => c.label === currentCategory), [dynamicCategory, currentCategory]);
-  const countryRecs = useMemo(() => categoryData ? groupByCountry(categoryData.buyers) : [], [categoryData]);
-  const hasConditions = !!conditions.productionCapacity && !!conditions.moq;
+  // 적용된 수출 조건(MOQ)에 맞는 규모의 바이어만 남긴다. 누적 수입액으로 "내 출고 물량을 받아줄
+  // 수 있는 바이어인가"를 판정해 거짓 없이 필터링한다(미적용 시 전체 노출).
+  const filteredBuyers = useMemo(() => {
+    if (!categoryData) return [];
+    if (!appliedConditions) return categoryData.buyers;
+    return filterBuyersByConditions(categoryData.buyers, appliedConditions);
+  }, [categoryData, appliedConditions]);
+  const countryRecs = useMemo(() => filteredBuyers.length ? groupByCountry(filteredBuyers) : [], [filteredBuyers]);
+  const hasConditions = !!appliedConditions;
 
   const handleSearch = async (text: string) => {
     setInputHsCode(text);
@@ -974,6 +1001,7 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
       setStep('countries');
       setSelectedCountry(null);
       setSelectedBuyer(null);
+      setAppliedConditions(null); // 새 검색은 필터 해제 상태로 시작(이전 조건이 다른 품목에 잘못 적용되는 것 방지)
       setSearchError(null);
       setSearchErrorKind(null);
       toast.success(`${detected || hsCode} 기준 ${grouped.length}개국, ${mappedBuyers.length}개 바이어를 발굴했습니다`);
@@ -1013,7 +1041,19 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
   const handleBackToCountries = () => { setStep('countries'); setSelectedCountry(null); setSelectedBuyer(null); };
   const handleBackToBuyers = () => { setStep('buyers'); setSelectedBuyer(null); };
   const handleRefreshBuyer = (id: string) => { toast.success(`${id} 데이터 갱신 완료`); };
-  const handleApplyConditions = () => { toast.success('수출 조건이 적용되었습니다', { description: `MOQ ${conditions.moq} · 희망금액 ${conditions.targetAmountKrw}` }); };
+  const handleApplyConditions = () => {
+    // 실제로 조건을 적용해 바이어 목록을 필터링한다(이전에는 토스트만 떴음).
+    setAppliedConditions(conditions);
+    // 처음 단계로 되돌려 필터링된 국가/바이어 목록을 즉시 보여준다.
+    setStep('countries');
+    setSelectedCountry(null);
+    setSelectedBuyer(null);
+    // 적용 결과를 실제 매칭 건수로 안내한다(가짜 토스트가 아니라 실제 필터 결과).
+    const total = categoryData?.buyers.length ?? 0;
+    const shown = categoryData ? filterBuyersByConditions(categoryData.buyers, conditions).length : 0;
+    toast.success('수출 조건이 적용되었습니다', { description: `MOQ ${conditions.moq} 기준 ${shown}/${total}개 바이어 매칭` });
+  };
+  const handleResetConditions = () => { setAppliedConditions(null); };
 
   const renderRightPanel = () => {
     if (!categoryData) return (
@@ -1089,7 +1129,7 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
         {loading && <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center"><Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-3" /><p className="text-sm text-slate-600">바이어 데이터를 분석 중입니다...</p><p className="text-xs text-slate-400 mt-1">KOTRA, 관세청, World Bank 데이터 연동 중</p></div>}
         {renderRightPanel()}
       </div>
-      <ExportConditionPanel open={showConditionPanel} onClose={() => setShowConditionPanel(false)} conditions={conditions} onChange={setConditions} onApply={handleApplyConditions} />
+      <ExportConditionPanel open={showConditionPanel} onClose={() => setShowConditionPanel(false)} conditions={conditions} onChange={setConditions} onApply={handleApplyConditions} onReset={handleResetConditions} />
     </div>
   );
 }
