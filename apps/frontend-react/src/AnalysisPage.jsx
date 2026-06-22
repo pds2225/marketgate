@@ -674,8 +674,24 @@ export default function AnalysisPage({ onBack, preset }) {
           message: inquiryForm.message,
         }),
       });
-      if (!res.ok) throw new Error("인콰이어리 생성에 실패했습니다.");
-      const data = await res.json();
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+      if (!res.ok) {
+        const detail = data?.detail || data?.message || "";
+        let message;
+        if (res.status === 401) {
+          message = "로그인이 필요합니다. 다시 로그인한 뒤 시도해 주세요.";
+        } else if (res.status === 403 || /requires_.*_plan/i.test(String(detail))) {
+          message = "인콰이어리 초안 생성은 Advanced 요금제에서 제공됩니다. 요금제를 업그레이드한 뒤 이용해 주세요.";
+        } else {
+          message = detail || `인콰이어리 생성에 실패했습니다 (${res.status}).`;
+        }
+        throw new Error(message);
+      }
       setInquiryResult(data);
     } catch (err) {
       setInquiryError(err.message || "잠시 후 다시 시도해 주세요.");
