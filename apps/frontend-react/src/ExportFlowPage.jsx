@@ -299,6 +299,8 @@ function ProfitSimulator({ selectedBuyer, hsCode, onComplete }) {
   const [tariffRate, setTariffRate] = useState(8);
   const [exchangeRate, setExchangeRate] = useState(1350);
   const [otherCost, setOtherCost] = useState(500);
+  const [senderCompany, setSenderCompany] = useState("");
+  const [senderName, setSenderName] = useState("");
 
   const revenueUSD = unitPrice * quantity;
   const tariffUSD = revenueUSD * (tariffRate / 100);
@@ -320,6 +322,17 @@ function ProfitSimulator({ selectedBuyer, hsCode, onComplete }) {
             {selectedBuyer?.buyer_name || "선택된 바이어"}와의 거래 조건을 입력하면 예상 수익을 계산합니다.
           </p>
         </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 20 }}>
+        <label className="analysis-field">
+          <span>공급자 회사명 (주문서에 기재)</span>
+          <input type="text" value={senderCompany} onChange={(e) => setSenderCompany(e.target.value)} placeholder="예: (주)마켓게이트" />
+        </label>
+        <label className="analysis-field">
+          <span>공급자 담당자 (주문서에 기재)</span>
+          <input type="text" value={senderName} onChange={(e) => setSenderName(e.target.value)} placeholder="예: 홍길동" />
+        </label>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 20 }}>
@@ -412,7 +425,7 @@ function ProfitSimulator({ selectedBuyer, hsCode, onComplete }) {
       </div>
 
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-        <button className="ui-button ui-button--solid" onClick={() => onComplete?.({ unitPrice, quantity, logisticsCost, tariffRate, exchangeRate, otherCost, profitUSD, profitRate })}>
+        <button className="ui-button ui-button--solid" onClick={() => onComplete?.({ unitPrice, quantity, logisticsCost, tariffRate, exchangeRate, otherCost, profitUSD, profitRate, senderCompany: senderCompany.trim(), senderName: senderName.trim() })}>
           수익성 확인 완료 — 주문서 작성으로
           <ArrowRight size={16} />
         </button>
