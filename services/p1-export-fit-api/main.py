@@ -1,11 +1,12 @@
 from typing import Any, Dict, List
 
-from fastapi import Body, Depends, FastAPI, HTTPException
+from fastapi import Body, Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from app.models import PredictRequest, PredictResponse, InquiryRequest, InquiryResponse
 from app.services.buyer_shortlist import build_buyer_shortlist
 from app.services.compliance import filter_blocked_results
+from app.services.demo_snapshot import get_demo_snapshot, get_demo_summary, get_demo_buyers
 from app.services.project_snapshot import build_project_snapshot
 from app.services.scoring import recommend_countries
 from app.services.inquiry_service import build_draft
@@ -98,6 +99,29 @@ def project_snapshot(user: dict = Depends(get_current_user)):
         "timestamp": now_seoul_iso(),
         "data": build_project_snapshot(),
     }
+
+
+@app.get("/v1/demo/snapshot")
+def demo_snapshot(limit: int = Query(default=60, ge=1, le=200)):
+    """Public (no-auth) showcase of the aggregated real buyer DB.
+
+    Returns the aggregation shape MarketGateDemo consumes:
+    {summary:{total,countryCount,byCountry[],bySource[]}, buyers:[...]}.
+    Contact details are masked; no plaintext email/phone is returned.
+    """
+    return get_demo_snapshot(limit)
+
+
+@app.get("/v1/demo/summary")
+def demo_summary():
+    """Public (no-auth) buyer-DB aggregation summary only."""
+    return get_demo_summary()
+
+
+@app.get("/v1/demo/buyers")
+def demo_buyers(limit: int = Query(default=60, ge=1, le=200)):
+    """Public (no-auth) masked buyer samples only."""
+    return get_demo_buyers(limit)
 
 
 @app.get("/v1/credits/balance")

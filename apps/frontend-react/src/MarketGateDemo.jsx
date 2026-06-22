@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ENDPOINTS } from './config'
 
 /*
- * MarketGateDemo — 바이어 매칭 + 바이어 데이터 수집 (실데이터 기반, 백엔드·로그인 불필요)
- * 데이터: /data/summary.json, /data/buyers.json (buyer_candidate.csv 36,241건 ETL 결과)
+ * MarketGateDemo — 바이어 매칭 + 바이어 데이터 수집 (실데이터 기반, 로그인 불필요)
+ * 데이터: GET /v1/demo/snapshot (공개·무인증) — buyer_candidate.csv 36,241건 실시간 집계
+ *   응답: { summary:{total,countryCount,byCountry[],bySource[]}, buyers:[...] }
+ *   연락처(이메일·전화)는 서버에서 마스킹된 형태로만 내려옴(평문 노출 없음).
  * 초점:
  *  (1) 바이어 매칭 — HS·국가·신뢰도 실시간 필터 + FitScore 정렬 + 바이어 상세 매칭 프로필
  *  (2) 바이어 데이터 수집 — 14종 소스·규모·수집 추이 현황 + 자동 필터링 파이프라인
@@ -78,10 +81,10 @@ export default function MarketGateDemo() {
   const [selected, setSelected] = useState(null) // 상세 모달 대상
 
   useEffect(() => {
-    Promise.all([
-      fetch('/data/summary.json').then(r => r.json()),
-      fetch('/data/buyers.json').then(r => r.json()),
-    ]).then(([s, b]) => { setSummary(s); setBuyers(b) }).catch(e => setErr(String(e)))
+    fetch(ENDPOINTS.demoSnapshot)
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+      .then(({ summary: s, buyers: b }) => { setSummary(s); setBuyers(Array.isArray(b) ? b : []) })
+      .catch(e => setErr(String(e)))
   }, [])
 
   const countryRankMap = useMemo(() => {
