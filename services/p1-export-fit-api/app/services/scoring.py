@@ -3,7 +3,7 @@ from typing import Dict, Any, List, Tuple, Optional
 import numpy as np
 
 from app.models import PredictRequest
-from app.config import WEIGHTS, SOFT_RULES
+from app.config import WEIGHTS, SOFT_RULES, SCORE_NORMALIZATION
 from app.services import compliance
 from app.services.confidence import build_data_coverage
 from app.services.data_loaders import (
@@ -27,6 +27,23 @@ def _minmax_norm(values: List[float]) -> List[float]:
     if mx == mn:
         return [0.5 for _ in values]
     return [float((x - mn) / (mx - mn)) for x in values]
+
+
+def _winsorize(values: List[float]) -> List[float]:
+    """
+    이상치 방어 (matchB): 정규화 직전 상/하위 분위수로 클리핑(윈저라이즈)한다.
+    극단 이상치 1~2개(예: 마카오 코로나 반등 성장률 75.3%)가 min-max 스케일을
+    독점해 만점으로 증폭되는 것을 막는다. 결정론·재현성 유지(같은 입력 → 같은 출력).
+    표본이 2개 이하면 분위수 의미가 없어 원본을 그대로 반환한다.
+    """
+    if len(values) <= 2:
+        return [float(v) for v in values]
+    arr = np.array(values, dtype=float)
+    lo = float(np.quantile(arr, SCORE_NORMALIZATION["winsorize_lower_quantile"]))
+    hi = float(np.quantile(arr, SCORE_NORMALIZATION["winsorize_upper_quantile"]))
+    if hi <= lo:
+        return [float(v) for v in values]
+    return [float(min(max(v, lo), hi)) for v in values]
 
 
 def _allocate_world_trade_proxy_value(
@@ -271,9 +288,11 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
     growth_raw = [r["gdp_growth_pct"] for r in rows]
     dist_raw = [r["distance_km"] for r in rows]
 
+    # 이상치 방어 (matchB): growth/gdp는 정규화 전 윈저라이즈로 극단 이상치를 클리핑한다.
+    # (trade는 저수요 신호 자체가 의미 있어 클리핑하지 않고, distance는 유계라 불필요)
     trade_norm = _minmax_norm(trade_raw)
-    gdp_norm = _minmax_norm(gdp_raw)
-    growth_norm = _minmax_norm(growth_raw)
+    gdp_norm = _minmax_norm(_winsorize(gdp_raw))
+    growth_norm = _minmax_norm(_winsorize(growth_raw))
     dist_norm = _minmax_norm(dist_raw)
     # 거리는 역수를 적용함(가까울수록 높은 점수)
     distance_score = [float(1.0 - x) for x in dist_norm]
@@ -291,10 +310,18 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
             "distance_score": round(distance_score[i], 6),
         }
 
+        # 저수요 게이트 (matchB): 실수입수요(trade_score)가 임계 이하인 국가는
+        # 성장률 단독으로 상위(top-N) 진입 못 하게 성장 기여분을 곱셈형으로 강등한다.
+        # "수요 없는데 성장률 이상치만 높아 1순위"가 되는 것을 차단한다.
+        growth_gate = 1.0
+        if comp["trade_volume_score"] < SCORE_NORMALIZATION["low_demand_trade_threshold"]:
+            growth_gate = SCORE_NORMALIZATION["low_demand_growth_multiplier"]
+        gated_growth_score = comp["growth_score"] * growth_gate
+
         # 5) 가중합으로 하나의 종합 적합도 점수 만들기(0~1)
         base01 = (
             WEIGHTS["trade_volume_score"] * comp["trade_volume_score"] +
-            WEIGHTS["growth_score"] * comp["growth_score"] +
+            WEIGHTS["growth_score"] * gated_growth_score +
             WEIGHTS["gdp_score"] * comp["gdp_score"] +
             WEIGHTS["distance_score"] * comp["distance_score"]
         )
@@ -320,10 +347,10 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
         fit = max(0.0, min(100.0, fit))
         fit = round(fit, 1)
 
-        # 모두 점수 기준으로 표기함
+        # 모두 점수 기준으로 표기함 (성장 기여분은 저수요 게이트 반영분 사용)
         contributions = [
             ("historical_trade_value_usd", WEIGHTS["trade_volume_score"] * comp["trade_volume_score"], "positive"),
-            ("partner_gdp_growth_pct", WEIGHTS["growth_score"] * comp["growth_score"], "positive"),
+            ("partner_gdp_growth_pct", WEIGHTS["growth_score"] * gated_growth_score, "positive"),
             ("partner_gdp_usd", WEIGHTS["gdp_score"] * comp["gdp_score"], "positive"),
             ("distance_km", WEIGHTS["distance_score"] * comp["distance_score"], "positive"),
         ]
