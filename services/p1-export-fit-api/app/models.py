@@ -122,6 +122,9 @@ class BuyerShortlistItem(BaseModel):
     source_verification: Optional[str] = None
     source_verified: Optional[bool] = None
     contact_email_estimated: Optional[bool] = None
+    # 가산 필드 (matchC): HS 관련성 등급(strong/weak/none)·검증 연락처 보유 배지
+    match_relevance: Optional[str] = None
+    has_verified_contact: Optional[bool] = None
 
 
 class BuyerShortlistSourceCountry(BaseModel):

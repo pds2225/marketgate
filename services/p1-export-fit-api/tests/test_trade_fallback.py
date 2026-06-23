@@ -2,7 +2,10 @@ from fastapi.testclient import TestClient
 import pytest
 
 from app.models import PredictRequest
-from app.services.buyer_shortlist import build_buyer_shortlist
+from app.services.buyer_shortlist import (
+    _merge_shortlist_results,
+    build_buyer_shortlist,
+)
 from app.services.data_loaders import (
     get_world_trade_value_usd,
     kotra_candidate_scores,
@@ -10,6 +13,30 @@ from app.services.data_loaders import (
 )
 from main import app
 from app.services.scoring import _allocate_world_trade_proxy_value, recommend_countries
+
+
+def _make_buyer(name, *, hs_match_type, estimated, source_dataset, phone=False, decision="candidate", score=66.5):
+    """matchC 회귀 테스트용 합성 바이어 행."""
+    return {
+        "buyer_name": name,
+        "source_dataset": source_dataset,
+        "country_norm": "미국",
+        "hs_code_norm": "330499",
+        "keywords_norm": "cosmetics",
+        "has_contact": True,
+        "contact_email": f"{name}@example.com",
+        "contact_email_estimated": estimated,
+        "contact_name": "",
+        "contact_phone": "010-0000-0000" if phone else "",
+        "contact_website": "",
+        "final_score": score,
+        "decision": decision,
+        "score_breakdown": {"hs_match_type": hs_match_type},
+        "recommendation_lines": [],
+        "explanation_reasons": [],
+        "matched_by": hs_match_type,
+        "matched_terms": [],
+    }
 
 
 @pytest.fixture
@@ -241,3 +268,83 @@ def test_build_buyer_shortlist_merges_top_three_countries(monkeypatch):
     usa_entry = next(e for e in match_scores if e["country_iso3"] == "USA")
     assert usa_entry["match_score"] == 100
     assert usa_entry["opportunity_title"] == "미국 inquiry"
+
+
+def test_matchc_ranking_prioritizes_relevance_contact_and_verified_source():
+    """matchC: 강한 HS 매칭 + 검증 연락처 + 검증 출처를 상위로, 약한 매칭은 후순위(폴백 유지)."""
+    source_countries = [
+        {"rank": 1, "partner_country_iso3": "USA", "target_country_name": "미국", "fit_score": 90.0}
+    ]
+    # 같은 decision/final_score에서 매칭강도·연락처·출처만 다른 바이어들
+    buyers = [
+        _make_buyer("weak_verified_sns", hs_match_type="hs_prefix_2", estimated=False, source_dataset="X_SNS_Y", phone=True),
+        _make_buyer("strong_estimated_sns", hs_match_type="hs_prefix_4", estimated=True, source_dataset="X_SNS_Y"),
+        _make_buyer("strong_verified_official", hs_match_type="hs_prefix_4", estimated=False, source_dataset="ITC_TradeMap"),
+        _make_buyer("strong_estimated_official", hs_match_type="hs_prefix_4", estimated=True, source_dataset="ITC_TradeMap"),
+        _make_buyer("weak_verified_official", hs_match_type="keyword", estimated=False, source_dataset="ITC_TradeMap", phone=True),
+    ]
+    shortlist_results = [{
+        "meta": {
+            "shortlist_count": 0, "candidate_count": 5, "rejected_count": 0,
+            "filtered_buyer_rows": 5, "scored_rows": 5, "soft_penalty_distribution": {},
+        },
+        "items": buyers,
+    }]
+
+    items, meta = _merge_shortlist_results(
+        source_countries=source_countries,
+        shortlist_results=shortlist_results,
+        limit=10,
+    )
+
+    names = [it["buyer_name"] for it in items]
+    # 강한 HS + 검증 연락처 + 검증 출처가 1위
+    assert names[0] == "strong_verified_official"
+    # 약한 매칭은 강한 매칭보다 뒤 (제거되지 않고 폴백으로 노출)
+    assert items[0]["match_relevance"] == "strong"
+    assert items[-1]["match_relevance"] == "weak"
+    assert all(it["match_relevance"] in {"strong", "weak"} for it in items)
+    # 약한 매칭도 결과에 남아 있어야 함(과교정/빈 결과 금지)
+    assert any(it["match_relevance"] == "weak" for it in items)
+    # 검증 연락처 우선: strong 그룹 내 검증 연락처가 추정보다 앞
+    strong_names = [it["buyer_name"] for it in items if it["match_relevance"] == "strong"]
+    assert strong_names.index("strong_verified_official") < strong_names.index("strong_estimated_official")
+    # 검증 출처 우선: 같은 강도·연락처에서 ITC가 SNS보다 앞
+    assert strong_names.index("strong_estimated_official") < strong_names.index("strong_estimated_sns")
+
+    # 메타: 연락 가능 수 + 관련성 분포 노출
+    assert meta["match_relevance_distribution"] == {"strong": 3, "weak": 2}
+    assert meta["returned_total_count"] == 5
+    # estimated 이메일만 있는 strong_estimated_* 2건은 검증 연락처 아님 → 3건만 verified
+    assert meta["verified_contactable_count"] == 3
+    assert meta["contactable_summary"] == "연락 가능 3/5"
+
+
+def test_matchc_weak_match_not_dropped_when_only_option():
+    """matchC 과교정 방지: 약한 매칭만 있어도 결과를 비우지 않고 노출한다."""
+    source_countries = [
+        {"rank": 1, "partner_country_iso3": "USA", "target_country_name": "미국", "fit_score": 90.0}
+    ]
+    buyers = [
+        _make_buyer("weak_only_a", hs_match_type="hs_prefix_2", estimated=True, source_dataset="X_SNS_Y"),
+        _make_buyer("weak_only_b", hs_match_type="keyword", estimated=True, source_dataset="X_SNS_Y"),
+    ]
+    shortlist_results = [{
+        "meta": {
+            "shortlist_count": 0, "candidate_count": 2, "rejected_count": 0,
+            "filtered_buyer_rows": 2, "scored_rows": 2, "soft_penalty_distribution": {},
+        },
+        "items": buyers,
+    }]
+
+    items, meta = _merge_shortlist_results(
+        source_countries=source_countries,
+        shortlist_results=shortlist_results,
+        limit=10,
+    )
+
+    assert len(items) == 2  # 약한 매칭이라도 폴백으로 유지
+    assert all(it["match_relevance"] == "weak" for it in items)
+    assert meta["match_relevance_distribution"] == {"weak": 2}
+    # 추정 이메일뿐이라 검증 연락처 0
+    assert meta["verified_contactable_count"] == 0
