@@ -99,6 +99,20 @@ def _build_diagnostics(
         else:
             zero_result_reasons.append("NO_ELIGIBLE_CANDIDATES")
 
+    # 가산적 coverage_status (matchA): "데이터 없음" vs "추천 없음"을 사용자가 구분하게 한다.
+    # 기존 zero_result_reasons/필드는 그대로 두고, 사용자향 분류 코드만 추가한다.
+    if rows:
+        coverage_status = "OK"
+    elif candidate_count == 0:
+        # KOTRA 후보국 레이어가 해당 HS를 커버하지 못함(예: 휴대폰 851712)
+        coverage_status = "HS_NOT_SUPPORTED"
+    elif hard_filter_reason_counts.get("NO_TRADE_DATA", 0) >= candidate_count:
+        # 후보국은 있으나 무역데이터 커버리지에 HS가 없어 전원 탈락(예: 쌀 100630)
+        coverage_status = "HS_NOT_IN_TRADE_COVERAGE"
+    else:
+        # 후보·데이터는 있으나 적격 바이어/국가가 0건
+        coverage_status = "NO_BUYERS"
+
     quality_warnings: List[str] = []
     allocated_count = trade_signal_counts.get("world_total_allocated", 0)
     if allocated_count > 0:
@@ -110,6 +124,13 @@ def _build_diagnostics(
     if missing_indicator_counts["growth_missing"] > 0:
         quality_warnings.append("GDP_GROWTH_DATA_PARTIALLY_MISSING")
 
+    coverage_message_map = {
+        "OK": "",
+        "HS_NOT_SUPPORTED": "이 품목(HS코드)은 아직 추천 데이터가 준비되지 않았습니다. (미지원 품목 — 바이어가 없다는 뜻이 아닙니다)",
+        "HS_NOT_IN_TRADE_COVERAGE": "이 품목은 무역 데이터 커버리지에 없어 추천을 만들 수 없습니다. (데이터 미보유 — 바이어가 없다는 뜻이 아닙니다)",
+        "NO_BUYERS": "조건에 맞는 추천 결과가 없습니다.",
+    }
+
     return {
         "candidate_count": candidate_count,
         "eligible_count": len(rows),
@@ -120,6 +141,9 @@ def _build_diagnostics(
         "quality_warnings": quality_warnings,
         "trade_signal_counts": trade_signal_counts,
         "sample_countries_by_reason": _sample_countries_by_reason(hard_reasons),
+        # 가산 필드 (matchA): 미지원/데이터없음 vs 바이어없음 구분
+        "coverage_status": coverage_status,
+        "coverage_message": coverage_message_map.get(coverage_status, ""),
     }
 
 
@@ -341,6 +365,18 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
                         f"데이터 신뢰도 {data_coverage['confidence_level']} "
                         f"(confidence={data_coverage['confidence']}, "
                         f"결측: {', '.join(data_coverage['missing_fields'])})"
+                    ),
+                }
+            )
+        # 가산 (matchA): 리스크 미평가인데 high로 보이는 것을 막는 정직성 경고
+        if not data_coverage.get("risk_assessed", True):
+            result_warnings.append(
+                {
+                    "code": "RISK_NOT_ASSESSED",
+                    "severity": "low",
+                    "message": (
+                        "리스크(뉴스·제재 동향)가 평가되지 않아 신뢰도 표시 상한이 medium입니다 "
+                        "('high' 아님)."
                     ),
                 }
             )

@@ -279,6 +279,7 @@ def shortlist_buyers(
                 "keywords_norm": normalize_text(buyer.get("keywords_norm")),
                 "has_contact": str(buyer.get("has_contact", "")).strip().lower() == "true",
                 "contact_email": normalize_text(buyer.get("contact_email")),
+                "contact_email_estimated": str(buyer.get("contact_email_estimated", "")).strip().lower() == "true",
                 "contact_name": normalize_text(buyer.get("contact_name")),
                 "contact_phone": normalize_text(buyer.get("contact_phone")),
                 "contact_website": normalize_text(buyer.get("contact_website")),

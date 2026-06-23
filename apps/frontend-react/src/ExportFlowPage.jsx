@@ -73,6 +73,19 @@ const currencyFormatter = new Intl.NumberFormat("ko-KR", {
   maximumFractionDigits: 0,
 });
 
+function flowBadge(bg, fg) {
+  return {
+    display: "inline-block",
+    padding: "2px 8px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 600,
+    background: bg,
+    color: fg,
+    lineHeight: 1.6,
+  };
+}
+
 function clampMetric(key, value) {
   if (value == null || Number.isNaN(Number(value))) return 0;
   if (key === "soft_adjustment") {
@@ -826,11 +839,43 @@ export default function ExportFlowPage({ onBack }) {
                 </div>
               </div>
 
+              {analysisResult?.buyers?.meta?.buyer_country_mismatch ? (
+                <div
+                  style={{
+                    marginBottom: 14,
+                    padding: "12px 14px",
+                    borderRadius: 12,
+                    border: "1px solid rgba(248, 113, 113, 0.45)",
+                    background: "rgba(127, 29, 29, 0.28)",
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <CircleAlert size={16} style={{ color: "#fca5a5", flexShrink: 0, marginTop: 2 }} />
+                  <div>
+                    <strong style={{ color: "#fecaca", fontSize: 13 }}>추천국 ≠ 바이어국</strong>
+                    <div style={{ fontSize: 13, color: "#fee2e2", marginTop: 4 }}>
+                      {analysisResult.buyers.meta.buyer_country_mismatch.message}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               {!analysisResult?.buyers?.items?.length ? (
                 <div className="analysis-empty analysis-empty--compact">
                   <CircleAlert size={18} />
-                  <h3>현재 조건에 맞는 바이어가 없습니다.</h3>
-                  <p>1단계에서 다른 HS 코드나 국가를 시도해 보세요.</p>
+                  <h3>
+                    {analysisResult?.diagnostics?.coverage_status &&
+                    analysisResult.diagnostics.coverage_status !== "OK" &&
+                    analysisResult.diagnostics.coverage_status !== "NO_BUYERS"
+                      ? "데이터 미지원 품목입니다."
+                      : "현재 조건에 맞는 바이어가 없습니다."}
+                  </h3>
+                  <p>
+                    {analysisResult?.diagnostics?.coverage_message ||
+                      "1단계에서 다른 HS 코드나 국가를 시도해 보세요."}
+                  </p>
                 </div>
               ) : (
                 <div style={{ display: "grid", gap: 12 }}>
@@ -852,6 +897,18 @@ export default function ExportFlowPage({ onBack }) {
                           <div>
                             <strong>{item.buyer_name}</strong>
                             <span>{item.country_norm || "국가 미상"} · {item.source_dataset || "출처 미상"}</span>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                              {item.source_verification === "verified" ? (
+                                <span style={flowBadge("#065f46", "#6ee7b7")}>출처 검증됨</span>
+                              ) : item.source_verification === "unverified" ? (
+                                <span style={flowBadge("#78350f", "#fcd34d")}>출처 미검증(SNS)</span>
+                              ) : (
+                                <span style={flowBadge("#334155", "#cbd5e1")}>출처 미상</span>
+                              )}
+                              {item.contact_email_estimated ? (
+                                <span style={flowBadge("#78350f", "#fcd34d")}>추정 연락처</span>
+                              ) : null}
+                            </div>
                           </div>
                           <span className="analysis-card-badge">{item.final_score?.toFixed?.(1) || item.final_score}점</span>
                         </div>

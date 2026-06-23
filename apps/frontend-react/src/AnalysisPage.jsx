@@ -186,6 +186,34 @@ function DiagnosticsPanel({ diagnostics }) {
         <strong style={{ color: "#cbd5e1" }}>{diagnostics.returned_count ?? 0}개 반환</strong>
       </div>
 
+      {diagnostics.coverage_status && diagnostics.coverage_status !== "OK" ? (
+        <div
+          style={{
+            marginTop: 14,
+            padding: "12px 14px",
+            borderRadius: 12,
+            border: "1px solid rgba(251, 191, 36, 0.45)",
+            background: "rgba(120, 53, 15, 0.25)",
+            display: "flex",
+            gap: 10,
+            alignItems: "flex-start",
+          }}
+        >
+          <span aria-hidden="true">ℹ️</span>
+          <div>
+            <strong style={{ color: "#fde68a", fontSize: 13 }}>
+              {diagnostics.coverage_status === "NO_BUYERS"
+                ? "추천 없음"
+                : "데이터 미지원 품목"}
+            </strong>
+            <div style={{ fontSize: 13, color: "#fef3c7", marginTop: 4 }}>
+              {diagnostics.coverage_message ||
+                "이 품목은 아직 추천 데이터가 준비되지 않았습니다."}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div
         style={{
           display: "grid",
@@ -380,6 +408,29 @@ function BuyerShortlistPanel({ buyers, onInquiry }) {
         <strong style={{ color: "#cbd5e1" }}>{buyers.items?.length || 0}개 후보</strong>
       </div>
 
+      {buyers.meta?.buyer_country_mismatch ? (
+        <div
+          style={{
+            marginTop: 14,
+            padding: "12px 14px",
+            borderRadius: 12,
+            border: "1px solid rgba(248, 113, 113, 0.45)",
+            background: "rgba(127, 29, 29, 0.28)",
+            display: "flex",
+            gap: 10,
+            alignItems: "flex-start",
+          }}
+        >
+          <CircleAlert size={16} style={{ color: "#fca5a5", flexShrink: 0, marginTop: 2 }} />
+          <div>
+            <strong style={{ color: "#fecaca", fontSize: 13 }}>추천국 ≠ 바이어국</strong>
+            <div style={{ fontSize: 13, color: "#fee2e2", marginTop: 4 }}>
+              {buyers.meta.buyer_country_mismatch.message}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {buyers.status !== "ok" ? (
         <div className="analysis-inline-alert" style={{ marginTop: 14 }}>
           <CircleAlert size={16} />
@@ -409,6 +460,18 @@ function BuyerShortlistPanel({ buyers, onInquiry }) {
                   <div>
                     <strong>{item.buyer_name}</strong>
                     <span>{item.country_norm || "국가 미상"} · {item.source_dataset || "출처 미상"}</span>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                      {item.source_verification === "verified" ? (
+                        <span style={badgeStyle("#065f46", "#6ee7b7")}>출처 검증됨</span>
+                      ) : item.source_verification === "unverified" ? (
+                        <span style={badgeStyle("#78350f", "#fcd34d")}>출처 미검증(SNS)</span>
+                      ) : (
+                        <span style={badgeStyle("#334155", "#cbd5e1")}>출처 미상</span>
+                      )}
+                      {item.contact_email_estimated ? (
+                        <span style={badgeStyle("#78350f", "#fcd34d")}>추정 연락처</span>
+                      ) : null}
+                    </div>
                   </div>
                   <span className="analysis-card-badge">{item.final_score?.toFixed?.(1) || item.final_score}점</span>
                 </div>
@@ -606,13 +669,29 @@ function levelLabel(level) {
   return level || "-";
 }
 
+function badgeStyle(bg, fg) {
+  return {
+    display: "inline-block",
+    padding: "2px 8px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 600,
+    background: bg,
+    color: fg,
+    lineHeight: 1.6,
+  };
+}
+
 function ConfidenceNotice({ recommendation }) {
   const coverage = recommendation?.dataCoverage;
   const warnings = recommendation?.warnings || [];
   const lowConfidence =
     coverage && (coverage.confidence_level === "low" || coverage.confidence_level === "very_low");
+  // 가산 (matchA): 리스크 미평가 상태면 'high'가 아니라 정직한 display 라벨로 안내한다.
+  const riskUnassessed = coverage && coverage.risk_assessed === false;
+  const displayLevel = coverage?.display_confidence_level || coverage?.confidence_level;
 
-  if (!lowConfidence && warnings.length === 0) {
+  if (!lowConfidence && !riskUnassessed && warnings.length === 0) {
     return null;
   }
 
@@ -637,14 +716,26 @@ function ConfidenceNotice({ recommendation }) {
       <div>
         {lowConfidence ? (
           <div>
-            데이터 신뢰도 <strong>{levelLabel(coverage.confidence_level)}</strong>
+            데이터 신뢰도 <strong>{levelLabel(displayLevel)}</strong>
             {coverage.confidence != null ? ` (${Math.round(coverage.confidence * 100)}%)` : ""}
             {missingFields.length > 0 ? ` · 결측: ${missingFields.join(" · ")}` : ""}. 일부 점수가
             0으로 보일 수 있으나 이는 데이터가 비어 있어서이며 실제 0점이 아닙니다.
           </div>
         ) : null}
+        {!lowConfidence && riskUnassessed ? (
+          <div>
+            데이터 신뢰도 <strong>{levelLabel(displayLevel)}</strong>
+            {coverage.confidence != null ? ` (${Math.round(coverage.confidence * 100)}%)` : ""} · 리스크(뉴스·제재
+            동향) 미평가로 '높음' 표시는 제한됩니다.
+          </div>
+        ) : null}
         {warnings
-          .filter((item) => item && item.code !== "LOW_CONFIDENCE")
+          .filter(
+            (item) =>
+              item &&
+              item.code !== "LOW_CONFIDENCE" &&
+              !(item.code === "RISK_NOT_ASSESSED" && riskUnassessed)
+          )
           .map((item, index) => (
             <div key={`${item.code}-${index}`} style={{ marginTop: lowConfidence || index > 0 ? 6 : 0 }}>
               {item.message || item.code}
