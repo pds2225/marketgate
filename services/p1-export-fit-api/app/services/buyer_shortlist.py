@@ -48,6 +48,36 @@ ISO3_TO_TARGET_COUNTRY = {
 }
 
 MAX_SOURCE_COUNTRIES = 3
+
+# 가산 (matchA): 바이어 출처 신뢰도 — SNS 스크랩은 '미검증 시장신호'로 표기.
+# 키워드(부분 일치)로 source_dataset 한글 표기를 분류한다.
+_UNVERIFIED_SOURCE_KEYWORDS = ("SNS",)
+_VERIFIED_SOURCE_KEYWORDS = (
+    "ITC",
+    "TradeMap",
+    "무역보험공사",
+    "인콰이어리",
+    "buyKOREA",
+    "GoBizKorea",
+    "B2B",
+)
+
+
+def _source_trust(source_dataset: str | None) -> tuple[str, bool]:
+    """source_dataset → (신뢰등급, source_verified).
+
+    - SNS 스크랩 계열: unverified (참고용 시장신호)
+    - ITC/무역보험공사/인콰이어리 등 공식 거래/문의 출처: verified
+    - 그 외: unknown (검증여부 미상)
+    """
+    text = str(source_dataset or "")
+    if any(kw in text for kw in _UNVERIFIED_SOURCE_KEYWORDS):
+        return "unverified", False
+    if any(kw in text for kw in _VERIFIED_SOURCE_KEYWORDS):
+        return "verified", True
+    return "unknown", False
+
+
 _BLOCKED_BUYER_NAMES = {
     "medical device co",
     "medical cosmetics buyer",
@@ -85,6 +115,7 @@ def _empty_buyer_meta(source_countries: list[dict[str, Any]]) -> dict[str, Any]:
         "country_shortlist_after_merge": {},
         "country_shortlist_delta": {},
         "country_shortlist_comparison": {},
+        "buyer_country_mismatch": None,
     }
 
 
@@ -98,6 +129,47 @@ def _source_country_from_result(result: dict[str, Any]) -> dict[str, Any] | None
         "partner_country_iso3": iso3,
         "target_country_name": target_country_name,
         "fit_score": float(result.get("fit_score") or 0.0),
+    }
+
+
+def _build_country_mismatch_warning(
+    source_countries: list[dict[str, Any]],
+    returned_items: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """추천 1위국과 실제 반환 바이어의 주력 국가가 다르면 경고를 만든다(가산, matchA).
+
+    반환된 바이어가 없으면 None. 1위국 바이어가 하나라도 반환되면 일치로 간주(None).
+    """
+    if not source_countries or not returned_items:
+        return None
+    top = source_countries[0]
+    top_iso3 = str(top.get("partner_country_iso3") or "").upper()
+    top_name = str(top.get("target_country_name") or "")
+
+    counts: Counter[str] = Counter()
+    for item in returned_items:
+        iso3 = str(item.get("source_target_country_iso3") or "").upper()
+        if iso3:
+            counts[iso3] += 1
+    if not counts:
+        return None
+    # 1위 추천국 바이어가 하나라도 있으면 불일치 아님
+    if counts.get(top_iso3, 0) > 0:
+        return None
+
+    dominant_iso3, dominant_count = counts.most_common(1)[0]
+    dominant_name = ISO3_TO_TARGET_COUNTRY.get(dominant_iso3, dominant_iso3)
+    return {
+        "code": "BUYER_COUNTRY_MISMATCH",
+        "severity": "high",
+        "recommended_country_iso3": top_iso3,
+        "recommended_country_name": top_name,
+        "returned_buyer_country_iso3": dominant_iso3,
+        "returned_buyer_country_name": dominant_name,
+        "message": (
+            f"추천 1위국({top_name or top_iso3})에 노출 가능한 바이어가 없어 "
+            f"{dominant_name} 바이어로 대체되었습니다. 추천국과 바이어국이 다릅니다."
+        ),
     }
 
 
@@ -196,6 +268,15 @@ def _merge_shortlist_results(
     if limit > 0:
         deduped_items = deduped_items[:limit]
 
+    # 가산 (matchA): 바이어 행에 출처 신뢰도·추정 연락처 배지를 부여한다(기존 필드 불변, 추가만).
+    for item in deduped_items:
+        verification, source_verified = _source_trust(item.get("source_dataset"))
+        item["source_verification"] = verification
+        item["source_verified"] = source_verified
+        has_email = bool(str(item.get("contact_email") or "").strip())
+        # shortlist_service가 contact_email_estimated를 제공하면 그대로 사용, 없으면 False
+        item["contact_email_estimated"] = bool(item.get("contact_email_estimated", False)) and has_email
+
     for item in deduped_items:
         source_iso3 = str(item.get("source_target_country_iso3") or "").upper()
         if source_iso3:
@@ -219,6 +300,9 @@ def _merge_shortlist_results(
         for iso3, before_count in country_shortlist_before_merge.items()
     }
 
+    # 가산 (matchA): 추천 1위국 ↔ 실제 반환 바이어국 불일치 경고를 메타로 승격한다.
+    buyer_country_warning = _build_country_mismatch_warning(source_countries, deduped_items)
+
     merged_meta = {
         "returned_count": len(deduped_items),
         "shortlist_count": shortlist_total,
@@ -237,6 +321,8 @@ def _merge_shortlist_results(
         "country_shortlist_after_merge": country_shortlist_after_merge,
         "country_shortlist_delta": country_shortlist_delta,
         "country_shortlist_comparison": country_shortlist_comparison,
+        # 가산 (matchA): 추천국↔바이어국 불일치 경고 (None이면 일치)
+        "buyer_country_mismatch": buyer_country_warning,
     }
     return deduped_items, merged_meta
 

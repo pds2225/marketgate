@@ -92,6 +92,9 @@ class PredictDiagnostics(BaseModel):
     quality_warnings: List[str]
     trade_signal_counts: Dict[str, int]
     sample_countries_by_reason: Dict[str, List[str]]
+    # 가산 필드 (matchA): 미지원/데이터없음 vs 바이어없음 구분 (기존 구조 불변)
+    coverage_status: Optional[str] = None
+    coverage_message: Optional[str] = None
 
 
 class BuyerShortlistItem(BaseModel):
@@ -115,6 +118,10 @@ class BuyerShortlistItem(BaseModel):
     explanation_reasons: List[str]
     matched_by: Optional[str] = None
     matched_terms: List[str] = Field(default_factory=list)
+    # 가산 필드 (matchA): 출처 검증·추정 연락처 배지 (기존 구조 불변)
+    source_verification: Optional[str] = None
+    source_verified: Optional[bool] = None
+    contact_email_estimated: Optional[bool] = None
 
 
 class BuyerShortlistSourceCountry(BaseModel):
