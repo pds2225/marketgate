@@ -78,6 +78,49 @@ def _source_trust(source_dataset: str | None) -> tuple[str, bool]:
     return "unknown", False
 
 
+# 가산 (matchC): HS 관련성 등급 — 강한 HS 매칭은 우선, 약한 매칭(chapter 2자리·키워드)은 강등.
+# 결과가 비지 않게 약한 매칭도 제거하지 않고 'weak'로 표기만 한다(폴백 노출).
+_STRONG_MATCH_MODES = frozenset(
+    {"hs_exact", "hs_prefix_4", "hs_inferred", "hs_inferred_prefix_4"}
+)
+_WEAK_MATCH_MODES = frozenset({"hs_prefix_2", "keyword"})
+
+
+def _match_relevance(item: dict[str, Any]) -> str:
+    """바이어 아이템의 HS/키워드 매칭 강도를 strong/weak/none으로 분류한다(가산).
+
+    score_breakdown.hs_match_type을 1차 신호로, matched_by를 보조 신호로 본다.
+    HS prefix-2(다른 4자리)·키워드-only 매칭은 'weak'로 강등 표기한다.
+    """
+    breakdown = item.get("score_breakdown") or {}
+    mode = str(breakdown.get("hs_match_type") or item.get("matched_by") or "").strip()
+    if mode in _STRONG_MATCH_MODES:
+        return "strong"
+    if mode in _WEAK_MATCH_MODES:
+        return "weak"
+    # hs_match_type이 비어도 matched_by가 강한 모드면 strong으로 인정
+    matched_by = str(item.get("matched_by") or "").strip()
+    if matched_by in _STRONG_MATCH_MODES:
+        return "strong"
+    if matched_by in _WEAK_MATCH_MODES:
+        return "weak"
+    return "none"
+
+
+def _has_verified_contact(item: dict[str, Any]) -> bool:
+    """검증된(추정 아님) 연락처 보유 여부 — 이메일이 추정이면 다른 연락수단이 있어야 인정.
+
+    estimated 이메일밖에 없으면 '연락 가능'으로 보지 않는다(audit #3).
+    """
+    has_phone = bool(str(item.get("contact_phone") or "").strip())
+    has_website = bool(str(item.get("contact_website") or "").strip())
+    has_name = bool(str(item.get("contact_name") or "").strip())
+    has_email = bool(str(item.get("contact_email") or "").strip())
+    email_estimated = bool(item.get("contact_email_estimated"))
+    has_verified_email = has_email and not email_estimated
+    return has_verified_email or has_phone or has_website or has_name
+
+
 _BLOCKED_BUYER_NAMES = {
     "medical device co",
     "medical cosmetics buyer",
@@ -243,11 +286,33 @@ def _merge_shortlist_results(
             enriched["_source_fit_score"] = source_country["fit_score"]
             merged_items.append(enriched)
 
+    # 가산 (matchA/matchC): 출처 신뢰도·추정 연락처·HS 관련성 등급을 정렬 전에 부여한다.
+    # (기존 필드 불변, 추가만 / 정렬에 반영하기 위해 dedup·sort 전에 계산)
+    for item in merged_items:
+        verification, source_verified = _source_trust(item.get("source_dataset"))
+        item["source_verification"] = verification
+        item["source_verified"] = source_verified
+        has_email = bool(str(item.get("contact_email") or "").strip())
+        # shortlist_service가 contact_email_estimated를 제공하면 그대로 사용, 없으면 False
+        item["contact_email_estimated"] = bool(item.get("contact_email_estimated", False)) and has_email
+        # matchC: HS/키워드 관련성 등급 (strong=강한 HS, weak=prefix-2/keyword)
+        item["match_relevance"] = _match_relevance(item)
+        # matchC: 검증 연락처(추정 제외) 보유 여부
+        item["has_verified_contact"] = _has_verified_contact(item)
+
     deduped_items: list[dict[str, Any]] = []
     seen_keys: set[tuple[str, str, str, str, str]] = set()
+    # matchC: 관련성·연락처·출처신뢰도를 decision/final_score 다음 우선순위로 반영한다.
+    #   - 강한 HS 매칭 > 약한 매칭 (audit #7/#8) — 단 약한 매칭도 제거하지 않고 후순위 노출(폴백)
+    #   - 검증 연락처 보유 우선 (audit #3) — 추정 이메일뿐인 바이어는 뒤로
+    #   - 검증 출처(ITC/KSURE/인콰이어리) > SNS 스크랩 (audit #2)
+    _relevance_rank = {"strong": 2, "weak": 1, "none": 0}
     merged_items.sort(
         key=lambda item: (
             {"shortlist": 2, "candidate": 1, "rejected": 0}.get(str(item.get("decision") or ""), 0),
+            _relevance_rank.get(str(item.get("match_relevance") or "none"), 0),
+            1 if item.get("has_verified_contact") else 0,
+            1 if item.get("source_verified") else 0,
             float(item.get("final_score") or 0.0),
             1 if item.get("has_contact") else 0,
             float(item.get("_source_fit_score") or 0.0),
@@ -267,15 +332,6 @@ def _merge_shortlist_results(
 
     if limit > 0:
         deduped_items = deduped_items[:limit]
-
-    # 가산 (matchA): 바이어 행에 출처 신뢰도·추정 연락처 배지를 부여한다(기존 필드 불변, 추가만).
-    for item in deduped_items:
-        verification, source_verified = _source_trust(item.get("source_dataset"))
-        item["source_verification"] = verification
-        item["source_verified"] = source_verified
-        has_email = bool(str(item.get("contact_email") or "").strip())
-        # shortlist_service가 contact_email_estimated를 제공하면 그대로 사용, 없으면 False
-        item["contact_email_estimated"] = bool(item.get("contact_email_estimated", False)) and has_email
 
     for item in deduped_items:
         source_iso3 = str(item.get("source_target_country_iso3") or "").upper()
@@ -303,6 +359,16 @@ def _merge_shortlist_results(
     # 가산 (matchA): 추천 1위국 ↔ 실제 반환 바이어국 불일치 경고를 메타로 승격한다.
     buyer_country_warning = _build_country_mismatch_warning(source_countries, deduped_items)
 
+    # 가산 (matchC): 반환 바이어의 연락처 가용성·관련성 요약 (사용자가 '연락 가능' 여부를 즉시 파악)
+    returned_total = len(deduped_items)
+    contactable_count = sum(1 for item in deduped_items if item.get("has_contact"))
+    verified_contactable_count = sum(
+        1 for item in deduped_items if item.get("has_verified_contact")
+    )
+    relevance_counter: Counter[str] = Counter(
+        str(item.get("match_relevance") or "none") for item in deduped_items
+    )
+
     merged_meta = {
         "returned_count": len(deduped_items),
         "shortlist_count": shortlist_total,
@@ -323,6 +389,17 @@ def _merge_shortlist_results(
         "country_shortlist_comparison": country_shortlist_comparison,
         # 가산 (matchA): 추천국↔바이어국 불일치 경고 (None이면 일치)
         "buyer_country_mismatch": buyer_country_warning,
+        # 가산 (matchC): 연락 가능 바이어 수 (검증 연락처/전체 연락처/총)
+        "contactable_count": contactable_count,
+        "verified_contactable_count": verified_contactable_count,
+        "returned_total_count": returned_total,
+        "contactable_summary": (
+            f"연락 가능 {verified_contactable_count}/{returned_total}"
+            if returned_total
+            else "연락 가능 0/0"
+        ),
+        # 가산 (matchC): HS 관련성 등급 분포 (strong=강한 매칭, weak=약한 매칭)
+        "match_relevance_distribution": dict(sorted(relevance_counter.items())),
     }
     return deduped_items, merged_meta
 
