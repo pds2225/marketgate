@@ -107,6 +107,36 @@ def _match_relevance(item: dict[str, Any]) -> str:
     return "none"
 
 
+# matchD: 정렬 우선순위 키. 무관(none) 바이어가 decision=shortlist만으로
+# 관련(strong/weak) 바이어를 제치는 것을 막는다(관련성 정확도 강화).
+_DECISION_RANK = {"shortlist": 2, "candidate": 1, "rejected": 0}
+_RELEVANCE_RANK = {"strong": 2, "weak": 1, "none": 0}
+
+
+def _buyer_sort_key(item: dict[str, Any]) -> tuple[Any, ...]:
+    """바이어 정렬 키(내림차순 reverse=True). 관련성을 decision보다 먼저 보호한다(matchD).
+
+    무관(none = HS/키워드 매칭 0)은 decision이 shortlist여도 effective 상위 티어를
+    candidate(1)로 강등한다 → strong/weak 바이어가 항상 무관 바이어보다 위에 온다.
+    관련성이 같으면 기존 우선순위(decision > 검증연락처 > 출처 > 점수)를 그대로 따른다.
+    기존 응답 필드는 불변(정렬 순서만 정교화).
+    """
+    relevance_rank = _RELEVANCE_RANK.get(str(item.get("match_relevance") or "none"), 0)
+    decision_rank = _DECISION_RANK.get(str(item.get("decision") or ""), 0)
+    if relevance_rank == 0:
+        decision_rank = min(decision_rank, 1)
+    return (
+        decision_rank,
+        relevance_rank,
+        1 if item.get("has_verified_contact") else 0,
+        1 if item.get("source_verified") else 0,
+        float(item.get("final_score") or 0.0),
+        1 if item.get("has_contact") else 0,
+        float(item.get("_source_fit_score") or 0.0),
+        -(int(item.get("source_target_country_rank") or 999)),
+    )
+
+
 def _has_verified_contact(item: dict[str, Any]) -> bool:
     """검증된(추정 아님) 연락처 보유 여부 — 이메일이 추정이면 다른 연락수단이 있어야 인정.
 
@@ -306,20 +336,8 @@ def _merge_shortlist_results(
     #   - 강한 HS 매칭 > 약한 매칭 (audit #7/#8) — 단 약한 매칭도 제거하지 않고 후순위 노출(폴백)
     #   - 검증 연락처 보유 우선 (audit #3) — 추정 이메일뿐인 바이어는 뒤로
     #   - 검증 출처(ITC/KSURE/인콰이어리) > SNS 스크랩 (audit #2)
-    _relevance_rank = {"strong": 2, "weak": 1, "none": 0}
-    merged_items.sort(
-        key=lambda item: (
-            {"shortlist": 2, "candidate": 1, "rejected": 0}.get(str(item.get("decision") or ""), 0),
-            _relevance_rank.get(str(item.get("match_relevance") or "none"), 0),
-            1 if item.get("has_verified_contact") else 0,
-            1 if item.get("source_verified") else 0,
-            float(item.get("final_score") or 0.0),
-            1 if item.get("has_contact") else 0,
-            float(item.get("_source_fit_score") or 0.0),
-            -(int(item.get("source_target_country_rank") or 999)),
-        ),
-        reverse=True,
-    )
+    #   - 관련성 보호(matchD): 무관(none)은 shortlist여도 관련(strong/weak) 바이어를 추월 못 함
+    merged_items.sort(key=_buyer_sort_key, reverse=True)
     for item in merged_items:
         key = _dedupe_key(item)
         if key in seen_keys:
