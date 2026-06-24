@@ -6,7 +6,6 @@ import {
   Database,
   Globe2,
   MapPin,
-  MoveRight,
   Search,
   ShieldCheck,
   Sparkles,
@@ -124,9 +123,31 @@ export default function LandingPage({
   onStartBuyerSearch,
 }) {
   const [toast, setToast] = useState(null);
+  const [query, setQuery] = useState("");
+
+  // 검색-우선 메인: 제품명/HS코드를 입력하면 바이어 검색 흐름을 연다.
+  // 입력값은 sessionStorage에 남겨 이후 검색 화면이 프리필로 활용할 수 있게 한다(없어도 동작).
+  const handleSearch = (e) => {
+    e?.preventDefault?.();
+    const q = query.trim();
+    if (q) {
+      try {
+        sessionStorage.setItem("mg_search_query", q);
+      } catch {
+        /* 저장 실패는 무시(시크릿 모드 등) */
+      }
+    }
+    onStartBuyerSearch?.();
+  };
 
   const handleChipClick = (item) => {
     if (item.available) {
+      setQuery(`${item.label} ${item.hsCode}`);
+      try {
+        sessionStorage.setItem("mg_search_query", item.hsCode);
+      } catch {
+        /* noop */
+      }
       onStartBuyerSearch?.();
     } else {
       setToast(
@@ -167,11 +188,7 @@ export default function LandingPage({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.65, delay: 0.05 }}
           >
-            수출 가능성을 분석하고,
-            <br />
-            맞는 바이어를 빠르게 찾는
-            <br />
-            AI 무역 매칭 플랫폼
+            무엇을 수출하시나요?
           </motion.h1>
           <motion.p
             className="landing-hero-description"
@@ -183,20 +200,56 @@ export default function LandingPage({
             추천 국가별 실제 바이어 후보까지 매칭해 드립니다.
           </motion.p>
 
-          <motion.div
-            className="landing-hero-actions"
+          <motion.form
+            className="landing-search"
+            onSubmit={handleSearch}
             initial={{ opacity: 0, y: 26 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.72, delay: 0.18 }}
           >
-            <button
-              className="ui-button ui-button--solid"
-              onClick={() => onStartBuyerSearch?.()}
-            >
-              바이어 검색 시작
-              <MoveRight size={18} />
-            </button>
-          </motion.div>
+            <div className="landing-search-field">
+              <Search size={20} className="landing-search-icon" aria-hidden="true" />
+              <input
+                className="landing-search-input"
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="제품명 또는 HS 코드 입력  ·  예: 화장품 또는 330499"
+                aria-label="제품명 또는 HS 코드로 수출국·바이어 검색"
+                autoComplete="off"
+              />
+              <button type="submit" className="landing-search-button">
+                검색
+                <ArrowRight size={18} />
+              </button>
+            </div>
+            <div className="landing-search-examples">
+              <span className="landing-search-examples-label">바로 시작</span>
+              {quickStartItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    type="button"
+                    key={item.id}
+                    className={`landing-search-chip ${
+                      item.available ? "" : "landing-search-chip--soon"
+                    }`}
+                    onClick={() => handleChipClick(item)}
+                    title={
+                      item.available
+                        ? `${item.label} (HS ${item.hsCode})로 검색`
+                        : `${item.label} 준비 중`
+                    }
+                  >
+                    <Icon size={15} />
+                    <span>{item.label}</span>
+                    <code>{item.hsCode}</code>
+                    {!item.available && <em>준비중</em>}
+                  </button>
+                );
+              })}
+            </div>
+          </motion.form>
 
           <motion.div
             className="landing-hero-note"
@@ -210,53 +263,17 @@ export default function LandingPage({
               실제 데이터를 정량 분석한 결과입니다.
             </span>
           </motion.div>
-        </div>
-      </section>
 
-      {/* === Quick Start === */}
-      <section className="landing-quickstart">
-        <div className="landing-section-head">
-          <p className="landing-section-kicker">Quick Start</p>
-          <h2>아래에서 바로 시작하거나, 직접 입력해 보세요.</h2>
+          {toast && (
+            <motion.div
+              className="landing-toast"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              {toast}
+            </motion.div>
+          )}
         </div>
-        <div className="landing-quickstart-grid">
-          {quickStartItems.map((item, index) => {
-            const Icon = item.icon;
-            return (
-              <motion.button
-                key={item.id}
-                className={`landing-quickstart-chip ${
-                  item.available ? "" : "landing-quickstart-chip--soon"
-                }`}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-                onClick={() => handleChipClick(item)}
-              >
-                <Icon size={28} />
-                <div className="landing-quickstart-chip-info">
-                  <strong>{item.label}</strong>
-                  <span>{item.sub}</span>
-                </div>
-                {!item.available && (
-                  <span className="landing-quickstart-soon-badge">
-                    Coming Soon
-                  </span>
-                )}
-              </motion.button>
-            );
-          })}
-        </div>
-        {toast && (
-          <motion.div
-            className="landing-toast"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-          >
-            {toast}
-          </motion.div>
-        )}
       </section>
 
       {/* === Trust Metrics === */}

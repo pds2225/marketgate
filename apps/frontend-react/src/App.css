@@ -1956,6 +1956,171 @@
   line-height: 1.15;
 }
 
+/* ===== Search-first hero — 메인 수출 검색창 (signature) ===== */
+.landing-search {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 720px;
+  margin-top: 4px;
+}
+
+.landing-search-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 18px;
+  background: #ffffff;
+  border: 1.5px solid rgba(15, 23, 42, 0.14);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px -18px rgba(15, 23, 42, 0.35);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.landing-search-field:focus-within {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.16),
+    0 14px 34px -18px rgba(245, 158, 11, 0.4);
+}
+
+.landing-search-icon {
+  flex: none;
+  color: #9a8466;
+}
+
+.landing-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #1c1917;
+  font-size: clamp(1rem, 1.6vw, 1.18rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.landing-search-input::placeholder {
+  color: #a8a29e;
+  font-weight: 400;
+}
+
+.landing-search-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border: none;
+  border-radius: 12px;
+  background: #f59e0b;
+  color: #1c1207;
+  font-size: 0.98rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 0.16s ease, transform 0.16s ease;
+}
+
+.landing-search-button:hover {
+  background: #fbbf24;
+  transform: translateY(-1px);
+}
+
+.landing-search-button:active {
+  transform: translateY(0);
+}
+
+.landing-search-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.landing-search-examples-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #78716c;
+  margin-right: 2px;
+}
+
+.landing-search-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #292524;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.landing-search-chip:hover {
+  border-color: #f59e0b;
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.landing-search-chip code {
+  font-family: "DM Mono", "Cascadia Code", monospace;
+  font-size: 0.76rem;
+  color: #78716c;
+  letter-spacing: 0.02em;
+}
+
+.landing-search-chip--soon {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.landing-search-chip--soon:hover {
+  border-color: rgba(15, 23, 42, 0.12);
+  color: #292524;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.landing-search-chip em {
+  font-style: normal;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #a8a29e;
+  letter-spacing: 0.03em;
+}
+
+@media (max-width: 640px) {
+  .landing-search-field {
+    flex-wrap: wrap;
+    padding: 14px;
+    gap: 12px;
+  }
+  .landing-search-input {
+    flex-basis: 100%;
+    order: 1;
+  }
+  .landing-search-button {
+    order: 2;
+    width: 100%;
+    justify-content: center;
+    padding: 14px;
+  }
+  .landing-search-icon {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-search-button:hover {
+    transform: none;
+  }
+}
+
 /* ---------- Trust Metrics ---------- */
 .landing-trust {
   width: min(1280px, calc(100% - 32px));
