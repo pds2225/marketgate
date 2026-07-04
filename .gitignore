@@ -20,6 +20,8 @@ services/**/.test_artifacts/
 **/.omc/
 # 대용량 정적 데이터 (런타임 작업트리엔 존재, git엔 불필요)
 services/cosmetics_mvp_preprocess/output/*.csv
+# 인증/구독 런타임 스토어 (테스트 데이터, 커밋 제외)
+services/p1-export-fit-api/data/*.json
 services/p1-export-fit-api/csv/*.csv
 # Keep core trade data (country-specific bilateral, ~2MB)
 !services/p1-export-fit-api/csv/trade_data.csv
