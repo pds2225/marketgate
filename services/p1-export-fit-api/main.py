@@ -188,6 +188,9 @@ def create_inquiry(req: InquiryRequest, _: dict = Depends(require_plan("Advanced
         sender_company=req.sender_company,
         sender_name=req.sender_name,
         message=req.message,
+        country=req.country,
+        match_relevance=req.match_relevance,
+        recommendation_lines=req.recommendation_lines,
     )
     return result
 

@@ -175,6 +175,7 @@ class LegacyPredictResponse(BaseModel):
     diagnostics: PredictDiagnostics
 
 
+# --- B6: AI Sales Letter 개인화 (additive — 기존 키/의미 불변) ---
 class InquiryRequest(BaseModel):
     buyer_name: str = Field(..., description="Buyer company name")
     contact_email: str = Field(..., description="Buyer contact email")
@@ -182,6 +183,12 @@ class InquiryRequest(BaseModel):
     sender_company: str = Field(..., description="Sender company name")
     sender_name: str = Field(..., description="Sender person name")
     message: Optional[str] = Field(default="", description="Optional additional message")
+    # 바이어 페이로드 (Optional+default — 미전달 시 기존 draft와 동일)
+    country: Optional[str] = Field(default=None, description="Buyer country (personalization)")
+    match_relevance: Optional[str] = Field(default=None, description="strong/weak/none (personalization)")
+    recommendation_lines: Optional[List[str]] = Field(
+        default=None, description="Buyer recommendation reasons (personalization)"
+    )
 
 
 class InquiryResponse(BaseModel):
@@ -196,3 +203,7 @@ class InquiryResponse(BaseModel):
     draft_en: str
     created_at: str
     status: str = "draft_ready"
+    # B6 가산 필드 (Optional+default — 기존 응답 스키마 불변)
+    personalized: bool = False
+    country: Optional[str] = None
+    match_relevance: Optional[str] = None
