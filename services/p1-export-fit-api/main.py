@@ -17,12 +17,16 @@ from app.routers import auth as auth_router
 from app.routers import simulation as simulation_router
 from app.routers import subscription as subscription_router
 from app.routers import payment as payment_router
+from app.routers import readiness as readiness_router
+from app.routers import action_plan as action_plan_router
 
 app = FastAPI(title="Export Fit Score API(P1)", version="0.0.1")
 app.include_router(auth_router.router)
 app.include_router(simulation_router.router)
 app.include_router(subscription_router.router)
 app.include_router(payment_router.router)
+app.include_router(readiness_router.router)
+app.include_router(action_plan_router.router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -188,6 +192,9 @@ def create_inquiry(req: InquiryRequest, _: dict = Depends(require_plan("Advanced
         sender_company=req.sender_company,
         sender_name=req.sender_name,
         message=req.message,
+        country=req.country,
+        match_relevance=req.match_relevance,
+        recommendation_lines=req.recommendation_lines,
     )
     return result
 

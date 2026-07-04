@@ -175,6 +175,7 @@ class LegacyPredictResponse(BaseModel):
     diagnostics: PredictDiagnostics
 
 
+# --- B6: AI Sales Letter 개인화 (additive — 기존 키/의미 불변) ---
 class InquiryRequest(BaseModel):
     buyer_name: str = Field(..., description="Buyer company name")
     contact_email: str = Field(..., description="Buyer contact email")
@@ -182,6 +183,12 @@ class InquiryRequest(BaseModel):
     sender_company: str = Field(..., description="Sender company name")
     sender_name: str = Field(..., description="Sender person name")
     message: Optional[str] = Field(default="", description="Optional additional message")
+    # 바이어 페이로드 (Optional+default — 미전달 시 기존 draft와 동일)
+    country: Optional[str] = Field(default=None, description="Buyer country (personalization)")
+    match_relevance: Optional[str] = Field(default=None, description="strong/weak/none (personalization)")
+    recommendation_lines: Optional[List[str]] = Field(
+        default=None, description="Buyer recommendation reasons (personalization)"
+    )
 
 
 class InquiryResponse(BaseModel):
@@ -196,3 +203,64 @@ class InquiryResponse(BaseModel):
     draft_en: str
     created_at: str
     status: str = "draft_ready"
+    # B6 가산 필드 (Optional+default — 기존 응답 스키마 불변)
+    personalized: bool = False
+    country: Optional[str] = None
+    match_relevance: Optional[str] = None
+
+
+# --- B5: Export Readiness Check (additive — predict 응답 재호출/재계산 없이 DTO 소비) ---
+class ReadinessRequest(BaseModel):
+    country_fit_score: Optional[float] = Field(
+        default=None, description="predict data.results[k].fit_score (post-penalty). None=빈 시장(no_market)"
+    )
+    compliance: Optional[str] = Field(
+        default=None, description="None=비제재 / 'restricted'=수출 제한 (categorical, 재감점 없음)"
+    )
+    buyer_signal: Optional[str] = Field(
+        default=None, description="strong/weak/none (직접 지정 시). buyers_items 가 있으면 그쪽이 우선"
+    )
+    buyers_items: Optional[List[Dict[str, Any]]] = Field(
+        default=None, description="raw predict data.buyers.items (서버가 shortlist 중 max match_relevance 집계)"
+    )
+    margin_grade: Optional[str] = Field(
+        default=None, description="simulation profit_grade (보통/손익분기/적자/우수)"
+    )
+    top_buyer_name: Optional[str] = Field(
+        default=None, description="predict data.buyers.items[0].buyer_name"
+    )
+
+
+class ReadinessResponse(BaseModel):
+    readiness_score: int
+    verdict: str
+    dimensions: Dict[str, str]
+    reason: str
+    top_buyer_name: Optional[str] = None
+    weights: Dict[str, float] = Field(default_factory=dict)
+
+
+# --- B7: Export Action Plan 30/60/90 (additive — readiness 결과 소비, 결정론적) ---
+class ActionPlanRequest(BaseModel):
+    readiness_score: int = Field(..., description="readiness 결과의 0~100 준비도 점수")
+    top_buyer_name: Optional[str] = Field(
+        default=None, description="predict data.buyers.items[0].buyer_name (phase[0] 액션이 참조)"
+    )
+    buyer_signal: Optional[str] = Field(default=None, description="strong/weak/none")
+    dimensions: Optional[Dict[str, str]] = Field(
+        default=None, description="readiness dimensions (market/buyer/margin/compliance → focus_areas)"
+    )
+
+
+class ActionPlanPhase(BaseModel):
+    window: str
+    title: str
+    actions: List[str]
+
+
+class ActionPlanResponse(BaseModel):
+    readiness_score: int
+    track: str
+    top_buyer_name: Optional[str] = None
+    phases: List[ActionPlanPhase]
+    focus_areas: List[str] = Field(default_factory=list)
