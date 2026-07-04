@@ -238,3 +238,29 @@ class ReadinessResponse(BaseModel):
     reason: str
     top_buyer_name: Optional[str] = None
     weights: Dict[str, float] = Field(default_factory=dict)
+
+
+# --- B7: Export Action Plan 30/60/90 (additive — readiness 결과 소비, 결정론적) ---
+class ActionPlanRequest(BaseModel):
+    readiness_score: int = Field(..., description="readiness 결과의 0~100 준비도 점수")
+    top_buyer_name: Optional[str] = Field(
+        default=None, description="predict data.buyers.items[0].buyer_name (phase[0] 액션이 참조)"
+    )
+    buyer_signal: Optional[str] = Field(default=None, description="strong/weak/none")
+    dimensions: Optional[Dict[str, str]] = Field(
+        default=None, description="readiness dimensions (market/buyer/margin/compliance → focus_areas)"
+    )
+
+
+class ActionPlanPhase(BaseModel):
+    window: str
+    title: str
+    actions: List[str]
+
+
+class ActionPlanResponse(BaseModel):
+    readiness_score: int
+    track: str
+    top_buyer_name: Optional[str] = None
+    phases: List[ActionPlanPhase]
+    focus_areas: List[str] = Field(default_factory=list)

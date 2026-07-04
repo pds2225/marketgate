@@ -18,6 +18,7 @@ from app.routers import simulation as simulation_router
 from app.routers import subscription as subscription_router
 from app.routers import payment as payment_router
 from app.routers import readiness as readiness_router
+from app.routers import action_plan as action_plan_router
 
 app = FastAPI(title="Export Fit Score API(P1)", version="0.0.1")
 app.include_router(auth_router.router)
@@ -25,6 +26,7 @@ app.include_router(simulation_router.router)
 app.include_router(subscription_router.router)
 app.include_router(payment_router.router)
 app.include_router(readiness_router.router)
+app.include_router(action_plan_router.router)
 
 app.add_middleware(
     CORSMiddleware,
