@@ -207,3 +207,34 @@ class InquiryResponse(BaseModel):
     personalized: bool = False
     country: Optional[str] = None
     match_relevance: Optional[str] = None
+
+
+# --- B5: Export Readiness Check (additive — predict 응답 재호출/재계산 없이 DTO 소비) ---
+class ReadinessRequest(BaseModel):
+    country_fit_score: Optional[float] = Field(
+        default=None, description="predict data.results[k].fit_score (post-penalty). None=빈 시장(no_market)"
+    )
+    compliance: Optional[str] = Field(
+        default=None, description="None=비제재 / 'restricted'=수출 제한 (categorical, 재감점 없음)"
+    )
+    buyer_signal: Optional[str] = Field(
+        default=None, description="strong/weak/none (직접 지정 시). buyers_items 가 있으면 그쪽이 우선"
+    )
+    buyers_items: Optional[List[Dict[str, Any]]] = Field(
+        default=None, description="raw predict data.buyers.items (서버가 shortlist 중 max match_relevance 집계)"
+    )
+    margin_grade: Optional[str] = Field(
+        default=None, description="simulation profit_grade (보통/손익분기/적자/우수)"
+    )
+    top_buyer_name: Optional[str] = Field(
+        default=None, description="predict data.buyers.items[0].buyer_name"
+    )
+
+
+class ReadinessResponse(BaseModel):
+    readiness_score: int
+    verdict: str
+    dimensions: Dict[str, str]
+    reason: str
+    top_buyer_name: Optional[str] = None
+    weights: Dict[str, float] = Field(default_factory=dict)
