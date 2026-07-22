@@ -88,7 +88,7 @@
         │  Vault Access Broker  │   (+ Engagement Aggregate
         └─────────┼─────────────┘      / Suppression·Frequency Store
                   ▼                    / Feature Store)
-[Matching & Slot Service]
+[Matching & Slot Service]  ◀── Export Product Passport(판매자 데이터, §7.5)
  Intent Score(§7.1) ≠ Compliance Eligibility / Inventory / Exclusivity
                   │
                   ▼
@@ -300,7 +300,16 @@ valid_from, valid_until, source_url, observed_at, confidence
 식별키: `buyer_id + product_category_id + slot_period + seller_tenant_id`.
 초기 파라미터: 기간 30일 / 동일 바이어·품목군 1개사 / 바이어 월 최대 2건 / 쿨다운 30일 / 하드바운스·컴플라이언스 차단 시 크레딧 100% 복원 / 단순 무응답 환불 없음 / 수신거부 누락 발송·기업 실재 오류는 전액 환불 또는 대체 슬롯.
 
-초기 상품 3종: **Basic Match**(검증 바이어 5개사 리포트) / **Outreach Slot**(1개사 중개 발송 1회) / **Managed Campaign**(10~20개사 컨시어지).
+**슬롯은 내부 인벤토리 단위**이며, 고객에게 판매하는 상품 사다리(무료 Export Passport → 소액 체험 → 캠페인 → 구독 → 관리형)는 `docs/PRODUCT.md`에서 정의한다. 모든 고객 상품은 내부적으로 슬롯·크레딧으로 환산되어 본 문서의 빈도상한·배타성 규칙을 따른다.
+
+### 7.5 Export Product Passport (판매자 데이터 레이어)
+
+노크의 무료 브랜드 등록을 벤치마크하되, 목적을 "노출"이 아닌 **매칭 정밀도용 판매자 구조화 데이터 확보**로 재정의한 무료 진입 상품.
+
+- 입력 필드: 기업(기업명·홈페이지·수출국) / 제품(카테고리·HS Code) / 거래(단가·MOQ·리드타임) / 조건(인코텀즈·결제) / 인증(국가별 인증·유효기간) / 콘텐츠(영문 소개서)
+- 무료 산출물: 수출준비도 점수, 적합국가 3개, 적합 바이어 유형, 누락자료 체크리스트, 예상 BEP(기존 기능 재사용)
+- 권리 처리: `CUSTOMER_PROVIDED` — 테넌트 격리, 매칭·스코어링 사용 동의를 수집 시점에 명시
+- 매칭 엔진과의 관계: Intent Score(바이어 측)와 Passport(판매자 측)의 양방향 적합도로 매칭 산출 — 데이터가 쌓일수록 §7.1 플라이휠과 동일하게 정밀도 상승
 
 ---
 
@@ -334,9 +343,11 @@ valid_from, valid_to, source_url, verified_at, manual_verification_required
 
 `buyers, buyer_identifiers, buyer_signals, contacts_vault, contact_legal_basis, source_registry, suppression_entries, matches, slots, campaigns, campaign_recipients, messages, message_events, conversations, credit_ledger, approval_tasks, audit_logs`
 
-### 9.2 어드민 화면 10종
+### 9.2 어드민 화면 10종 + 고객 화면 3종
 
-바이어 검수 / 연락 가능성 검수 / 수동 매칭 / 캠페인 승인 / 발송 큐 / 응답 인박스 / 슬롯·크레딧 / 출처 권리 관리 / 수신거부 관리 / 감사 로그
+어드민: 바이어 검수 / 연락 가능성 검수 / 수동 매칭 / 캠페인 승인 / 발송 큐 / 응답 인박스 / 슬롯·크레딧 / 출처 권리 관리 / 수신거부 관리 / 감사 로그
+
+고객(벤치마크 반영, `docs/PRODUCT.md` §Phase 0): Export Passport 입력·무료 진단 결과 / 바이어 매칭 근거 카드 / 성과 퍼널 대시보드
 
 ### 9.3 완료 조건 (10항목 전부 충족 시 Phase 0 종료)
 
@@ -362,6 +373,8 @@ valid_from, valid_to, source_url, verified_at, manual_verification_required
 
 P0: ① 슬롯 상품정의서 ② 컴플라이언스 정책표(출처 권리·국가 규칙·보관/삭제·국외이전) ③ 발송 상태도 ④ 데이터 사전·ERD ⑤ 권한 매트릭스
 P1: ⑥ Intent Score 산정명세 ⑦ Source Rights Registry 명세 ⑧ 보관·삭제 정책 ⑨ 장애·백업·복구 ⑩ 성과지표·대조군 실험 설계
+
+상품 구조·가격·전환 퍼널·경쟁 포지셔닝: **`docs/PRODUCT.md`** (경쟁사 벤치마크 반영 재설계본)
 
 ---
 
