@@ -3,6 +3,20 @@
 **목표:** 사용자가 HS코드 입력 → 바이어 조회 → 인콰이어리 발송까지 오류 없이 실행 가능한 MVP
 **테스트 경로:** `services/p1-export-fit-api/`
 **실행 명령:** `cd services/p1-export-fit-api && python -m pytest --tb=short -q`
+**개발현황 기준 시트:** [MarketGate 개발현황 모니터링 v3](https://docs.google.com/spreadsheets/d/1lmzSGu0fPYwVaoP82n-9tbMGtUmzE_G1j2wcblZldQg/edit)
+**동기화 규칙:** GitHub의 WBS 상태가 변경되면 같은 작업 내에서 기준 시트의 상태도 갱신하고 재읽기 검증한다.
+
+---
+
+## Phase 0 체크포인트 — 2026-07-23
+
+- **재개 기준:** `main@84c64dd6e62e412b6dbb7408cc3d6c26aa4bff31`
+- **완료 WBS 13건:** `W-001`, `W-008`~`W-019`
+- **완료 산출물:** 17테이블 DDL·ERD·데이터 사전, Vault Access Broker
+- **검증 결과:** Phase 0 스키마 5/5 통과, Vault Broker 회귀 테스트 7/7 통과
+- **다음 개발 순서:** `W-003` 컴플라이언스 정책표 → `W-021` Source Rights Registry → `W-022` Legal Basis Ledger → `W-023` Suppression Registry → `W-024` Compliance Decision Engine
+- **운영 전 필수:** `W-020` KMS·Secrets 키 관리는 실제 연락처 또는 운영환경 투입 전에 완료
+- **재검증 보류:** Vercel 일일 배포 한도 초기화 후 배포 1회, SQL 보안 독립 리뷰 1회
 
 ---
 
@@ -48,15 +62,6 @@
   - 의존성: 없음
   - 검증: 이동 경로 시나리오 테스트 및 사용자 피드백 확인
 
-## PENDING
-
-- [ ] [A1-03] POST /v1/credits/charge 엔드포인트 구현
-- [ ] [A1-04] POST /v1/credits/deduct 엔드포인트와 유료 기능 차감 연결
-- [ ] [A1-05] GET /v1/credits/history 엔드포인트와 프론트 잔액 표시
-- [ ] [A2-01] 구독 저장소와 플랜 상수 정의
-- [ ] [A2-02] GET/POST /v1/subscription 엔드포인트 구현
-- [ ] [B1-01] 관세율·물류비 데이터 로더 구현
-- [ ] [B3-01] 바이어 DB MOQ 필드 확인 및 보완
 ## Done
 
 - [x] [A1-02] GET /v1/credits/balance 엔드포인트 구현 (2026-05-21)
@@ -67,7 +72,6 @@
 - [x] [A1-05] GET /v1/credits/history 엔드포인트와 프론트 잔액 표시 (2026-05-13)
 - [x] [A1-04] POST /v1/credits/deduct 엔드포인트와 유료 기능 차감 연결 (2026-05-13)
 - [x] [A1-03] POST /v1/credits/charge 엔드포인트 구현 (2026-05-13)
-- [x] [A1-02] GET /v1/credits/balance 엔드포인트 구현 (2026-05-13)
 - [x] TASK-00: 통합 작업본 기준 폴더 정리
 - [x] TASK-01: P1 추천 API 기본 엔드포인트 구현
 - [x] TASK-02: CSV 로더, ISO3 정규화, 거리/무역/WB 조회 구현
