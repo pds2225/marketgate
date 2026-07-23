@@ -132,7 +132,24 @@ message_events: `event_type`·`occurred_at`·`payload` — **UPDATE/DELETE 트�
 ## 5. 적용·검증
 
 ```bash
+psql -d marketgate -c "ALTER DATABASE marketgate SET mg.vault_key = '<키>';"
 psql -d marketgate -f db/migrations/0001_init_phase0.sql
+psql -d marketgate -f db/migrations/0002_vault_access_broker.sql
+psql -d marketgate -f db/tests/broker_test.sql   # 회귀 테스트 (T1~T7)
 ```
 
-검증 항목(적용 시 확인): ① core 15 + vault 2 = 17테이블 생성 ② credit_ledger UPDATE 시도 → 예외 발생(append-only) ③ slots 동일 (buyer, category, period_start) 중복 INSERT → 유니크 위반 ④ credit_balances 뷰가 원장 합계와 일치.
+0001 검증 항목: ① core 15 + vault 2 = 17테이블 생성 ② credit_ledger UPDATE 시도 → 예외 발생(append-only) ③ slots 동일 (buyer, category, period_start) 중복 INSERT → 유니크 위반 ④ credit_balances 뷰가 원장 합계와 일치 ⑤ mg_app 롤의 vault 스키마 접근 거부.
+
+## 6. Vault Access Broker (`db/migrations/0002`, W-019)
+
+`broker` 스키마의 SECURITY DEFINER 함수 3종이 Vault의 유일한 접근 경로다. `mg_app`은 vault 스키마 접근이 계속 차단된 채 broker 함수 EXECUTE 권한만 갖는다(§2.1 "발송워커의 Vault 직접 접속 금지" 구현).
+
+| 함수 | 게이트 | 동작 |
+|---|---|---|
+| `broker.store_contact(...)` | Source Rights 정책 `store_contact=true` (§4.2) | 암호화 수납(pgp_sym_encrypt) + HMAC 지문 + **처리근거 원장 동시 기록**(§4.1) + 감사 기록 |
+| `broker.resolve_contact_for_send(contact, campaign, actor)` | ① Legal Basis 발송 가능 ② Suppression 무매치(지문·기업) ③ 소스 정책 `send_outreach=true` ④ 캠페인이 발송 가능 상태(CREDIT_AUTHORIZED·QUEUED·SENDING·RETRYING) | 전 게이트 통과 시에만 일시 복호화 값 반환. **거부는 예외가 아닌 NULL 반환+WARNING** — 예외는 감사 INSERT까지 롤백시켜 거부 이력이 사라지기 때문(완료조건 ⑩). 성공·거부 모두 `VAULT_RESOLVE_OK/DENIED`로 감사 기록 |
+| `broker.suppress_contact(contact, reason, actor)` | — | 지문 기반 Suppression 등록(평문 불필요) + legal basis를 SUPPRESSED로 갱신 + 감사 기록 |
+
+암호화 키: Phase 0은 DB 설정 `mg.vault_key`(미설정 시 즉시 실패), pgcrypto는 vault 스키마에 설치(공개 스키마 비노출). 운영 전환 시 KMS 봉투 암호화로 교체하며 `contacts_vault.key_id`가 그 경계다.
+
+검증(로컬 Postgres 16, `db/tests/broker_test.sql`): T1 정책 거부 저장 차단 / T2 수납+근거 기록 / T3 발송 문맥 복호화 / T4 비발송 상태 캠페인 거부 / T5 수신거부 후 차단 / T6 mg_app 테이블 접근 거부·Broker 경유 정상 / T7 거부 포함 감사 전수 기록 — 7/7 통과.
