@@ -117,8 +117,8 @@ BEGIN
     RAISE EXCEPTION 'rotation audit event missing';
   END IF;
   IF EXISTS (
-    SELECT 1 FROM vault.key_registry
-    WHERE to_jsonb(vault.key_registry)::text LIKE '%w020-new-key%'
+    SELECT 1 FROM vault.key_registry AS kr
+    WHERE to_jsonb(kr)::text LIKE '%w020-new-key%'
   ) OR EXISTS (
     SELECT 1 FROM core.audit_logs
     WHERE after_state::text LIKE '%w020-new-key%'
