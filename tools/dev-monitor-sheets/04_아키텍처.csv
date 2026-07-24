@@ -1,0 +1,57 @@
+﻿구분,구성요소,정의·내용,문서 근거,구현 상태,비고
+3대 설계 판단 (유지 확정),,,,,
+설계 판단,① 플랫폼 중개 발송,연락처 판매가 아닌 플랫폼이 대신 발송·중계,ARCHITECTURE.md §1,설계확정,전 상품 공통 제약
+설계 판단,② 매칭·슬롯 판매,스톡형 DB 판매 금지 — 접촉 기회(슬롯)를 제한적으로 배분,ARCHITECTURE.md §1,설계확정,
+설계 판단,③ Core/Vault 분리,Buyer Core DB와 Contact Vault의 물리적·권한적 분리,ARCHITECTURE.md §1,설계확정,통제의 물리적 토대
+"데이터 파이프라인 (11단계, §3 다이어그램)",,,,,
+파이프라인,1. 수집 소스,CBP 구독/상용벤더 B/L · 규제DB(국가별 어댑터) · 전시회 · RFQ 인바운드 · 고객 업로드,ARCHITECTURE.md §3,일부 보유,[수집소스] 섹션 참조
+파이프라인,2. Source Rights & Lineage Registry,출처·계약·허용용도·수집일·만료일·원본 레코드 기록,ARCHITECTURE.md §4.2·4.3,미구현,
+파이프라인,3. 정규화·Entity Resolution·DQ,"기업 식별 / 중복통합 / 필드 신뢰도 / golden_record_rule(신선도·신뢰도 가중, 덮어쓰기 금지)",ARCHITECTURE.md §3·4.3,부분(CSV 필터만),기존 GitHub Actions 파이프라인은 키워드 필터 수준
+파이프라인,4. Compliance Decision Engine,Legal Basis Ledger + Suppression + Country Rule Matrix + Retention/Delete + Manual Review Queue의 통합 게이트,ARCHITECTURE.md §3,미구현,발송 전 3중 게이트
+파이프라인,5. 저장 3분리,Buyer Core(기업정보) / Contact Vault(암호화·격리) / Event Store(불변 이벤트),ARCHITECTURE.md §3,미구현,
+파이프라인,6. Matching & Slot Service,Intent Score ≠ Compliance Eligibility 분리 / Inventory / Exclusivity. Export Passport(판매자 데이터)와 양방향 매칭,ARCHITECTURE.md §3·7.1·7.5,미구현,
+파이프라인,7. Campaign Orchestrator,상태머신 기반: 검수→승인→슬롯예약→크레딧승인→발송→재시도→종료,ARCHITECTURE.md §3·5.1,미구현,
+파이프라인,8. Send Adapter,SES/SendGrid — 국외이전 고지·DPA 관리 포함,ARCHITECTURE.md §3,미구현,국외이전 5개 고지사항 선행
+파이프라인,9. Webhook Processor + Response Relay,반송·민원·수신거부 처리 / 익명 회신 중계·상호동의 후 연락처 공개,ARCHITECTURE.md §3·5.3,미구현,연락처 공개는 양 당사자 동의 시에만
+파이프라인,10. Attribution & Deal Workspace,응답→미팅→샘플→견적→계약→신용조사→보험 추적. K-SURE 락인,ARCHITECTURE.md §3·8,미구현,
+파이프라인,11. Credit/Billing Ledger,차감·복원·환불·보상·정산 원장,ARCHITECTURE.md §3,미구현,
+"P0 컴포넌트 12종 (외부 리뷰 전면 수용, §2.1)",,,,,
+P0 컴포넌트,Consent & Legal Basis Ledger,연락처별 수집근거·동의·목적·철회 기록. 필수 필드 16개(contact_id~suppression_reason),ARCHITECTURE.md §2.1·4.1,미구현,해외 수신자 업무 이메일에도 PIPA 적용(국적 불문)
+P0 컴포넌트,Source Rights Registry,출처별 권리 8단계 코드 + 정책 객체(store_core/store_contact/use_for_scoring/show_company/send_outreach/commercialize),ARCHITECTURE.md §2.1·4.2,미구현,코드별 매트릭스: [수집소스] 섹션
+P0 컴포넌트,Global Suppression Registry,이메일·도메인·기업 단위 수신거부·민원·차단 통합,ARCHITECTURE.md §2.1,미구현,통합 금지 테이블
+P0 컴포넌트,Campaign Orchestrator,캠페인 상태머신 관리,ARCHITECTURE.md §2.1·5,미구현,
+P0 컴포넌트,Credit & Entitlement Ledger,슬롯 예약·차감·복원·환불 원장 (TRIAL_CREDITED/TRIAL_REFUNDED 포함),ARCHITECTURE.md §2.1 + PRODUCT §2.0,미구현,통합 금지 테이블
+P0 컴포넌트,Audit Log,관리자 행위 전수 기록,ARCHITECTURE.md §2.1,미구현,통합 금지 테이블
+P0 컴포넌트,Response Relay,"익명 중계 회신, 상호동의 후 연락처 공개",ARCHITECTURE.md §2.1·5.3,미구현,
+P0 컴포넌트,Tenant Isolation / RBAC,"고객사 간 격리, 역할별 권한",ARCHITECTURE.md §2.1,미구현,
+P0 컴포넌트,Vault Access Broker,발송워커의 Vault 직접 접속 금지 — 토큰·정책 검증 후 일시 복호화,ARCHITECTURE.md §2.1,미구현,Vault 통제의 핵심
+P0 컴포넌트,Signal Store 4분리,Event Store / Engagement Aggregate / Suppression·Frequency Store / Feature Store,ARCHITECTURE.md §2.1,미구현,
+P0 컴포넌트,Regulatory Adapter,규제DB 국가별 어댑터 + 공통 출력 스키마 11필드,ARCHITECTURE.md §2.1·7.3,미구현,BPOM/PH FDA/NPRA/US FDA(MoCRA)/Manual 5종
+P0 컴포넌트,Deal Workspace,K-SURE 연계를 안내 기능이 아닌 거래 관리 락인으로,ARCHITECTURE.md §2.1·8,미구현,
+상태머신·규칙,,,,,
+상태머신,캠페인 정상 경로 12단계,DRAFT→COMPLIANCE_REVIEW→APPROVED→SLOT_RESERVED→CREDIT_AUTHORIZED→QUEUED→SENDING→DELIVERED→RESPONDED→QUALIFIED→INTRODUCED→CLOSED_WON/LOST,ARCHITECTURE.md §5.1,설계확정,
+상태머신,캠페인 예외 상태 9종,REJECTED_COMPLIANCE·SUPPRESSED·HARD_BOUNCED·SOFT_BOUNCED·RETRYING·CANCELLED·CREDIT_RESTORED·REFUNDED·COMPLAINT_RECEIVED,ARCHITECTURE.md §5.1,설계확정,
+상태머신,바이어 검증 상태 10종,DISCOVERED→IDENTIFIED→ACTIVE_SIGNAL→CONTACTABLE→VERIFIED→ENGAGED→QUALIFIED→CONVERTED (+SUPPRESSED·DORMANT),ARCHITECTURE.md §7.1,설계확정,
+규칙,이벤트→슬롯·크레딧 규칙,queued/sent=홀드 · delivered=소진+확정차감 · soft_bounce=재시도 후 판단 · hard_bounce=복원 100% · complaint/unsubscribe=복원+Suppression · reply_positive=성과 인정,ARCHITECTURE.md §5.2,설계확정,
+규칙,Intent Score 배점,수입이력 25/빈도·증가율 15/HS적합 15/전시회 10/규제등록 10/기업규모 10/이메일반응 10/신선도 5 (100점). 감점: 미갱신 -10·도메인 불일치 -20·기능 미확인 -10·부정응답 -30,ARCHITECTURE.md §7.1,설계확정,점수와 발송 가능(Eligibility)은 별개
+규칙,Phase 0 최소 검증 조건,기업 실재 + 공식 도메인 + 품목 관련성 + 24개월 내 신호 1개 + 발송 금지 아님 + 출처·수집일 추적 가능,ARCHITECTURE.md §7.1,설계확정,체험 환불 보증의 검수 기준
+규칙,슬롯 정의·파라미터,슬롯=특정 바이어·품목군·기간·판매자의 제한적 발송 권리. 기간 30일/배타 1개사/바이어 월 2건/쿨다운 30일/무응답 환불 없음/수신거부 누락·실재 오류는 전액 환불 또는 대체,ARCHITECTURE.md §7.4,설계확정,
+"Phase 0 스키마 (17테이블, §9.1)",,,,,
+테이블,buyers · buyer_identifiers · buyer_signals,바이어 마스터·식별자·신호 (identifiers·signals는 초기 JSONB 허용),ARCHITECTURE.md §9.1·2.3,미구현,경량화 허용
+테이블,contacts_vault ★ · contact_legal_basis ★,연락처 암호화 저장 · 처리근거 원장,ARCHITECTURE.md §9.1·2.3,미구현,★=통합 금지(분리 자체가 통제)
+테이블,source_registry · suppression_entries ★,출처 권리 · 수신거부/차단,ARCHITECTURE.md §9.1·2.3,미구현,
+테이블,matches · slots · campaigns · campaign_recipients,매칭·슬롯 재고·캠페인·수신자,ARCHITECTURE.md §9.1,미구현,approval_tasks는 campaigns 상태 컬럼으로 흡수 가능
+테이블,messages · message_events · conversations,발송 메시지·이벤트·중계 대화,ARCHITECTURE.md §9.1,미구현,
+테이블,credit_ledger ★ · approval_tasks · audit_logs ★,크레딧 원장 · 승인 태스크 · 감사 로그,ARCHITECTURE.md §9.1·2.3,미구현,단일 Postgres 인스턴스 허용
+"화면 (어드민 10 + 고객 3, §9.2)",,,,,
+어드민 화면,10종,바이어 검수 / 연락 가능성 검수 / 수동 매칭 / 캠페인 승인 / 발송 큐 / 응답 인박스 / 슬롯·크레딧 / 출처 권리 관리 / 수신거부 관리 / 감사 로그,ARCHITECTURE.md §9.2,미구현,상세 명세 미작성
+고객 화면,3종,Export Passport 입력·무료 진단 결과 / 바이어 매칭 근거 카드 / 성과 퍼널 대시보드(분모 공개형),ARCHITECTURE.md §9.2 + PRODUCT §10,미구현,
+"Phase 0 완료 조건 (10항목 전부 충족 시 종료, §9.3)",,,,,
+완료조건,1~5,① 일반 API 연락처 평문 조회 불가 ② 관리자 화면도 원칙적 평문 비노출 ③ 발송 전 수신거부·빈도상한 자동 확인 ④ 처리근거 없는 연락처 발송 큐 등록 불가 ⑤ 발송 승인자·시각 기록,ARCHITECTURE.md §9.3,0/10,
+완료조건,6~10,⑥ 하드바운스·컴플라이언스 차단 시 크레딧 자동 복원 ⑦ 바이어 회신 플랫폼 중계함 확인 ⑧ 고객별 발송·응답·미팅 성과 추적 ⑨ 출처별 사용권리·원본 추적 ⑩ 관리자 행동 전수 감사 로그,ARCHITECTURE.md §9.3,0/10,
+후속 설계 문서 (§10),,,,,
+후속 문서,P0 5종,① 슬롯 상품정의서 ② 컴플라이언스 정책표 ③ 발송 상태도 ④ 데이터 사전·ERD ⑤ 권한 매트릭스,ARCHITECTURE.md §10,미작성,ERD가 개발과제 순위 4와 연동
+후속 문서,P1 5종,⑥ Intent Score 산정명세 ⑦ Source Rights Registry 명세 ⑧ 보관·삭제 정책 ⑨ 장애·백업·복구 ⑩ 성과지표·대조군 실험 설계,ARCHITECTURE.md §10,미작성,⑩이 개발과제 순위 12와 연동
+공통 통제 레이어,,,,,
+공통 통제,인프라 통제 7종,Tenant Isolation / RBAC / Audit Log / KMS / Secrets / Monitoring / Backup / Incident Response,ARCHITECTURE.md §3,미구현,
+원칙,개발 순서,상태머신·DB 스키마 확정 → API → 화면 (화면 먼저 개발 금지),ARCHITECTURE.md §2.1·서문,적용 중,외부 리뷰 수용 사항

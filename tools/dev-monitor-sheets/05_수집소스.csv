@@ -1,0 +1,28 @@
+﻿구분,소스,건수,초기 Source Rights 코드,Core 저장,발송,상품화,적법성 근거·조건,상태,다음 액션
+"보유 데이터 (18,012건 + 비화장품 2,083건, 2025-04 기준)",,,,,,,,,
+보유,KOTRA SNS 마케팅 수집 바이어,"12,666",UNKNOWN (기본값·격리),격리,불가,불가,취득 경로·공공누리 유형 미확인 — 확인 후 재분류. 미부착 자료는 사전 협의 필요,검증필요,취득 경로 문서화 → 코드 재분류 (개발과제 순위 2)
+보유,GoBizKorea 인콰이어리 2024,"2,429",INTERNAL_ANALYTICS,가능,불가,결과만,"약관상 재판매 금지 — 원문 직판 불가, 내부 분석·파생 결과만 활용",코드확정,약관 원문 증적 확보 (개발과제 순위 6)
+보유,GoBizKorea 인콰이어리 2021~2023,"2,981",INTERNAL_ANALYTICS,가능,불가,결과만,동일 (약관 재판매 금지),코드확정,동일 + 신선도 감점 반영(24개월 신호 조건)
+보유,GoBizKorea 구매오퍼,166,INTERNAL_ANALYTICS,가능,불가,결과만,동일. 구매 의향 공식 신청 — Intent Score 상위 신호로 활용,코드확정,
+보유,NIPA 글로벌ICT포털,"1,853",INTERNAL_ANALYTICS + 연락처 PROHIBITED,가능(기업),불가,불가,이메일 자동수집 거부 명시 사이트(정보통신망법 §50조의2). 전화번호 100% 포함이나 연락처 Vault 저장 불가,코드확정,연락처 필드 파기·격리 처리 확정
+계획 소스 (적법 수집 로드맵),,,,,,,,,
+Phase 1,CBP B/L 직접 구독,—,CONTRACT_REQUIRED → 계약 후 재분류,보류,불가,불가,19 CFR 103.31 AMS manifest 유료 구독. B/L은 구매의도 신호이지 연락 동의가 아님 — 발송은 별도 Legal Basis 필요,대기,Collections Section 견적 요청 = Phase 1 첫 액션 (순위 19)
+Phase 1,상용 벤더 B/L 라이선스,—,CONTRACT_REQUIRED → 계약 후 재분류,보류,불가,불가,계약서에 재판매·기업명 표시·파생 점수 상업화·보관 기간 권리 명시 필수,대기,CBP 구독과 견적 비교 후 선택
+금지,ImportYeti 등 가공 사이트 크롤링,—,금지,불가,불가,불가,DB제작자권 침해 구조(잡코리아 v 사람인 판례와 동형),배제확정,사용하지 않음
+배제,DLP 무료 B/L 덤프,—,존재하지 않음,—,—,—,FOIA 요청(CBP-FO-2023-075587) 2023-04-28 거부 — 공개 데이터셋 없음. 이전 로드맵에서 삭제,배제확정,없음 (기록 유지 목적)
+Phase 1,인도네시아 BPOM (화장품 notification),—,국가별 검토 → OPEN_REUSE/INTERNAL_ANALYTICS,검토 후,불가,검토 후,기업 사실정보 위주 공개 규제DB. robots·약관 확인 후 코드 부여,대기,IndonesiaBPOMAdapter 구현 (순위 20)
+Phase 1,필리핀 FDA,—,동일,검토 후,불가,검토 후,동일,대기,PhilippinesFDAAdapter
+Phase 1,말레이시아 NPRA,—,동일,검토 후,불가,검토 후,동일,대기,MalaysiaNPRAAdapter
+Phase 1,미국 FDA (MoCRA 시설등록),—,동일,검토 후,불가,검토 후,FOIA 공개 범위 내,대기,USFDAAdapter
+Phase 1~2,전시회 참가·바이어 명부,—,출처별 검토,검토 후,검토 후,검토 후,명부별 이용 조건 상이 — 개별 검토. Intent Score 배점 10점 항목,대기,주요 뷰티 전시회 명부 이용 조건 조사
+Phase 2,바이어 RFQ 인바운드,—,CONSENTED_INBOUND,가능,가능,가능,유일한 완전 자유 재사용 코드 — 바이어가 직접 동의·요청한 데이터,대기,영문 RFQ 랜딩 구축 (순위 16)
+상시,고객 업로드,—,CUSTOMER_PROVIDED,격리,고객 범위 내,제한,테넌트 격리. 매칭·스코어링 사용 동의를 수집 시점에 명시(Export Passport 포함),설계확정,Passport 입력 화면과 함께 구현
+Source Rights 8코드 매트릭스 (§4.2 — 코드별 허용 범위),,,,,,,,,
+코드,OPEN_REUSE,—,—,가능,조건부,가능,Vault 저장 조건부,정의확정,
+코드,INTERNAL_ANALYTICS,—,—,가능,불가,결과만,Vault 저장 불가,정의확정,
+코드,OUTREACH_ALLOWED,—,—,가능,가능,슬롯 가능,Vault 저장 가능,정의확정,
+코드,CUSTOMER_PROVIDED,—,—,가능,고객 범위 내,제한,Vault 격리,정의확정,
+코드,CONSENTED_INBOUND,—,—,가능,가능,가능,완전 자유 재사용,정의확정,
+코드,CONTRACT_REQUIRED,—,—,보류,불가,불가,계약 체결 전 보류,정의확정,
+코드,PROHIBITED,—,—,통계만,불가,불가,Vault 저장 불가,정의확정,
+코드,UNKNOWN (기본값),—,—,격리,불가,불가,미확인 출처는 전부 격리 — default-deny,정의확정,

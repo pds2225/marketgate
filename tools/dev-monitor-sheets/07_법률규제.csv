@@ -1,0 +1,31 @@
+﻿구분,항목,내용·요건,정책·판정,근거,상태
+"Country Rule Matrix (기본 원칙: default-deny — 미검토 국가는 발송 불가, §6)",,,,,
+관할,미국 (CAN-SPAM),"옵트아웃으로 적법. 정확한 헤더·비기만 제목·광고 표시·물리 주소·수신거부 수단 30일 유지·10영업일 내 처리. 위반 건당 최대 $53,088",SEND_ALLOWED (옵트아웃 준수),ARCHITECTURE.md §6,검증완료
+관할,캐나다 (CASL),"옵트인 원칙, 묵시 예외: 공개 게시 주소+직무 관련+수신거부 문구 없음. 증빙(수집 URL·일시) 기록 필수",SEND_CONDITIONAL,ARCHITECTURE.md §6,검증완료
+관할,프랑스 등 EU 관대국,GDPR+ePrivacy §13 — LI 기반 가능. LIA 문서화 + 명확한 옵트아웃,SEND_CONDITIONAL,ARCHITECTURE.md §6,검증완료
+관할,독일·오스트리아 (UWG §7),사전동의 필요,SEND_BLOCKED (옵트인 전),ARCHITECTURE.md §6,검증완료
+관할,영국 (PECR),법인 주소 제외 — corporate subscriber 여부 확인,SEND_CONDITIONAL,ARCHITECTURE.md §6,검증완료
+관할,한국 수신자 (망법 §50),"옵트인. KISA 7차: '광고성 정보 수신동의' 명칭 명시(모호 명칭 불인정), 즉시 수신거부",SEND_BLOCKED (옵트인 전),ARCHITECTURE.md §6,검증완료
+관할,기타 전체,미검토,SEND_BLOCKED (기본값),ARCHITECTURE.md §6,—
+해석 유보,한국 발신자→해외 수신자 망법 적용,역외 적용 해석 미확정 (검증 PARTIAL),보수적으로 (광고) 표시·수신거부 등 국내 요건을 전 발송에 준용,ARCHITECTURE.md §6,보수 준용
+Legal Basis 코드 7종 (§4.1),,,,,
+코드,OPTED_IN,명시적 마케팅 수신동의,발송 가능,ARCHITECTURE.md §4.1,정의확정
+코드,CONTRACT_REQUIRED,계약 이행상 필요한 연락,해당 목적만,ARCHITECTURE.md §4.1,정의확정
+코드,LEGITIMATE_INTEREST_REVIEW,국가별 LI 검토 대상,Country Rule Matrix 통과 시,ARCHITECTURE.md §4.1,정의확정
+코드,PUBLIC_CORPORATE_CONTACT,공개된 기업 대표 연락처,국가·목적별 검토,ARCHITECTURE.md §4.1,정의확정
+코드,UNKNOWN_BASIS / WITHDRAWN / SUPPRESSED,처리근거 불명확 / 동의 철회 / 민원·반송·차단,발송 불가,ARCHITECTURE.md §4.1,정의확정
+"발송 공통 체크리스트 (COMPLIANCE_REVIEW 단계 6항목, §6.2)",,,,,
+체크리스트,6항목,① Legal Basis 발송 가능 ② Country Rule Matrix 통과 ③ Suppression 무매치 ④ 빈도상한·쿨다운 통과 ⑤ 승인 템플릿(광고 표시·물리 주소·수신거부 링크) ⑥ 국외이전 5개 고지사항 공개 상태,전 항목 통과 시에만 승인,ARCHITECTURE.md §6.2,설계확정
+핵심 법적 사실 (세션 조사·검증),,,,,
+판례,잡코리아 v 사람인,저작권법 §93 DB제작자 권리 침해 — 크롤링·재게시에 120억 합의 선례,타사 DB 크롤링 전면 금지의 근거,세션 조사,확인됨
+약관,GoBizKorea 재판매 금지,인콰이어리·구매오퍼 데이터 재판매 금지 — 원문 직판 불가,INTERNAL_ANALYTICS 코드의 근거,세션 조사(스니펫),원문 증적 필요
+약관,KOTRA 공공누리,제1~4유형별 상업적 이용 조건 상이 — 유형 미부착 자료는 사전 협의,SNS 수집분 UNKNOWN 격리의 근거,세션 조사,유형 확인 필요
+법률,NIPA 이메일 자동수집 거부,정보통신망법 §50조의2 — 자동수집 거부 의사 명시 사이트,연락처 PROHIBITED 코드의 근거,세션 조사,확인됨
+법률,PIPA 역외 적용,해외 수신자의 개인 식별 가능한 업무용 이메일에도 개인정보보호법 적용(정보주체 국적 불문),Legal Basis Ledger 전건 기록 의무,ARCHITECTURE.md §4.1,검증완료
+법률,국외이전 (§28조의8),제공·처리위탁·보관 모두 포함. 계약 이행 목적 처리위탁은 별도 동의 대신 처리방침 공개/고지(5개 사항)로 갈음 가능 + 보호조치 필요,SES/SendGrid 사용 시 처리방침 5개 고지 + DPA 관리,ARCHITECTURE.md §2.2,고지문 미작성
+법률,KISA 안내서 7차 개정,"2026-03-04 게시. '광고성 정보 수신동의' 명칭 명시 필수, 즉시 수신거부 요구",옵트인 수집 UI 문구·승인 체크리스트 반영,ARCHITECTURE.md §2.2,검증완료
+K-SURE Policy Registry (§8.2 — 혜택 수치 하드코딩 금지),,,,,
+K-SURE,현행 공표 혜택,"신규·리턴 고객 한정 국외기업 신용조사 3건 무료 (등록일부터 1년, K-Sight 게시)",UI에는 수치 대신 '대상여부 조회' 링크 + verified_at 표시,ARCHITECTURE.md §8.2,2026-07-22 검증
+K-SURE,정상 수수료,"중소중견 요약보고서 33,000원 / Full Report 49,500원 (VAT 포함, 후불제)",동일,ARCHITECTURE.md §8.2,2026-07-22 검증
+K-SURE,과거 제도 (표시 금지),연 10회 무료 + 초과 3만원'은 2019.10 시행 우대조치 — 현행 공식 페이지에 부재,표시 금지 레코드로 관리,ARCHITECTURE.md §8.2,REFUTED 처리
+K-SURE,Registry 스키마,"policy_name, target_company_type, benefit_count, valid_from, valid_to, source_url, verified_at, manual_verification_required",—,ARCHITECTURE.md §8.2,설계확정
