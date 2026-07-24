@@ -9,12 +9,10 @@ from typing import Any
 from urllib.parse import urljoin
 
 import requests
-from dotenv import load_dotenv as _load_shared
-_load_shared(r"D:\.env.shared")
 from dotenv import load_dotenv
 
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
+ROOT_DIR = Path(__file__).resolve().parents[2]
 LOG_PATH = ROOT_DIR / "logs" / "nice_dnb_test_response.json"
 SUMMARY_PATH = ROOT_DIR / "logs" / "nice_dnb_report_summary.json"
 TIMEOUT_SECONDS = 30

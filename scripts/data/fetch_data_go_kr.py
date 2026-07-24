@@ -12,7 +12,7 @@
 
 사용법:
   1. .env 파일에 각 API의 SERVICE_KEY 와 ENDPOINT 입력
-  2. python scripts/fetch_data_go_kr.py --api 수출유망추천정보 --output data/수출유망추천정보.csv
+  2. python scripts/data/fetch_data_go_kr.py --api 수출유망추천정보 --output data/수출유망추천정보.csv
 """
 from __future__ import annotations
 
@@ -25,12 +25,10 @@ from pathlib import Path
 from typing import Any
 
 import requests
-from dotenv import load_dotenv as _load_shared
-_load_shared(r"D:\.env.shared")
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parents[1]
-load_dotenv(ROOT / ".env")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(REPO_ROOT / ".env")
 
 PAGE_SIZE = 100
 MAX_PAGES = 1000

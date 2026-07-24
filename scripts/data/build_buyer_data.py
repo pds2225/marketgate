@@ -8,18 +8,35 @@ build_buyer_data.py
 민감정보(이메일/전화)는 반드시 마스킹하여 출력한다.
 
 실행:
-  python tools/build_buyer_data.py
+  python scripts/data/build_buyer_data.py
 출력:
   apps/frontend-react/public/data/summary.json
   apps/frontend-react/public/data/buyers.json
 """
 import csv, io, json, os, re
 from collections import Counter, defaultdict
+from pathlib import Path
 
 # --- paths ---
-INPUT = r"D:\marketgate\services\cosmetics_mvp_preprocess\output\buyer_candidate.csv"
-OUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                       "apps", "frontend-react", "public", "data")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+INPUT = Path(
+    os.getenv(
+        "BUYER_DATA_INPUT",
+        str(
+            REPO_ROOT
+            / "services"
+            / "cosmetics_mvp_preprocess"
+            / "output"
+            / "buyer_candidate.csv"
+        ),
+    )
+)
+OUT_DIR = Path(
+    os.getenv(
+        "BUYER_DATA_OUTPUT_DIR",
+        str(REPO_ROOT / "apps" / "frontend-react" / "public" / "data"),
+    )
+)
 
 # --- lookups ---
 ISO3_TO_FLAG = {
@@ -224,12 +241,12 @@ for i, row in enumerate(selected):
         "distanceKm": dist_km,
     })
 
-os.makedirs(OUT_DIR, exist_ok=True)
-with open(os.path.join(OUT_DIR,"summary.json"),"w",encoding="utf-8") as f:
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+with (OUT_DIR / "summary.json").open("w", encoding="utf-8") as f:
     json.dump(summary, f, ensure_ascii=False, indent=2)
-with open(os.path.join(OUT_DIR,"buyers.json"),"w",encoding="utf-8") as f:
+with (OUT_DIR / "buyers.json").open("w", encoding="utf-8") as f:
     json.dump(buyers, f, ensure_ascii=False, indent=2)
 
 print(f"rows={n}  countries={summary['countryCount']}  buyers_sampled={len(buyers)}")
-print("wrote:", os.path.join(OUT_DIR,"summary.json"))
-print("wrote:", os.path.join(OUT_DIR,"buyers.json"))
+print("wrote:", OUT_DIR / "summary.json")
+print("wrote:", OUT_DIR / "buyers.json")
