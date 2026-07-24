@@ -1,44 +1,56 @@
-﻿node_modules/
+# Node / frontend
+node_modules/
 dist/
+.next/
 .vite/
 .vite-temp/
+coverage/
+
+# Python
 venv/
 .venv/
 __pycache__/
-*.pyc
-*.log
+*.py[cod]
+*$py.class
 .pytest_cache/
-.pytest_cache
 pytest-cache-files-*/
 services/**/pytest-cache-files-*/
 services/**/.tmp/
 services/**/.tmp*/
 services/**/.test_artifacts/
-# Generated data outputs (large CSVs)
-# OMC 세션 상태(야간 에이전트 실행 잔재) — 커밋 제외
-.omc/
-**/.omc/
-# 대용량 정적 데이터 (런타임 작업트리엔 존재, git엔 불필요)
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Generated data outputs
 services/cosmetics_mvp_preprocess/output/*.csv
-# 인증/구독 런타임 스토어 (테스트 데이터, 커밋 제외)
 services/p1-export-fit-api/data/*.json
 services/p1-export-fit-api/csv/*.csv
-# Keep core trade data (country-specific bilateral, ~2MB)
 !services/p1-export-fit-api/csv/trade_data.csv
 
-# Temp files
-temp_*
-
-# services/cosmetics_mvp_preprocess/output/
-.env
-.DS_Store
-
-# Buyer search development artifacts
-Kimi_Agent_사이트 개선 제안/
+# Runtime and temporary files
+*.log
 logs/
-
-auto_prompt_*.md
-
-
-00_관련자료_모음/
+temp_*
+*.tmp
 .omc/
+**/.omc/
+
+# Local development artifacts
+Kimi_Agent_사이트 개선 제안/
+auto_prompt_*.md
+00_관련자료_모음/
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

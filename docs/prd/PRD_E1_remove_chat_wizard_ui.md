@@ -15,14 +15,14 @@ React 프론트(`apps/frontend-react`)에서 **채팅형 UX(`ChatModePage`)를 �
 | **프론트 코드** | `ChatModePage.jsx`, `App.jsx`의 `chat` 라우팅, `LandingPage`의 `onStartChat` **그대로 존재** |
 | **Git main** | 채팅 제거 커밋 없음. 과거는 `unify to chat mode` 등 **채팅 강화** 이력 |
 | **PRD (`docs/prd/`)** | E1 없음 → **본 문서가 최초 PRD** |
-| **설계 문서 (`design/`)** | `product_search_wizard_design.md` — **설계 단계 (미반영)** |
+| **설계 문서 (`docs/design/`)** | `product_search_wizard_design.md` — **설계 단계 (미반영)** |
 | | `product_search_wizard_design_v4.md` — ChatMode 기준 부분 반영 설계, **코드 미완** |
 
 **관련 설계 (구현 시 참고만, PRD 범위는 아래 Phase 정의 따름):**
 
-- `design/product_search_wizard_design.md`
-- `design/product_search_wizard_design_v4.md`
-- `design/ui_design_proposal_blue.md`
+- `docs/design/product_search_wizard_design.md`
+- `docs/design/product_search_wizard_design_v4.md`
+- `docs/design/ui_design_proposal_blue.md`
 
 ## 3. MVP 범위 (Phase 1 — 이번 개발 1차 목표)
 
@@ -46,7 +46,7 @@ React 프론트(`apps/frontend-react`)에서 **채팅형 UX(`ChatModePage`)를 �
 
 ### 3.3 Phase 1에서 하지 않음 (Phase 2)
 
-- `ProductSelector` / `ConditionBuilder` / `ResultsDashboard` **3단계 신규 위자드** 전면 구현 (`design/product_search_wizard_design.md` §11)
+- `ProductSelector` / `ConditionBuilder` / `ResultsDashboard` **3단계 신규 위자드** 전면 구현 (`docs/design/product_search_wizard_design.md` §11)
 - Framer Motion 등 **새 라이브러리**
 - API 엔드포인트·응답 필드 변경
 
@@ -109,7 +109,7 @@ React 프론트(`apps/frontend-react`)에서 **채팅형 UX(`ChatModePage`)를 �
 
 ## 10. Phase 2 (후속 — 별도 PRD 개정 가능)
 
-`design/product_search_wizard_design.md` 기준 3단계 위자드:
+`docs/design/product_search_wizard_design.md` 기준 3단계 위자드:
 
 1. 품목 선택 (`ProductSelector`)
 2. 조건 설정 (`ConditionBuilder`)
