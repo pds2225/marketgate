@@ -27,6 +27,9 @@ function App() {
   const [chatPreset, setChatPreset] = useState(null)
   const [authed, setAuthed] = useState(!!localStorage.getItem('access_token'))
   const [balance, setBalance] = useState(null)
+  // 서버(/v1/auth/me)의 role 필드 기준으로만 관리자 메뉴를 노출한다.
+  // 메뉴 숨김은 UX 차원일 뿐이며 실제 차단은 서버 403이 담당한다.
+  const [isAdmin, setIsAdmin] = useState(false)
   // 세션이 본인 의사와 무관하게(토큰 만료 → 재발급 실패) 끊겼을 때만 true.
   // 직접 누른 로그아웃과 구분해, 로그인 화면에서 "다시 로그인" 안내를 띄운다.
   const [sessionExpired, setSessionExpired] = useState(false)
@@ -54,13 +57,14 @@ function App() {
     setSessionExpired(false)
     setAuthed(false)
     setBalance(null)
+    setIsAdmin(false)
     navigate('landing')
   }
 
   useEffect(() => {
     // api.js 인터셉터가 토큰 재발급 실패 시 발생시키는 이벤트.
     // 사용자가 직접 로그아웃한 게 아니라 세션이 만료돼 강제로 끊긴 경우다.
-    const onLogout = () => { setSessionExpired(true); setAuthed(false); setBalance(null); navigate('landing') }
+    const onLogout = () => { setSessionExpired(true); setAuthed(false); setBalance(null); setIsAdmin(false); navigate('landing') }
     window.addEventListener('auth:logout', onLogout)
     return () => window.removeEventListener('auth:logout', onLogout)
   }, [])
@@ -73,6 +77,15 @@ function App() {
     if (!authed) return
     refreshBalance()
   }, [authed, page])
+
+  useEffect(() => {
+    if (!authed) return
+    let cancelled = false
+    api.get('/v1/auth/me')
+      .then(r => { if (!cancelled) setIsAdmin(r.data?.role === 'admin') })
+      .catch(() => { if (!cancelled) setIsAdmin(false) })
+    return () => { cancelled = true }
+  }, [authed])
 
   if (!authed) {
     return (
@@ -124,7 +137,8 @@ function App() {
             {[
               { label: '요금제', page: 'pricing' },
               { label: '시뮬레이션', page: 'simulation' },
-              { label: '관리자', page: 'admin' },
+              // 관리자 메뉴는 서버가 role=admin 을 내려준 계정에만 노출 (서버 403이 최종 방어선)
+              ...(isAdmin ? [{ label: '관리자', page: 'admin' }] : []),
             ].map(({ label, page: p }) => (
               <button
                 key={p}
@@ -204,17 +218,26 @@ function App() {
       )}
 
       {page === 'admin' && (
-        <div className="app-admin-view">
-          <div className="app-admin-exit">
-            <button
-              className="ui-button ui-button--solid app-admin-exit-button"
-              onClick={() => navigate('landing')}
-            >
-              ← 사용자 모드로 돌아가기
-            </button>
+        isAdmin ? (
+          <div className="app-admin-view">
+            <div className="app-admin-exit">
+              <button
+                className="ui-button ui-button--solid app-admin-exit-button"
+                onClick={() => navigate('landing')}
+              >
+                ← 사용자 모드로 돌아가기
+              </button>
+            </div>
+            <AdminDashboard />
           </div>
-          <AdminDashboard />
-        </div>
+        ) : (
+          <div style={{ paddingTop: 96, textAlign: 'center', color: '#a8a29e', fontSize: 14 }}>
+            관리자 권한이 없습니다 (403). 관리자 계정으로 로그인해 주세요.
+            <div style={{ marginTop: 16 }}>
+              <button className="ui-button ui-button--solid" onClick={() => navigate('landing')}>홈으로</button>
+            </div>
+          </div>
+        )
       )}
     </div>
   )
