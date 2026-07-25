@@ -11,6 +11,7 @@ from app.auth_store import (
 from app.auth_deps import (
     create_access_token, create_refresh_token,
     decode_refresh, get_current_user, get_token_payload,
+    is_admin,
 )
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
@@ -89,4 +90,10 @@ def logout(token_payload: dict = Depends(get_token_payload)):
 
 @router.get("/me")
 def me(user: dict = Depends(get_current_user)):
-    return {"user_id": user["user_id"], "email": user["email"], "plan": user["plan"]}
+    return {
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "plan": user["plan"],
+        # 가산 필드 — 관리자 메뉴 노출 여부 판단용 (기존 키 불변)
+        "role": "admin" if is_admin(user) else "user",
+    }
