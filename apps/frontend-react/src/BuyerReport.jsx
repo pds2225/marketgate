@@ -1,45 +1,59 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Mail, Phone, Globe, FileText, HelpCircle, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Mail, Phone, Globe, HelpCircle, X } from "lucide-react";
 import { displayPhone } from "./lib/phone";
 
-const trustLabels = {
-  verified: { emoji: "✅", label: "검증됨", desc: "공공데이터 직접 확인" },
-  estimated: { emoji: "🟡", label: "추정", desc: "AI 분석 · 샘플 부족" },
-  limited: { emoji: "🔴", label: "제한적", desc: "단일 출처 · 미확인" },
+// 검증 상태 3축 — 연락처 보유만으로 '검증 완료'를 표시하지 않는다
+const contactStatusLabels = {
+  unavailable: { emoji: "⚠️", label: "연락처 없음", desc: "자료 내 확인 불가" },
+  discovered: { emoji: "🟡", label: "연락처 보유(미검증)", desc: "형식·소유 검증 전" },
+  format_validated: { emoji: "🟢", label: "형식 검증됨", desc: "이메일 형식 검증 완료" },
+  ownership_verified: { emoji: "✅", label: "소유 검증됨", desc: "수신자 소유 확인 완료" },
+};
+const tradeStatusLabels = {
+  unavailable: { label: "수입실적 자료 내 확인 불가" },
+  source_confirmed: { label: "출처 확인됨" },
+  recent_activity_confirmed: { label: "최근 활동 확인됨" },
+};
+const creditStatusLabels = {
+  not_requested: { label: "신용조사 미신청" },
+  pending: { label: "신용조사 진행 중" },
+  report_received: { label: "신용보고서 수신" },
+  expired: { label: "신용보고서 만료" },
 };
 
 const fitCriteria = [
   {
     key: "trade_history",
     label: "수입 이력 매칭",
-    desc: "해당 HS 코드의 과거 수입 실적이 많을수록 높은 점수를 받습니다.",
-    source: "KOTRA 수출입통계 · 관세청",
+    desc: "공공데이터 내 거래·품목 신호와의 매칭 정도를 반영합니다.",
+    source: "P1 스코어링 (KOTRA 공공데이터 CSV)",
   },
   {
     key: "growth",
     label: "시장 성장률",
-    desc: "목표 국가의 해당 품목 수입 성장률을 반영합니다. 성장 중인 시장에 가점.",
-    source: "UN Comtrade · World Bank",
+    desc: "목표 국가의 GDP 성장률 지표를 반영합니다.",
+    source: "World Bank WDI CSV",
   },
   {
     key: "gdp",
     label: "GDP 규모",
     desc: "시장 규모가 클수록 높은 점수.",
-    source: "World Bank Open Data",
+    source: "World Bank WDI CSV",
   },
   {
     key: "logistics",
     label: "거리/물류 이점",
-    desc: "한국과의 거리, FTA 혜택, 물류 인프라를 종합 평가합니다.",
-    source: "KOTRA · 대한무역투자진흥공사",
+    desc: "한국과의 거리 기반 물류 이점을 평가합니다.",
+    source: "국가 간 거리 CSV",
   },
 ];
 
 export default function BuyerReport({ buyer }) {
   const [showCriteria, setShowCriteria] = useState(false);
-  const [showInquiry, setShowInquiry] = useState(false);
-  const trust = trustLabels[buyer.trustStatus] || trustLabels.limited;
+  const contact = contactStatusLabels[buyer.contactStatus] || contactStatusLabels.unavailable;
+  const trade = tradeStatusLabels[buyer.tradeStatus] || tradeStatusLabels.unavailable;
+  const credit = creditStatusLabels[buyer.creditStatus] || creditStatusLabels.not_requested;
 
   const scoreColor = buyer.fitScore >= 90 ? "#22c55e" : buyer.fitScore >= 75 ? "#f59e0b" : "#ef4444";
 
@@ -59,7 +73,7 @@ export default function BuyerReport({ buyer }) {
         </div>
         <div className="buyer-report-data-banner">
           <span>🛡️</span>
-          <p>이 보고서는 AI가 생성한 것이 아닙니다. KOTRA, 관세청, World Bank 실제 데이터를 정량 분석하여 산출한 결과입니다.</p>
+          <p>공공데이터 CSV 기반 바이어 후보 분석 결과입니다. 수입실적·신용정보는 원본 자료에 포함되어 있지 않으며, 원본에 없는 값은 표시하지 않습니다.</p>
         </div>
       </div>
 
@@ -104,7 +118,7 @@ export default function BuyerReport({ buyer }) {
             <span><strong>웹사이트</strong> {buyer.company.website}</span>
           </div>
           <div className="buyer-report-contact-status">
-            {buyer.company.hasContact ? "✅ 연락처 확인됨" : "⚠️ 연락처 미확인"}
+            {contact.emoji} {contact.label} — {contact.desc}
           </div>
         </div>
       </section>
@@ -167,19 +181,19 @@ export default function BuyerReport({ buyer }) {
         </div>
       </section>
 
-      {/* 데이터 신뢰도 */}
+      {/* 검증 상태 — contact / trade / credit 분리 */}
       <section className="buyer-report-section">
-        <h3 className="buyer-report-section-title">【데이터 신뢰도】</h3>
+        <h3 className="buyer-report-section-title">【검증 상태】</h3>
         <div className="buyer-report-trust">
-          <div className={`buyer-report-trust-badge buyer-report-trust-badge--${buyer.trustStatus}`}>
-            <span className="buyer-report-trust-emoji">{trust.emoji}</span>
+          <div className={`buyer-report-trust-badge buyer-report-trust-badge--${buyer.contactStatus === "unavailable" ? "limited" : "estimated"}`}>
+            <span className="buyer-report-trust-emoji">{contact.emoji}</span>
             <div>
-              <strong>{trust.label}</strong>
-              <p>{trust.desc}</p>
+              <strong>연락처: {contact.label}</strong>
+              <p>거래(출처): {trade.label} · 신용: {credit.label}</p>
             </div>
           </div>
           <div className="buyer-report-trust-meta">
-            <span>최종 확인: {buyer.lastVerified}</span>
+            <span>검증일: {buyer.lastVerified}</span>
             <span>원본 파일: {buyer.sourceFile}</span>
           </div>
         </div>
@@ -187,15 +201,11 @@ export default function BuyerReport({ buyer }) {
 
       <div className="buyer-report-divider" />
 
-      {/* 액션 버튼 */}
+      {/* 액션 버튼 — 발송 요청은 바이어 카드의 '발송 요청' 버튼에서 관리자 승인 큐로 접수된다 */}
       <div className="buyer-report-actions">
         <button className="buyer-report-action-btn" onClick={() => setShowCriteria(true)}>
           <HelpCircle size={16} />
           <span>적합도 산정 기준</span>
-        </button>
-        <button className="buyer-report-action-btn buyer-report-action-btn--primary" onClick={() => setShowInquiry(true)}>
-          <Mail size={16} />
-          <span>인콰이어리 작성</span>
         </button>
       </div>
 
@@ -222,64 +232,13 @@ export default function BuyerReport({ buyer }) {
                 </div>
               ))}
               <div className="buyer-report-criteria-footer">
-                <p>📌 데이터 업데이트 주기: 분기별 (1/4/7/10월)</p>
-                <p>📌 최종 업데이트: 2026년 4월</p>
+                <p>📌 데이터 갱신 주기·기준일: 원본 CSV 스냅샷 기준 — 자료 내 확인 불가 시 표시하지 않습니다.</p>
               </div>
             </div>
           </motion.div>
         </div>
       )}
 
-      {/* 인콰이어리 모달 */}
-      {showInquiry && (
-        <div className="buyer-report-modal-overlay" onClick={() => setShowInquiry(false)}>
-          <motion.div
-            className="buyer-report-modal buyer-report-modal--large"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="buyer-report-modal-header">
-              <h3>✉️ 인콰이어리 작성 — {buyer.company.name}</h3>
-              <button onClick={() => setShowInquiry(false)}><X size={18} /></button>
-            </div>
-            <div className="buyer-report-modal-body">
-              <div className="buyer-report-inquiry-meta">
-                <p><strong>받는 사람:</strong> {buyer.company.email}</p>
-                <p><strong>제품:</strong> {buyer.hsLabel} (HS {buyer.hsCode})</p>
-                <p><strong>적합도:</strong> {buyer.fitScore}점 {trust.emoji} ({buyer.dataSource})</p>
-              </div>
-              <div className="buyer-report-inquiry-sequence">
-                <h4>캠페인 시퀀스 설정</h4>
-                <label><input type="checkbox" defaultChecked /> 1차: 즉시 발송</label>
-                <label><input type="checkbox" defaultChecked /> 2차: 3일 후 (미응답 시)</label>
-                <label><input type="checkbox" defaultChecked /> 3차: 7일 후 (미응답 시)</label>
-              </div>
-              <div className="buyer-report-inquiry-draft">
-                <h4>1차 메일 초안</h4>
-                <p><strong>Subject:</strong> Partnership Inquiry — Korean {buyer.hsLabel}</p>
-                <textarea
-                  className="buyer-report-draft-textarea"
-                  rows={6}
-                  defaultValue={`Dear ${buyer.company.name} Team,
-
-We are a Korean ${buyer.hsLabel} manufacturer looking to expand into the ${buyer.targetCountry} market.
-
-We believe our products would be a great fit for your distribution channel based on your recent import activities.
-
-Would you be open to a brief call to explore a potential partnership?
-
-Best regards,`}
-                />
-              </div>
-              <div className="buyer-report-inquiry-actions">
-                <button className="buyer-report-action-btn" onClick={() => setShowInquiry(false)}>취소</button>
-                <button className="buyer-report-action-btn buyer-report-action-btn--primary">🚀 1차 발송</button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
     </div>
   );
 }
