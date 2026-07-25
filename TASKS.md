@@ -22,6 +22,10 @@
 
 ## Active
 
+### 🧭 A-MVP — Landing 진입 경로
+
+- [x] **[A-001] Landing CTA 연결** — `LandingPage.jsx` 하단 CTA에서 유망국 분석(`AnalysisPage`), 수출 플로우(`ExportFlowPage`), 바이어 검색(`BuyerSearchPage`)으로 진입 가능. 기존 `App.jsx` 상태 라우팅 재사용, 새 라이브러리·백엔드 변경 없음. 검증: CTA/라우트 6/6 정적 연결 확인, `npm run build` 통과.
+
 ### 📬 Phase 2 — 인콰이어리 기능 구현
 
 - [x] **[M04] inquiry_service.py 생성** — services/p1-export-fit-api/app/services/inquiry_service.py 신규 작성. 입력: buyer_name, contact_email, hs_code, sender_company, sender_name, message(optional). 출력: inquiry_id(uuid4), draft_ko(한국어 템플릿), draft_en(영어 템플릿), created_at. 완료 기준: tests/test_inquiry_service.py PASS
