@@ -1,0 +1,128 @@
+name: PostgreSQL 16 Vault Migration Test
+
+on:
+  pull_request:
+    paths:
+      - "db/migrations/**"
+      - "db/tests/**"
+      - ".github/workflows/postgresql16-vault-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: postgresql16-vault-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  w020-postgresql16:
+    name: W-020 / PostgreSQL 16 + pgcrypto
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:16-bookworm
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: marketgate_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d marketgate_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGDATABASE: marketgate_test
+      PGUSER: postgres
+      PGPASSWORD: postgres
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Verify native PostgreSQL 16 server
+        run: |
+          server_version="$(psql -Atqc "SHOW server_version")"
+          echo "PostgreSQL server: ${server_version}"
+          case "${server_version}" in
+            16.*) ;;
+            *)
+              echo "Expected PostgreSQL 16.x, got ${server_version}" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Apply migrations 0001 through 0003
+        run: |
+          psql -v ON_ERROR_STOP=1 -f db/migrations/0001_init_phase0.sql
+          psql -v ON_ERROR_STOP=1 -f db/migrations/0002_vault_access_broker.sql
+          psql -v ON_ERROR_STOP=1 -f db/migrations/0003_vault_key_rotation.sql
+
+      - name: Verify pgcrypto installation
+        run: |
+          ext_schema="$(psql -Atqc "
+            SELECT n.nspname
+            FROM pg_extension e
+            JOIN pg_namespace n ON n.oid = e.extnamespace
+            WHERE e.extname = 'pgcrypto';
+          ")"
+          test "${ext_schema}" = "vault" || {
+            echo "Expected pgcrypto in vault schema, got '${ext_schema}'" >&2
+            exit 1
+          }
+
+      - name: Run W-020 key rotation regression
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/key_rotation_test.sql
+
+      - name: Verify rollback and privilege boundary
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          DO $check$
+          BEGIN
+            IF (SELECT count(*) FROM vault.key_registry WHERE status = 'ACTIVE') <> 1
+               OR NOT EXISTS (
+                 SELECT 1
+                 FROM vault.key_registry
+                 WHERE key_id = 'mg.vault_key/v1' AND status = 'ACTIVE'
+               ) THEN
+              RAISE EXCEPTION 'post-test active key state is invalid';
+            END IF;
+
+            IF EXISTS (
+              SELECT 1 FROM core.source_registry WHERE source_id = 'w020-test'
+            ) OR EXISTS (
+              SELECT 1 FROM core.audit_logs WHERE actor = 'w020-test'
+            ) THEN
+              RAISE EXCEPTION 'key_rotation_test.sql did not roll back cleanly';
+            END IF;
+
+            IF has_schema_privilege('mg_app', 'vault', 'USAGE') THEN
+              RAISE EXCEPTION 'mg_app unexpectedly has vault schema access';
+            END IF;
+
+            IF has_function_privilege(
+              'mg_app',
+              'broker.rotate_vault_key(text,text,text)',
+              'EXECUTE'
+            ) OR NOT has_function_privilege(
+              'mg_vault_key_admin',
+              'broker.rotate_vault_key(text,text,text)',
+              'EXECUTE'
+            ) THEN
+              RAISE EXCEPTION 'vault key rotation privilege boundary is invalid';
+            END IF;
+          END
+          $check$;
+          SQL
