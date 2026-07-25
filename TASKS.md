@@ -8,15 +8,15 @@
 
 ---
 
-## Phase 0 체크포인트 — 2026-07-23
+## Phase 0 체크포인트 — 2026-07-25
 
-- **재개 기준:** `main@84c64dd6e62e412b6dbb7408cc3d6c26aa4bff31`
-- **완료 WBS 13건:** `W-001`, `W-008`~`W-019`
-- **완료 산출물:** 17테이블 DDL·ERD·데이터 사전, Vault Access Broker
-- **검증 결과:** Phase 0 스키마 5/5 통과, Vault Broker 회귀 테스트 7/7 통과
+- **재개 기준:** `main@d1a564994c6d1b3acdcfdd86a549f1546fc0676f` ([PR #68](https://github.com/pds2225/marketgate/pull/68))
+- **완료 WBS 14건:** `W-001`, `W-008`~`W-020`
+- **완료 산출물:** 17테이블 DDL·ERD·데이터 사전, Vault Access Broker, Vault 키 레지스트리·회전 경계, PostgreSQL 16 회귀 CI
+- **검증 결과:** Phase 0 스키마 5/5, Vault Broker 7/7, PostgreSQL 16.14에서 `0001→0003`·`pgcrypto`·키 회전·롤백·권한 경계 통과 ([Actions run](https://github.com/pds2225/marketgate/actions/runs/30149928926))
 - **다음 개발 순서:** `W-003` 컴플라이언스 정책표 → `W-021` Source Rights Registry → `W-022` Legal Basis Ledger → `W-023` Suppression Registry → `W-024` Compliance Decision Engine
-- **운영 전 필수:** `W-020` KMS·Secrets 키 관리는 실제 연락처 또는 운영환경 투입 전에 완료
-- **재검증 보류:** Vercel 일일 배포 한도 초기화 후 배포 1회, SQL 보안 독립 리뷰 1회
+- **운영 배포 조건:** 실제 KMS·Secrets 어댑터가 키 값을 DB 외부에서 주입하도록 연결하고 운영 키·권한을 분리
+- **재검증 보류:** SQL 보안 독립 리뷰 1회
 
 ---
 
