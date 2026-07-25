@@ -401,6 +401,18 @@ export default function LandingPage({
         </div>
         <div className="landing-cta-actions">
           <button
+            className="ui-button ui-button--ghost"
+            onClick={() => onStartAnalysis?.()}
+          >
+            유망국 분석
+          </button>
+          <button
+            className="ui-button ui-button--ghost"
+            onClick={() => onStartFlow?.()}
+          >
+            수출 플로우
+          </button>
+          <button
             className="ui-button ui-button--solid"
             onClick={() => onStartBuyerSearch?.()}
           >
