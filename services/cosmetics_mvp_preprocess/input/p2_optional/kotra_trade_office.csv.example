@@ -1,0 +1,1 @@
+record_type,source_dataset,source_file,source_row_no,title,normalized_name,country_raw,country_norm,country_iso3,hs_code_raw,hs_code_norm,keywords_raw,keywords_norm,has_contact,contact_name,contact_email,contact_phone,contact_website,valid_until
