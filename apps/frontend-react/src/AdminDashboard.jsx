@@ -6,6 +6,7 @@ import {
   CheckCircle,
   Database,
   GitBranch,
+  Mail,
   PlayCircle,
   RefreshCw,
   Server,
@@ -14,6 +15,22 @@ import {
   XCircle,
 } from "lucide-react";
 import { API_BASE, ENDPOINTS } from "./config";
+import api from "./lib/api";
+
+// 인콰이어리 발송 상태 → 한글 라벨/색 (상태머신: draft → review_required → approved → queued → sent/failed)
+const INQUIRY_STATUS_META = {
+  draft: { label: "초안", color: "#6b7280" },
+  review_required: { label: "검토 대기", color: "#d97706" },
+  approved: { label: "승인됨", color: "#2563eb" },
+  queued: { label: "발송 큐", color: "#7c3aed" },
+  sent: { label: "발송됨", color: "#059669" },
+  failed: { label: "발송 실패", color: "#dc2626" },
+  rejected: { label: "반려됨", color: "#dc2626" },
+  delivered: { label: "수신 확인", color: "#059669" },
+  bounced: { label: "반송됨", color: "#dc2626" },
+  replied: { label: "회신 수신", color: "#059669" },
+  no_response: { label: "무응답", color: "#6b7280" },
+};
 
 const diagnosticLabels = {
   NO_KOTRA_CANDIDATES_FOR_HS6: "이 HS 코드에는 후보 국가가 없습니다.",
@@ -67,9 +84,63 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [logs, setLogs] = useState([]);
+  const [inquiries, setInquiries] = useState([]);
+  const [inquiryError, setInquiryError] = useState("");
+  const [inquiryBusy, setInquiryBusy] = useState(false);
 
   const pushLog = (msg, type = "info") => {
     setLogs((prev) => [...prev, { time: new Date().toLocaleTimeString(), msg, type }]);
+  };
+
+  const loadInquiries = async () => {
+    setInquiryBusy(true);
+    setInquiryError("");
+    try {
+      const res = await api.get("/v1/admin/inquiries");
+      setInquiries(res.data?.items || []);
+    } catch (err) {
+      setInquiryError(
+        err.response?.status === 403
+          ? "관리자 권한이 없습니다 (403 admin_required)."
+          : err.response?.data?.detail || "발송 큐 조회에 실패했습니다."
+      );
+    } finally {
+      setInquiryBusy(false);
+    }
+  };
+
+  const inquiryAction = async (inquiryId, action, payload = {}) => {
+    setInquiryBusy(true);
+    try {
+      await api.post(`/v1/admin/inquiries/${inquiryId}/${action}`, payload);
+      pushLog(`✓ 인콰이어리 ${inquiryId.slice(0, 8)}… ${action} 처리 완료`, "success");
+      await loadInquiries();
+    } catch (err) {
+      const detail = err.response?.data?.detail || String(err);
+      pushLog(`✗ 인콰이어리 ${action} 실패: ${detail}`, "error");
+      setInquiryBusy(false);
+    }
+  };
+
+  const handleReject = (inquiryId) => {
+    const reason = window.prompt("반려 사유를 입력하세요", "수신자 정보 확인 필요");
+    if (reason === null) return;
+    inquiryAction(inquiryId, "reject", { reason });
+  };
+
+  const handleMarkSent = (inquiryId) => {
+    const providerId = window.prompt(
+      "발송에 사용한 메일의 메시지 ID를 입력하세요 (수동 발송 후 기록, 없으면 비워두기)",
+      ""
+    );
+    if (providerId === null) return;
+    inquiryAction(inquiryId, "mark-sent", providerId ? { provider_message_id: providerId } : {});
+  };
+
+  const handleMarkFailed = (inquiryId) => {
+    const reason = window.prompt("발송 실패 사유를 입력하세요", "SMTP 반송");
+    if (!reason) return;
+    inquiryAction(inquiryId, "mark-failed", { failure_reason: reason });
   };
 
   const checkSystemStatus = async () => {
@@ -161,6 +232,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     checkSystemStatus();
+    loadInquiries();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -241,6 +313,93 @@ export default function AdminDashboard() {
         <Button onClick={testLegacyAPI} disabled={loading} icon={<Activity />} variant="warning">
           호환성 테스트
         </Button>
+      </div>
+
+      {/* 인콰이어리 발송 큐 — draft → review_required → approved → queued → sent/failed */}
+      <div
+        style={{
+          backgroundColor: "#fff",
+          padding: 24,
+          borderRadius: 12,
+          marginBottom: 32,
+          border: "1px solid #e5e7eb",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <h2 style={{ fontSize: 20, fontWeight: "bold", margin: 0 }}>
+            <Mail style={{ display: "inline", marginRight: 8, width: 20, height: 20 }} />
+            인콰이어리 발송 큐
+          </h2>
+          <Button onClick={loadInquiries} disabled={inquiryBusy} icon={<RefreshCw />} variant="primary">
+            큐 새로고침
+          </Button>
+        </div>
+        <p style={{ color: "#6b7280", fontSize: 13, marginTop: 0 }}>
+          검토 대기 건을 승인/반려하고, 수동 발송 후 성공·실패 결과를 기록합니다. 실제 이메일 발송은 자동화되어 있지 않습니다.
+        </p>
+
+        {inquiryError ? (
+          <div style={{ padding: 16, borderRadius: 8, backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", fontSize: 14 }}>
+            {inquiryError}
+          </div>
+        ) : inquiries.length === 0 ? (
+          <div style={{ padding: 24, borderRadius: 8, backgroundColor: "#f9fafb", border: "1px dashed #d1d5db", color: "#6b7280", fontSize: 14, textAlign: "center" }}>
+            발송 큐가 비어 있습니다. 사용자 화면(수출 플로우 2단계)에서 발송 요청이 접수되면 여기에 표시됩니다.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: 12 }}>
+            {inquiries.map((item) => {
+              const meta = INQUIRY_STATUS_META[item.status] || { label: item.status, color: "#6b7280" };
+              return (
+                <div key={item.inquiry_id} style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <strong style={{ fontSize: 15 }}>{item.buyer_name}</strong>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", backgroundColor: meta.color, borderRadius: 999, padding: "2px 10px" }}>
+                      {meta.label} ({item.status})
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 13, color: "#4b5563", lineHeight: 1.8 }}>
+                    수신: <strong>{item.recipient_email}</strong> · HS {item.hs_code || "-"} · 발신 {item.sender_company_id} ({item.sender_name})
+                    <br />
+                    요청 ID: <span style={{ fontFamily: "monospace" }}>{item.inquiry_id}</span> · 생성 {item.created_at?.slice(0, 19).replace("T", " ")}
+                    {item.approved_by && <> · 승인자 {item.approved_by}</>}
+                    {item.provider_message_id && <> · 발송 ID {item.provider_message_id}</>}
+                    {item.sent_at && <> · 발송 {item.sent_at.slice(0, 19).replace("T", " ")}</>}
+                    {item.replied_at && <> · 회신 {item.replied_at.slice(0, 19).replace("T", " ")}</>}
+                    {item.failure_reason && <><br /><span style={{ color: "#b91c1c" }}>실패 사유: {item.failure_reason}</span></>}
+                    {item.review_note && <><br /><span style={{ color: "#b45309" }}>반려/검토 메모: {item.review_note}</span></>}
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                    {item.status === "review_required" && (
+                      <>
+                        <Button onClick={() => inquiryAction(item.inquiry_id, "approve")} disabled={inquiryBusy} variant="success">승인</Button>
+                        <Button onClick={() => handleReject(item.inquiry_id)} disabled={inquiryBusy} variant="warning">반려</Button>
+                      </>
+                    )}
+                    {item.status === "approved" && (
+                      <Button onClick={() => inquiryAction(item.inquiry_id, "queue")} disabled={inquiryBusy} variant="primary">발송 큐 등록</Button>
+                    )}
+                    {item.status === "queued" && (
+                      <>
+                        <Button onClick={() => handleMarkSent(item.inquiry_id)} disabled={inquiryBusy} variant="success">발송 성공 기록</Button>
+                        <Button onClick={() => handleMarkFailed(item.inquiry_id)} disabled={inquiryBusy} variant="warning">발송 실패 기록</Button>
+                      </>
+                    )}
+                    {(item.status === "sent" || item.status === "delivered") && (
+                      <>
+                        <Button onClick={() => inquiryAction(item.inquiry_id, "record-result", { result: "replied" })} disabled={inquiryBusy} variant="success">회신 등록(수동)</Button>
+                        <Button onClick={() => inquiryAction(item.inquiry_id, "record-result", { result: "no_response" })} disabled={inquiryBusy} variant="primary">무응답 처리</Button>
+                        {item.status === "sent" && (
+                          <Button onClick={() => inquiryAction(item.inquiry_id, "record-result", { result: "bounced" })} disabled={inquiryBusy} variant="warning">반송 처리</Button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {testResult && (

@@ -9,10 +9,18 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
   const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
   const [focused, setFocused] = useState(null)
+  // 실측 집계(/v1/demo/summary)만 표시 — 근거 없는 수치(50K+, 98% 등)는 사용하지 않는다
+  const [dataStats, setDataStats] = useState(null)
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 80)
     return () => clearTimeout(t)
+  }, [])
+
+  useEffect(() => {
+    api.get('/v1/demo/summary')
+      .then(r => setDataStats({ total: r.data?.total, countryCount: r.data?.countryCount }))
+      .catch(() => setDataStats(null))
   }, [])
 
   const submit = async (e) => {
@@ -321,16 +329,16 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
           </div>
           <div className="auth-stats">
             <div>
-              <div className="auth-stat-val">180+</div>
-              <div className="auth-stat-lbl">국가 커버리지</div>
+              <div className="auth-stat-val">{dataStats?.countryCount != null ? dataStats.countryCount.toLocaleString() : '—'}</div>
+              <div className="auth-stat-lbl">개국 데이터 (등록 기준)</div>
             </div>
             <div>
-              <div className="auth-stat-val">50K+</div>
-              <div className="auth-stat-lbl">바이어 DB</div>
+              <div className="auth-stat-val">{dataStats?.total != null ? dataStats.total.toLocaleString() : '—'}</div>
+              <div className="auth-stat-lbl">바이어 후보 (등록 데이터 기준)</div>
             </div>
             <div>
-              <div className="auth-stat-val">98%</div>
-              <div className="auth-stat-lbl">매칭 정확도</div>
+              <div className="auth-stat-val">HS 330499</div>
+              <div className="auth-stat-lbl">K-뷰티 파일럿 품목</div>
             </div>
           </div>
         </div>

@@ -19,6 +19,8 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { buildP1Url, ENDPOINTS } from "./config";
 import { displayPhone } from "./lib/phone";
+import { computeProfitability } from "./lib/profitability";
+import api from "./lib/api";
 import BuyerReport from "./BuyerReport";
 
 const hsExamples = [
@@ -171,7 +173,6 @@ function normalizeP1Response(payload) {
 function buildBuyerReportFromApi(item, hsLabel) {
   const today = new Date();
   const dateStr = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일`;
-  const dataDateStr = `${today.getFullYear()}년 ${today.getMonth() + 1}월`;
 
   const score = item.final_score ?? 0;
   const bars = item.score_breakdown || {};
@@ -181,14 +182,18 @@ function buildBuyerReportFromApi(item, hsLabel) {
     return "█".repeat(filled) + "░".repeat(16 - filled);
   };
 
+  // 리포트 ID는 난수 대신 날짜+바이어명 기반으로 결정적으로 생성 (동일 입력 → 동일 결과)
+  const buyerSlug = String(item.buyer_name || "buyer").replace(/[^a-z0-9]/gi, "").slice(0, 6).toUpperCase() || "BUYER";
+
   return {
-    reportId: `#MG-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}-${Math.floor(Math.random() * 900 + 100)}`,
+    reportId: `#MG-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}-${buyerSlug}`,
     issuedAt: dateStr,
     targetCountry: item.source_target_country_name || item.country_norm || "미확인",
     targetCountryIso3: item.source_target_country_iso3 || "",
     hsCode: item.hs_code_norm || "",
     hsLabel: hsLabel || "수출품목",
-    dataDate: dataDateStr,
+    // 원본에 데이터 기준일이 없으므로 오늘 날짜를 만들어 넣지 않는다
+    dataDate: "자료 내 확인 불가",
     company: {
       name: item.buyer_name || "이름 미확인",
       normalizedName: (item.buyer_name || "").toLowerCase(),
@@ -214,18 +219,26 @@ function buildBuyerReportFromApi(item, hsLabel) {
       : item.explanation_reasons?.length
         ? item.explanation_reasons
         : ["해당 바이어는 추천 점수 기준으로 선정되었습니다."],
-    dataSource: item.source_dataset || "KOTRA 글로벌 바이어 정보",
+    dataSource: item.source_dataset || "출처 미상",
     sourceFile: item.source_dataset ? `${item.source_dataset}.csv` : "-",
     sourceRow: "-",
-    lastVerified: dateStr,
-    trustStatus: item.has_contact ? "verified" : "estimated",
+    // 원본에 검증일이 없으므로 오늘 날짜를 검증일로 표기하지 않는다
+    lastVerified: "자료 내 확인 불가",
+    // 연락처 보유 ≠ 검증 완료 — 상태값을 분리해 전달한다
+    contactStatus: item.has_contact ? "discovered" : "unavailable",
+    tradeStatus: item.source_verification === "verified" ? "source_confirmed" : "unavailable",
+    creditStatus: "not_requested",
   };
 }
 
 async function fetchJson(url, body) {
+  const token = localStorage.getItem("access_token");
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify(body),
   });
   let payload = null;
@@ -304,22 +317,175 @@ async function requestAnalysis(hsCode, topN, year) {
   }
 }
 
+/* ── DispatchRequestModal — 인콰이어리 발송 요청 (draft → review_required) ── */
+function DispatchRequestModal({ buyer, hsCode, onClose }) {
+  const [senderCompany, setSenderCompany] = useState("");
+  const [senderName, setSenderName] = useState("");
+  const [message, setMessage] = useState("");
+  const [draftRecord, setDraftRecord] = useState(null);
+  const [submitted, setSubmitted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const createDraft = async () => {
+    if (!senderCompany.trim() || !senderName.trim()) {
+      setError("회사명과 담당자 이름을 입력해 주세요.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const res = await api.post("/v1/inquiries", {
+        buyer_name: buyer.buyer_name,
+        buyer_id: buyer.buyer_name,
+        recipient_email: buyer.contact_email,
+        hs_code: hsCode,
+        sender_company: senderCompany.trim(),
+        sender_name: senderName.trim(),
+        message: message.trim(),
+        country: buyer.source_target_country_name || buyer.country_norm || "",
+        match_relevance: buyer.match_relevance,
+        recommendation_lines: buyer.recommendation_lines,
+      });
+      setDraftRecord(res.data);
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      setError(
+        detail === "contact_missing"
+          ? "연락처(이메일)가 없는 바이어는 발송 요청을 만들 수 없습니다."
+          : detail || "초안 생성에 실패했습니다."
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitForReview = async () => {
+    if (!draftRecord) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await api.post(`/v1/inquiries/${draftRecord.inquiry_id}/submit`);
+      setDraftRecord(res.data);
+      setSubmitted(true);
+    } catch (err) {
+      setError(err.response?.data?.detail || "검토 요청에 실패했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <motion.div
+      style={{
+        position: "fixed", inset: 0, zIndex: 210, display: "flex",
+        alignItems: "center", justifyContent: "center",
+        background: "rgba(2, 6, 23, 0.72)", padding: 24,
+      }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        style={{
+          width: "100%", maxWidth: 560, maxHeight: "85vh", overflowY: "auto",
+          background: "#0f172a", border: "1px solid rgba(148,163,184,0.28)",
+          borderRadius: 20, padding: 24,
+        }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <h3 style={{ margin: 0, fontSize: 17 }}>✉️ 인콰이어리 발송 요청 — {buyer.buyer_name}</h3>
+          <button className="ui-button ui-button--ghost" onClick={onClose} style={{ padding: 6 }}>
+            <X size={18} />
+          </button>
+        </div>
+        <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 0 }}>
+          받는 사람: <strong style={{ color: "#e2e8f0" }}>{buyer.contact_email}</strong>
+          <br />
+          제출하면 관리자 검토(승인/반려) 후 수동 발송되며, 발송 결과가 기록됩니다.
+        </p>
+
+        {submitted ? (
+          <div style={{ padding: 16, borderRadius: 12, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.35)", fontSize: 14 }}>
+            <strong style={{ color: "#4ade80" }}>관리자 검토 대기 중</strong>
+            <div style={{ color: "#cbd5e1", marginTop: 6, fontSize: 13 }}>
+              상태: review_required · 요청 ID: {draftRecord?.inquiry_id}
+            </div>
+          </div>
+        ) : draftRecord ? (
+          <div>
+            <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 6 }}>영문 초안 미리보기 (상태: {draftRecord.status})</div>
+            <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: 12, lineHeight: 1.6, background: "rgba(15,23,42,0.6)", border: "1px solid rgba(148,163,184,0.25)", borderRadius: 12, padding: 14, maxHeight: 240, overflowY: "auto" }}>
+              {draftRecord.draft_en}
+            </pre>
+            {error ? <p style={{ color: "#f87171", fontSize: 13 }}>{error}</p> : null}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
+              <button className="ui-button ui-button--ghost" onClick={onClose}>닫기</button>
+              <button className="ui-button ui-button--solid" onClick={submitForReview} disabled={busy}>
+                {busy ? <LoaderCircle size={16} className="analysis-spin" /> : <Mail size={16} />}
+                관리자 검토 요청
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div style={{ display: "grid", gap: 10 }}>
+              <label className="analysis-field">
+                <span>발신 회사명</span>
+                <input type="text" value={senderCompany} onChange={(e) => setSenderCompany(e.target.value)} placeholder="예: (주)마켓게이트" />
+              </label>
+              <label className="analysis-field">
+                <span>담당자 이름</span>
+                <input type="text" value={senderName} onChange={(e) => setSenderName(e.target.value)} placeholder="예: 홍길동" />
+              </label>
+              <label className="analysis-field">
+                <span>추가 메시지 (선택)</span>
+                <input type="text" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="제품·MOQ 등 강조할 내용" />
+              </label>
+            </div>
+            {error ? <p style={{ color: "#f87171", fontSize: 13 }}>{error}</p> : null}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
+              <button className="ui-button ui-button--ghost" onClick={onClose}>취소</button>
+              <button className="ui-button ui-button--solid" onClick={createDraft} disabled={busy}>
+                {busy ? <LoaderCircle size={16} className="analysis-spin" /> : <FileText size={16} />}
+                초안 생성
+              </button>
+            </div>
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
 /* ── ProfitSimulator (Step 3) ── */
 function ProfitSimulator({ selectedBuyer, hsCode, onComplete }) {
   const [unitPrice, setUnitPrice] = useState(100);
   const [quantity, setQuantity] = useState(1000);
+  const [unitCost, setUnitCost] = useState(60);
   const [logisticsCost, setLogisticsCost] = useState(2500);
+  const [insuranceCost, setInsuranceCost] = useState(300);
   const [tariffRate, setTariffRate] = useState(8);
+  const [customsFee, setCustomsFee] = useState(200);
+  const [paymentFeeRate, setPaymentFeeRate] = useState(2.5);
   const [exchangeRate, setExchangeRate] = useState(1350);
   const [otherCost, setOtherCost] = useState(500);
   const [senderCompany, setSenderCompany] = useState("");
   const [senderName, setSenderName] = useState("");
 
-  const revenueUSD = unitPrice * quantity;
-  const tariffUSD = revenueUSD * (tariffRate / 100);
-  const totalCostUSD = logisticsCost + tariffUSD + otherCost;
-  const profitUSD = revenueUSD - totalCostUSD;
-  const profitRate = revenueUSD > 0 ? (profitUSD / revenueUSD) * 100 : 0;
+  const sim = computeProfitability({
+    unitPrice, quantity, unitCost, logisticsCost, insuranceCost,
+    tariffRate, customsFee, paymentFeeRate, otherCost,
+  });
+  const revenueUSD = sim.revenue;
+  const totalCostUSD = sim.totalCost;
+  const profitUSD = sim.profit;
+  const profitRate = sim.profitRate;
   const revenueKRW = revenueUSD * exchangeRate;
   const profitKRW = profitUSD * exchangeRate;
 
@@ -350,7 +516,7 @@ function ProfitSimulator({ selectedBuyer, hsCode, onComplete }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 20 }}>
         <label className="analysis-field">
-          <span>단가 (USD)</span>
+          <span>판매 단가 (USD)</span>
           <input type="number" value={unitPrice} onChange={(e) => setUnitPrice(Number(e.target.value))} min={0} />
         </label>
         <label className="analysis-field">
@@ -358,12 +524,28 @@ function ProfitSimulator({ selectedBuyer, hsCode, onComplete }) {
           <input type="number" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} min={0} />
         </label>
         <label className="analysis-field">
-          <span>물류비 (USD)</span>
+          <span>제품 원가 (개당, USD)</span>
+          <input type="number" value={unitCost} onChange={(e) => setUnitCost(Number(e.target.value))} min={0} />
+        </label>
+        <label className="analysis-field">
+          <span>국제 물류비 (USD)</span>
           <input type="number" value={logisticsCost} onChange={(e) => setLogisticsCost(Number(e.target.value))} min={0} />
+        </label>
+        <label className="analysis-field">
+          <span>보험료 (USD)</span>
+          <input type="number" value={insuranceCost} onChange={(e) => setInsuranceCost(Number(e.target.value))} min={0} />
         </label>
         <label className="analysis-field">
           <span>관세율 (%)</span>
           <input type="number" value={tariffRate} onChange={(e) => setTariffRate(Number(e.target.value))} min={0} max={100} />
+        </label>
+        <label className="analysis-field">
+          <span>통관비 (USD)</span>
+          <input type="number" value={customsFee} onChange={(e) => setCustomsFee(Number(e.target.value))} min={0} />
+        </label>
+        <label className="analysis-field">
+          <span>결제수수료율 (%)</span>
+          <input type="number" value={paymentFeeRate} onChange={(e) => setPaymentFeeRate(Number(e.target.value))} min={0} max={100} step={0.1} />
         </label>
         <label className="analysis-field">
           <span>환율 (KRW/USD)</span>
@@ -405,7 +587,7 @@ function ProfitSimulator({ selectedBuyer, hsCode, onComplete }) {
         >
           <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 6 }}>총 비용</div>
           <div style={{ fontSize: 22, fontWeight: 700 }}>{formatUsd(totalCostUSD)}</div>
-          <div style={{ fontSize: 13, color: "#cbd5e1" }}>물류 {formatUsd(logisticsCost)} + 관세 {formatUsd(tariffUSD)} + 기타 {formatUsd(otherCost)}</div>
+          <div style={{ fontSize: 13, color: "#cbd5e1" }}>원가 {formatUsd(sim.productCost)} + 물류 {formatUsd(logisticsCost)} + 보험 {formatUsd(insuranceCost)} + 관세 {formatUsd(sim.tariff)} + 통관 {formatUsd(customsFee)} + 결제수수료 {formatUsd(sim.paymentFee)} + 기타 {formatUsd(otherCost)}</div>
         </div>
         <div
           style={{
@@ -438,7 +620,7 @@ function ProfitSimulator({ selectedBuyer, hsCode, onComplete }) {
       </div>
 
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-        <button className="ui-button ui-button--solid" onClick={() => onComplete?.({ unitPrice, quantity, logisticsCost, tariffRate, exchangeRate, otherCost, profitUSD, profitRate, senderCompany: senderCompany.trim(), senderName: senderName.trim() })}>
+        <button className="ui-button ui-button--solid" onClick={() => onComplete?.({ unitPrice, quantity, unitCost, logisticsCost, insuranceCost, tariffRate, customsFee, paymentFeeRate, exchangeRate, otherCost, profitUSD, profitRate, senderCompany: senderCompany.trim(), senderName: senderName.trim() })}>
           수익성 확인 완료 — 주문서 작성으로
           <ArrowRight size={16} />
         </button>
@@ -450,9 +632,11 @@ function ProfitSimulator({ selectedBuyer, hsCode, onComplete }) {
 /* ── PurchaseOrderGenerator (Step 4) ── */
 function PurchaseOrderGenerator({ selectedBuyer, simulationParams, hsCode, onReset }) {
   const today = new Date();
-  const poId = `PO-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}-${Math.floor(Math.random() * 9000 + 1000)}`;
-
   const buyerName = selectedBuyer?.buyer_name || "Buyer Name";
+  // 문서번호는 난수 대신 날짜+바이어명 기반으로 결정적으로 생성한다 (동일 입력 → 동일 결과)
+  const buyerSlug = buyerName.replace(/[^a-z0-9]/gi, "").slice(0, 6).toUpperCase() || "DRAFT";
+  const poId = `PO-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}-${buyerSlug}`;
+
   const buyerEmail = selectedBuyer?.contact_email || "-";
   const buyerCountry = selectedBuyer?.source_target_country_name || selectedBuyer?.country_norm || "-";
   const productDesc = hsCode ? `HS ${hsCode} 수출 품목` : "수출 품목";
@@ -461,6 +645,7 @@ function PurchaseOrderGenerator({ selectedBuyer, simulationParams, hsCode, onRes
   const qty = sp.quantity || 0;
   const price = sp.unitPrice || 0;
   const total = qty * price;
+  const costSummary = computeProfitability(sp);
 
   const poText = [
     `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
@@ -492,8 +677,12 @@ function PurchaseOrderGenerator({ selectedBuyer, simulationParams, hsCode, onRes
     ``,
     `【비용 요약】`,
     `  매출액: USD ${total.toLocaleString()}`,
-    `  물류비: USD ${(sp.logisticsCost || 0).toLocaleString()}`,
-    `  관세: USD ${(Math.round(total * ((sp.tariffRate || 0) / 100) * 100) / 100).toLocaleString()}`,
+    `  제품원가: USD ${costSummary.productCost.toLocaleString()}`,
+    `  국제물류비: USD ${(sp.logisticsCost || 0).toLocaleString()}`,
+    `  보험료: USD ${(sp.insuranceCost || 0).toLocaleString()}`,
+    `  관세: USD ${(Math.round(costSummary.tariff * 100) / 100).toLocaleString()}`,
+    `  통관비: USD ${(sp.customsFee || 0).toLocaleString()}`,
+    `  결제수수료: USD ${(Math.round(costSummary.paymentFee * 100) / 100).toLocaleString()}`,
     `  기타비용: USD ${(sp.otherCost || 0).toLocaleString()}`,
     `  예상 순이익: USD ${(sp.profitUSD || 0).toLocaleString()} (${(sp.profitRate || 0).toFixed(1)}%)`,
     ``,
@@ -601,6 +790,7 @@ export default function ExportFlowPage({ onBack }) {
 
   const [showBuyerReport, setShowBuyerReport] = useState(false);
   const [reportBuyer, setReportBuyer] = useState(null);
+  const [dispatchBuyer, setDispatchBuyer] = useState(null);
 
   const deferredSelectedId = useDeferredValue(selectedRecId);
   const selectedRecommendation =
@@ -835,7 +1025,7 @@ export default function ExportFlowPage({ onBack }) {
                 <div>
                   <p className="analysis-kicker">Step 2</p>
                   <h2>저품질·저적합 바이어 필터링</h2>
-                  <p>추천된 국가에서 검증된 바이어 후보를 확인하고 인콰이어리 대상을 선택하세요.</p>
+                  <p>추천된 국가에서 출처 확인된 바이어 후보를 살펴보고 인콰이어리 대상을 선택하세요.</p>
                 </div>
               </div>
 
@@ -935,6 +1125,23 @@ export default function ExportFlowPage({ onBack }) {
                               <FileText size={14} />
                               상세 리포트 보기
                             </button>
+                            <button
+                              className="ui-button ui-button--solid"
+                              style={{ fontSize: 12, padding: "6px 10px", opacity: item.contact_email ? 1 : 0.45, cursor: item.contact_email ? "pointer" : "not-allowed" }}
+                              disabled={!item.contact_email}
+                              title={item.contact_email ? "관리자 검토 후 수동 발송됩니다" : "연락처(이메일) 없는 바이어는 발송 요청을 만들 수 없습니다"}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!item.contact_email) return;
+                                setDispatchBuyer(item);
+                              }}
+                            >
+                              <Mail size={14} />
+                              발송 요청
+                            </button>
+                            {!item.contact_email && (
+                              <span style={{ fontSize: 11, color: "#f87171" }}>연락처 없음 — 발송 불가</span>
+                            )}
                           </div>
                         )}
                       </div>
@@ -953,6 +1160,17 @@ export default function ExportFlowPage({ onBack }) {
                   <ArrowRight size={16} />
                 </button>
               </div>
+
+              {/* 발송 요청 모달 */}
+              <AnimatePresence>
+                {dispatchBuyer && (
+                  <DispatchRequestModal
+                    buyer={dispatchBuyer}
+                    hsCode={hsCode}
+                    onClose={() => setDispatchBuyer(null)}
+                  />
+                )}
+              </AnimatePresence>
 
               {/* BuyerReport 모달 */}
               <AnimatePresence>
