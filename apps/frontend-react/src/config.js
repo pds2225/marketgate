@@ -51,4 +51,6 @@ export const ENDPOINTS = {
   legacyPredict: buildP1Url("/predict"),
   snapshot: buildP1Url("/v1/snapshot"),
   demoSnapshot: buildP1Url("/v1/demo/snapshot"),
+  opportunities: buildP1Url("/v1/opportunities"),
+  opportunitiesSummary: buildP1Url("/v1/opportunities/summary"),
 };
