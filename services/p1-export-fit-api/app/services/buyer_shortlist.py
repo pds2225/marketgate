@@ -183,6 +183,7 @@ def _empty_buyer_meta(source_countries: list[dict[str, Any]]) -> dict[str, Any]:
         "selected_opportunity_countries": [],
         "selected_opportunity_signal_types": [],
         "selected_opportunity_match_scores": [],
+        "opportunity_signals": [],
         "soft_penalty_distribution": {},
         "country_shortlist_before_merge": {},
         "country_shortlist_after_merge": {},
@@ -272,6 +273,8 @@ def _merge_shortlist_results(
     selected_countries: list[str] = []
     signal_types: list[str] = []
     match_score_entries: list[dict[str, Any]] = []
+    opportunity_signals: list[dict[str, Any]] = []
+    seen_opportunity_keys: set[tuple[str, str, str]] = set()
     soft_penalty_counter: Counter[str] = Counter()
     country_shortlist_before_merge: dict[str, int] = {}
     country_returned_after_merge: dict[str, int] = defaultdict(int)
@@ -324,6 +327,25 @@ def _merge_shortlist_results(
             "opportunity_source_dataset": opportunity_source,
             "opportunity_source_file": opportunity_source_file,
         })
+
+        # 국가별 매칭 상위 구매신호(원본 필드 전체)를 병합 — 갖고 있는 opportunity_item만
+        for signal in meta.get("matched_opportunity_signals") or []:
+            if not isinstance(signal, dict):
+                continue
+            title = str(signal.get("opportunity_title") or "").strip()
+            if not title:
+                continue
+            key = (
+                title.casefold(),
+                str(signal.get("opportunity_country_norm") or "").strip().casefold(),
+                str(signal.get("opportunity_source_row_no") or "").strip(),
+            )
+            if key in seen_opportunity_keys:
+                continue
+            seen_opportunity_keys.add(key)
+            enriched_signal = dict(signal)
+            enriched_signal.setdefault("country_iso3", country_key)
+            opportunity_signals.append(enriched_signal)
 
         for item in shortlist.get("items") or []:
             enriched = dict(item)
@@ -417,6 +439,7 @@ def _merge_shortlist_results(
         "selected_opportunity_countries": selected_countries,
         "selected_opportunity_signal_types": signal_types,
         "selected_opportunity_match_scores": match_score_entries,
+        "opportunity_signals": opportunity_signals[:24],
         "soft_penalty_distribution": dict(sorted(soft_penalty_counter.items())),
         "country_shortlist_before_merge": country_shortlist_before_merge,
         "country_shortlist_after_merge": country_shortlist_after_merge,

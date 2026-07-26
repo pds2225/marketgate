@@ -44,6 +44,7 @@ interface Buyer {
   score: number; scoreLabel: string;
   metrics: { label: string; value: number }[] | null;
   hsCode: string; hsLabel: string; keywords: string[];
+  matchedBy?: string; decision?: string; buyerHsCode?: string; keywordsRaw?: string;
   reasons: { text: string; source: string }[];
   importHistory: null; totalImportValue: null; importGrowthRate: null;
   rfm: null; lastUpdatedDays: null;
@@ -316,52 +317,65 @@ interface OpportunitySignal {
   signalType: string;
   hsCode: string;
   keywords: string;
+  productName: string;
   validUntil: string;
   sourceDataset: string;
   sourceFile: string;
+  sourceRowNo: string;
+  hasContact: boolean;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+  contactWebsite: string;
   signalUsable: boolean;
+  snapshotDate: string;
   scoringApplied: boolean;
   matchScore: number | null;
 }
 
 function buildOpportunitySignals(meta: any): OpportunitySignal[] {
   if (!meta || typeof meta !== 'object') return [];
+  const mapEntry = (entry: any): OpportunitySignal => ({
+    title: String(entry.opportunity_title || entry.title || '').trim(),
+    countryIso3: String(entry.country_iso3 || entry.opportunity_country_iso3 || '').trim().toUpperCase(),
+    countryName: String(entry.opportunity_country_norm || '').trim(),
+    signalType: String(entry.opportunity_signal_type || '').trim(),
+    hsCode: String(entry.opportunity_hs_code_norm || '').trim(),
+    keywords: String(entry.opportunity_keywords_norm || '').trim(),
+    productName: String(entry.opportunity_product_name || '').trim(),
+    validUntil: String(entry.opportunity_valid_until || '').trim(),
+    sourceDataset: String(entry.opportunity_source_dataset || '').trim(),
+    sourceFile: String(entry.opportunity_source_file || '').trim(),
+    sourceRowNo: String(entry.opportunity_source_row_no || '').trim(),
+    hasContact: Boolean(entry.opportunity_has_contact),
+    contactName: String(entry.opportunity_contact_name || '').trim(),
+    contactEmail: String(entry.opportunity_contact_email || '').trim(),
+    contactPhone: String(entry.opportunity_contact_phone || '').trim(),
+    contactWebsite: String(entry.opportunity_contact_website || '').trim(),
+    signalUsable: Boolean(entry.opportunity_signal_usable),
+    snapshotDate: String(entry.opportunity_snapshot_date || '').trim(),
+    scoringApplied: Boolean(entry.scoring_opportunity_applied),
+    matchScore: entry.match_score == null || entry.match_score === '' ? null : Number(entry.match_score),
+  });
+
+  const rich = Array.isArray(meta.opportunity_signals)
+    ? meta.opportunity_signals
+    : Array.isArray(meta.matched_opportunity_signals)
+      ? meta.matched_opportunity_signals
+      : [];
+  if (rich.length > 0) return rich.map(mapEntry).filter((row: OpportunitySignal) => row.title);
+
   const scores = Array.isArray(meta.selected_opportunity_match_scores) ? meta.selected_opportunity_match_scores : [];
-  if (scores.length > 0) {
-    return scores
-      .filter((entry: any) => String(entry?.opportunity_title || '').trim())
-      .map((entry: any) => ({
-        title: String(entry.opportunity_title).trim(),
-        countryIso3: String(entry.country_iso3 || '').trim().toUpperCase(),
-        countryName: String(entry.opportunity_country_norm || '').trim(),
-        signalType: String(entry.opportunity_signal_type || '').trim(),
-        hsCode: String(entry.opportunity_hs_code_norm || '').trim(),
-        keywords: String(entry.opportunity_keywords_norm || '').trim(),
-        validUntil: String(entry.opportunity_valid_until || '').trim(),
-        sourceDataset: String(entry.opportunity_source_dataset || '').trim(),
-        sourceFile: String(entry.opportunity_source_file || '').trim(),
-        signalUsable: Boolean(entry.opportunity_signal_usable),
-        scoringApplied: Boolean(entry.scoring_opportunity_applied),
-        matchScore: entry.match_score == null || entry.match_score === '' ? null : Number(entry.match_score),
-      }));
-  }
+  if (scores.length > 0) return scores.map(mapEntry).filter((row: OpportunitySignal) => row.title);
+
   const titles = Array.isArray(meta.selected_opportunity_titles) ? meta.selected_opportunity_titles : [];
   const countries = Array.isArray(meta.selected_opportunity_countries) ? meta.selected_opportunity_countries : [];
   const types = Array.isArray(meta.selected_opportunity_signal_types) ? meta.selected_opportunity_signal_types : [];
   return titles
-    .map((title: string, index: number) => ({
-      title: String(title || '').trim(),
-      countryIso3: '',
-      countryName: String(countries[index] || '').trim(),
-      signalType: String(types[index] || '').trim(),
-      hsCode: '',
-      keywords: '',
-      validUntil: '',
-      sourceDataset: '',
-      sourceFile: '',
-      signalUsable: false,
-      scoringApplied: false,
-      matchScore: null,
+    .map((title: string, index: number) => mapEntry({
+      opportunity_title: title,
+      opportunity_country_norm: countries[index] || '',
+      opportunity_signal_type: types[index] || '',
     }))
     .filter((row: OpportunitySignal) => row.title);
 }
@@ -415,10 +429,20 @@ const OpportunitySignalsBanner: React.FC<{ signals: OpportunitySignal[] }> = ({ 
               </div>
               <p className="text-sm font-medium text-slate-900 leading-snug mb-2">{signal.title}</p>
               <div className="space-y-1">
+                <OpportunityFact label="품명" value={signal.productName} />
                 <OpportunityFact label="HS" value={signal.hsCode} />
                 <OpportunityFact label="키워드" value={keywords.length ? keywords.join(' · ') : ''} />
                 <OpportunityFact label="유효기한" value={signal.validUntil} />
+                <OpportunityFact label="수집일" value={signal.snapshotDate} />
                 <OpportunityFact label="출처" value={signal.sourceDataset} />
+                <OpportunityFact
+                  label="연락처"
+                  value={
+                    signal.hasContact
+                      ? [signal.contactName, signal.contactEmail, signal.contactPhone, signal.contactWebsite].filter(Boolean).join(' · ')
+                      : ''
+                  }
+                />
                 <OpportunityFact
                   label="매칭"
                   value={signal.matchScore == null || Number.isNaN(signal.matchScore) ? '' : `${signal.matchScore} (엔진 참고)`}

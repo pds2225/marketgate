@@ -109,10 +109,18 @@ export function mapApiBuyerToViewModel(item, index, hsCode, categoryLabel) {
     scoreLabel:
       (item.final_score ?? 0) >= 90 ? '매우 적합' : (item.final_score ?? 0) >= 80 ? '적합' : '보통',
     metrics: buildMetrics(item.score_breakdown),
-    hsCode,
+    hsCode: item.hs_code_norm || hsCode,
     hsLabel: categoryLabel,
-    keywords: item.matched_terms || [],
+    keywords: item.matched_terms?.length
+      ? item.matched_terms
+      : String(item.keywords_norm || '')
+          .split('|')
+          .map((part) => part.trim())
+          .filter((part) => part && part.toLowerCase() !== 'none'),
     matchedBy: item.matched_by || '',
+    decision: item.decision || '',
+    buyerHsCode: item.hs_code_norm || '',
+    keywordsRaw: item.keywords_norm || '',
     reasons: (() => {
       const lines = [...(item.recommendation_lines || item.explanation_reasons || [])]
         .map((text) => String(text || '').trim())
@@ -120,7 +128,11 @@ export function mapApiBuyerToViewModel(item, index, hsCode, categoryLabel) {
       if (item.matched_by) lines.push(`매칭 방식: ${item.matched_by}`);
       if (Array.isArray(item.matched_terms) && item.matched_terms.length) {
         lines.push(`매칭 키워드: ${item.matched_terms.join(', ')}`);
+      } else if (item.keywords_norm) {
+        lines.push(`원본 키워드: ${item.keywords_norm}`);
       }
+      if (item.hs_code_norm) lines.push(`바이어 HS: ${item.hs_code_norm}`);
+      if (item.decision) lines.push(`판정: ${item.decision}`);
       if (item.source_dataset) lines.push(`출처 데이터셋: ${item.source_dataset}`);
       // 중복 제거(동일 문장)
       const seen = new Set();

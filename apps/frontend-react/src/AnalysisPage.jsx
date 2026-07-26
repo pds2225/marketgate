@@ -451,29 +451,49 @@ function normalizeP1Response(payload) {
 
 function buildOpportunitySignals(meta) {
   if (!meta || typeof meta !== "object") return [];
+
+  const mapEntry = (entry) => ({
+    title: String(entry.opportunity_title || entry.title || "").trim(),
+    countryIso3: String(entry.country_iso3 || entry.opportunity_country_iso3 || "")
+      .trim()
+      .toUpperCase(),
+    countryName: String(entry.opportunity_country_norm || "").trim(),
+    signalType: String(entry.opportunity_signal_type || "").trim(),
+    hsCode: String(entry.opportunity_hs_code_norm || "").trim(),
+    keywords: String(entry.opportunity_keywords_norm || "").trim(),
+    productName: String(entry.opportunity_product_name || "").trim(),
+    validUntil: String(entry.opportunity_valid_until || "").trim(),
+    sourceDataset: String(entry.opportunity_source_dataset || "").trim(),
+    sourceFile: String(entry.opportunity_source_file || "").trim(),
+    sourceRowNo: String(entry.opportunity_source_row_no || "").trim(),
+    hasContact: Boolean(entry.opportunity_has_contact),
+    contactName: String(entry.opportunity_contact_name || "").trim(),
+    contactEmail: String(entry.opportunity_contact_email || "").trim(),
+    contactPhone: String(entry.opportunity_contact_phone || "").trim(),
+    contactWebsite: String(entry.opportunity_contact_website || "").trim(),
+    signalUsable: Boolean(entry.opportunity_signal_usable),
+    snapshotDate: String(entry.opportunity_snapshot_date || "").trim(),
+    scoringApplied: Boolean(entry.scoring_opportunity_applied),
+    matchScore:
+      entry.match_score == null || entry.match_score === ""
+        ? null
+        : Number(entry.match_score),
+  });
+
+  const rich = Array.isArray(meta.opportunity_signals)
+    ? meta.opportunity_signals
+    : Array.isArray(meta.matched_opportunity_signals)
+      ? meta.matched_opportunity_signals
+      : [];
+  if (rich.length > 0) {
+    return rich.map(mapEntry).filter((row) => row.title);
+  }
+
   const scores = Array.isArray(meta.selected_opportunity_match_scores)
     ? meta.selected_opportunity_match_scores
     : [];
   if (scores.length > 0) {
-    return scores
-      .filter((entry) => String(entry?.opportunity_title || "").trim())
-      .map((entry) => ({
-        title: String(entry.opportunity_title).trim(),
-        countryIso3: String(entry.country_iso3 || "").trim().toUpperCase(),
-        countryName: String(entry.opportunity_country_norm || "").trim(),
-        signalType: String(entry.opportunity_signal_type || "").trim(),
-        hsCode: String(entry.opportunity_hs_code_norm || "").trim(),
-        keywords: String(entry.opportunity_keywords_norm || "").trim(),
-        validUntil: String(entry.opportunity_valid_until || "").trim(),
-        sourceDataset: String(entry.opportunity_source_dataset || "").trim(),
-        sourceFile: String(entry.opportunity_source_file || "").trim(),
-        signalUsable: Boolean(entry.opportunity_signal_usable),
-        scoringApplied: Boolean(entry.scoring_opportunity_applied),
-        matchScore:
-          entry.match_score == null || entry.match_score === ""
-            ? null
-            : Number(entry.match_score),
-      }));
+    return scores.map(mapEntry).filter((row) => row.title);
   }
   const titles = Array.isArray(meta.selected_opportunity_titles)
     ? meta.selected_opportunity_titles
@@ -485,20 +505,13 @@ function buildOpportunitySignals(meta) {
     ? meta.selected_opportunity_signal_types
     : [];
   return titles
-    .map((title, index) => ({
-      title: String(title || "").trim(),
-      countryIso3: "",
-      countryName: String(countries[index] || "").trim(),
-      signalType: String(types[index] || "").trim(),
-      hsCode: "",
-      keywords: "",
-      validUntil: "",
-      sourceDataset: "",
-      sourceFile: "",
-      signalUsable: false,
-      scoringApplied: false,
-      matchScore: null,
-    }))
+    .map((title, index) =>
+      mapEntry({
+        opportunity_title: title,
+        opportunity_country_norm: countries[index] || "",
+        opportunity_signal_type: types[index] || "",
+      })
+    )
     .filter((row) => row.title);
 }
 
@@ -594,13 +607,25 @@ function OpportunitySignalsPanel({ meta }) {
                 </div>
                 <strong style={{ color: "#fafaf9", fontSize: 15, lineHeight: 1.4 }}>{signal.title}</strong>
                 <div style={{ display: "grid", gap: 6, marginTop: 10 }}>
+                  <FactLine label="품명" value={signal.productName} />
                   <FactLine label="HS" value={signal.hsCode} />
                   <FactLine
                     label="키워드"
                     value={keywords.length ? keywords.join(" · ") : ""}
                   />
                   <FactLine label="유효기한" value={signal.validUntil} />
+                  <FactLine label="수집일" value={signal.snapshotDate} />
                   <FactLine label="출처" value={signal.sourceDataset} />
+                  <FactLine
+                    label="연락처"
+                    value={
+                      signal.hasContact
+                        ? [signal.contactName, signal.contactEmail, signal.contactPhone, signal.contactWebsite]
+                            .filter(Boolean)
+                            .join(" · ")
+                        : ""
+                    }
+                  />
                   <FactLine
                     label="매칭"
                     value={
@@ -740,6 +765,18 @@ function BuyerShortlistPanel({ buyers, onInquiry }) {
                     </strong>
                   </div>
                   <div className="analysis-detail-row">
+                    <span>바이어 HS</span>
+                    <strong>{item.hs_code_norm || "자료 내 확인 불가"}</strong>
+                  </div>
+                  <div className="analysis-detail-row">
+                    <span>키워드</span>
+                    <strong>{item.keywords_norm || (item.matched_terms || []).join(", ") || "자료 내 확인 불가"}</strong>
+                  </div>
+                  <div className="analysis-detail-row">
+                    <span>매칭</span>
+                    <strong>{item.matched_by || "자료 내 확인 불가"}{item.decision ? ` · ${item.decision}` : ""}</strong>
+                  </div>
+                  <div className="analysis-detail-row">
                     <span>이메일</span>
                     <strong>{item.contact_email || "-"}</strong>
                   </div>
@@ -752,8 +789,12 @@ function BuyerShortlistPanel({ buyers, onInquiry }) {
                     <strong>{item.contact_website || "-"}</strong>
                   </div>
                   <div className="analysis-detail-row">
-                    <span>매칭 근거</span>
-                    <strong>{item.matched_by || "-"}</strong>
+                    <span>담당자</span>
+                    <strong>{item.contact_name || "-"}</strong>
+                  </div>
+                  <div className="analysis-detail-row">
+                    <span>출처</span>
+                    <strong>{item.source_dataset || "자료 내 확인 불가"}</strong>
                   </div>
                 </div>
                 {onInquiry ? (

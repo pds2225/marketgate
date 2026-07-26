@@ -171,8 +171,29 @@ def _select_opportunity(
     opportunity_country_norm: str = "",
     reference_date: date | None = None,
 ) -> dict[str, Any] | None:
+    ranked = _rank_opportunities(
+        opportunities,
+        supplier_profile=supplier_profile,
+        opportunity_title_contains=opportunity_title_contains,
+        opportunity_country_norm=opportunity_country_norm,
+        reference_date=reference_date,
+        limit=1,
+    )
+    return ranked[0] if ranked else None
+
+
+def _rank_opportunities(
+    opportunities: pd.DataFrame,
+    *,
+    supplier_profile: Mapping[str, Any] | None = None,
+    opportunity_title_contains: str = "",
+    opportunity_country_norm: str = "",
+    reference_date: date | None = None,
+    limit: int = 8,
+) -> list[dict[str, Any]]:
+    """갖고 있는 opportunity_item 원본에서 매칭 상위 N건을 그대로 반환(합성 없음)."""
     if opportunities.empty:
-        return None
+        return []
 
     title_filter = normalize_text(opportunity_title_contains).casefold()
     country_filter = normalize_text(opportunity_country_norm)
@@ -196,9 +217,50 @@ def _select_opportunity(
         candidates.append((fit_score, signal_usable_score, score, valid_until, normalized))
 
     if not candidates:
-        return None
+        return []
     candidates.sort(key=lambda item: (item[0], item[1], item[2], item[3]), reverse=True)
-    return candidates[0][4]
+    top = candidates[: max(1, int(limit or 1))]
+    return [item[4] for item in top]
+
+
+def _serialize_opportunity_signal(
+    record: Mapping[str, Any] | None,
+    *,
+    match_score: int | None = None,
+    scoring_applied: bool = False,
+) -> dict[str, Any] | None:
+    if not record:
+        return None
+    title = normalize_text(record.get("title"))
+    if not title:
+        return None
+    return {
+        "opportunity_title": title,
+        "opportunity_country_norm": normalize_text(record.get("country_norm")),
+        "opportunity_country_iso3": normalize_text(record.get("country_iso3")),
+        "opportunity_signal_type": normalize_text(record.get("signal_type")),
+        "opportunity_hs_code_norm": normalize_text(record.get("hs_code_norm")),
+        "opportunity_keywords_norm": normalize_text(record.get("keywords_norm")),
+        "opportunity_valid_until": normalize_text(record.get("valid_until")),
+        "opportunity_source_dataset": normalize_text(record.get("source_dataset")),
+        "opportunity_source_file": normalize_text(record.get("source_file")),
+        "opportunity_source_row_no": normalize_text(record.get("source_row_no")),
+        "opportunity_product_name": normalize_text(record.get("product_name_norm")),
+        "opportunity_has_contact": bool(
+            normalize_text(record.get("contact_email"))
+            or normalize_text(record.get("contact_phone"))
+            or normalize_text(record.get("contact_website"))
+            or normalize_text(record.get("contact_name"))
+        ),
+        "opportunity_contact_name": normalize_text(record.get("contact_name")),
+        "opportunity_contact_email": normalize_text(record.get("contact_email")),
+        "opportunity_contact_phone": normalize_text(record.get("contact_phone")),
+        "opportunity_contact_website": normalize_text(record.get("contact_website")),
+        "opportunity_signal_usable": bool(record.get("signal_usable", False)),
+        "opportunity_snapshot_date": normalize_text(record.get("source_snapshot_date")),
+        "match_score": int(match_score if match_score is not None else _opportunity_fit_score(record, {})),
+        "scoring_opportunity_applied": bool(scoring_applied),
+    }
 
 
 def shortlist_buyers(
@@ -228,6 +290,34 @@ def shortlist_buyers(
         opportunity_country_norm=opportunity_country_norm or target_country,
         reference_date=reference_date,
     )
+    matched_opportunity_records = _rank_opportunities(
+        opportunities,
+        supplier_profile=supplier_profile,
+        opportunity_title_contains=opportunity_title_contains,
+        opportunity_country_norm=opportunity_country_norm or target_country,
+        reference_date=reference_date,
+        limit=8,
+    )
+    # 점수에 쓴 1건이 목록 맨 앞에 오도록 정렬(중복 제거)
+    if selected_opportunity is not None:
+        selected_key = (
+            normalize_text(selected_opportunity.get("title")),
+            normalize_text(selected_opportunity.get("country_norm")),
+            normalize_text(selected_opportunity.get("source_row_no")),
+        )
+        matched_opportunity_records = [
+            selected_opportunity,
+            *[
+                row
+                for row in matched_opportunity_records
+                if (
+                    normalize_text(row.get("title")),
+                    normalize_text(row.get("country_norm")),
+                    normalize_text(row.get("source_row_no")),
+                )
+                != selected_key
+            ],
+        ][:8]
 
     scoring_supplier_profile = dict(supplier_profile)
     if not normalize_keywords(scoring_supplier_profile.get("target_keywords_norm")):
@@ -311,6 +401,24 @@ def shortlist_buyers(
             "selected_opportunity_source_file": normalize_text((selected_opportunity or {}).get("source_file")),
             "selected_opportunity_match_score": int(_opportunity_fit_score(selected_opportunity or {}, supplier_profile)),
             "scoring_opportunity_applied": scoring_opportunity is not None,
+            "matched_opportunity_signals": [
+                signal
+                for signal in (
+                    _serialize_opportunity_signal(
+                        row,
+                        match_score=_opportunity_fit_score(row, supplier_profile),
+                        scoring_applied=(
+                            selected_opportunity is not None
+                            and normalize_text(row.get("title"))
+                            == normalize_text(selected_opportunity.get("title"))
+                            and normalize_text(row.get("country_norm"))
+                            == normalize_text(selected_opportunity.get("country_norm"))
+                        ),
+                    )
+                    for row in matched_opportunity_records
+                )
+                if signal
+            ],
             "total_buyer_rows": int(len(buyers)),
             "filtered_buyer_rows": int(len(filtered_buyers)),
             "scored_rows": int(len(scored_all)),
