@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import api from './lib/api'
+import {
+  activePackages,
+  approxUnlockCount,
+  creditConfig,
+} from './config/creditConfig.js'
 
 const PLANS = [
   {
@@ -52,11 +57,20 @@ const PLANS = [
   },
 ]
 
-const PACKAGES = [
-  { key: 'small',  label: '10C',  sub: '소형', price: '20,000', per: '2,000원/C' },
-  { key: 'medium', label: '30C',  sub: '중형', price: '54,000', per: '1,800원/C' },
-  { key: 'large',  label: '100C', sub: '대형', price: '160,000', per: '1,600원/C', best: true },
-]
+const PACKAGES = activePackages().map((pkg, idx, arr) => {
+  const credits = Number(pkg.credits) || 0
+  const price = Number(pkg.price) || 0
+  const per = credits > 0 ? Math.round(price / credits) : 0
+  return {
+    key: pkg.id,
+    label: `${credits}C`,
+    sub: pkg.name,
+    price: price.toLocaleString('ko-KR'),
+    per: `${per.toLocaleString('ko-KR')}원/C`,
+    hint: `약 ${approxUnlockCount(credits)}건 열람`,
+    best: idx === arr.length - 1,
+  }
+})
 
 function useCountUp(target, duration = 900) {
   const [val, setVal] = useState(0)
@@ -564,6 +578,9 @@ export default function PricingPage({ onBack }) {
 
           <div className={`pg-credits ${visible ? 'in' : ''}`}>
             <div className="pg-section-label">크레딧 충전 · 1회 구매</div>
+            <p style={{ fontSize: 12, color: '#a8a29e', margin: '0 0 14px' }}>
+              연락처 열람 {creditConfig.unlockCost}C/건 · 패키지·단가는 creditConfig에서 변경
+            </p>
             <div className="credit-grid">
               {PACKAGES.map((pkg) => (
                 <div
@@ -574,7 +591,7 @@ export default function PricingPage({ onBack }) {
                   <div className="credit-amount">{pkg.label}</div>
                   <div className="credit-sub">{pkg.sub} 패키지</div>
                   <div className="credit-price">{pkg.price}</div>
-                  <div className="credit-per">{pkg.per}</div>
+                  <div className="credit-per">{pkg.per} · {pkg.hint}</div>
                   <button
                     className="credit-btn"
                     disabled={loading === pkg.key}
