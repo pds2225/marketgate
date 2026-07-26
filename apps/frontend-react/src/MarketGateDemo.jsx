@@ -1,20 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ENDPOINTS } from './config'
+import { creditConfig } from './config/creditConfig.js'
+import CreditTopUpSheet from './components/CreditTopUpSheet.jsx'
+import {
+  getWallet,
+  isUnlocked,
+  makeBuyerKey,
+  subscribeWallet,
+  unlockBuyer,
+} from './lib/creditWallet.js'
 
 /*
  * MarketGateDemo — 바이어 매칭 + 바이어 데이터 수집 (실데이터 기반, 로그인 불필요)
- * 데이터: GET /v1/demo/snapshot (공개·무인증) — buyer_candidate.csv 36,241건 실시간 집계
- *   응답: { summary:{total,countryCount,byCountry[],bySource[]}, buyers:[...] }
- *   연락처(이메일·전화)는 서버에서 마스킹된 형태로만 내려옴(평문 노출 없음).
- * 초점:
- *  (1) 바이어 매칭 — HS·국가·신뢰도 실시간 필터 + FitScore 정렬 + 바이어 상세 매칭 프로필
- *  (2) 바이어 데이터 수집 — 14종 소스·규모·수집 추이 현황 + 자동 필터링 파이프라인
- * 벤치마킹(deep-research): ITC EPI 3축 설명점수 · Alibaba 검증배지 · Volza 컨택 언락 · buyKOREA 수동매칭 대비 자동 FitScore
+ * 데이터: GET /v1/demo/snapshot (공개·무인증) — buyer_candidate.csv 집계
+ *   연락처는 서버 마스킹. 크레딧 지갑은 본편과 동일한 로컬 creditWallet.
  */
 
 const AMBER = '#f59e0b'
-const UNLOCK_COST = 5
-
 /* ── ITC EPI 스타일 설명가능 적합도: 수요 × 무역용이성 × 공급신뢰 ── */
 function computeFit(buyer, countryRank, countryCount) {
   const demand = countryRank != null
@@ -69,8 +71,9 @@ function Bar({ label, value, max, accent = '#2563eb', sub }) {
 export default function MarketGateDemo() {
   const [summary, setSummary] = useState(null)
   const [buyers, setBuyers] = useState([])
-  const [credits, setCredits] = useState(1000)
-  const [unlocked, setUnlocked] = useState({})
+  const [wallet, setWallet] = useState(getWallet)
+  const [topUpOpen, setTopUpOpen] = useState(false)
+  const [unlockMsg, setUnlockMsg] = useState('')
   const [err, setErr] = useState(null)
 
   // 매칭 필터
@@ -86,6 +89,11 @@ export default function MarketGateDemo() {
       .then(({ summary: s, buyers: b }) => { setSummary(s); setBuyers(Array.isArray(b) ? b : []) })
       .catch(e => setErr(String(e)))
   }, [])
+
+  useEffect(() => subscribeWallet(setWallet), [])
+
+  const unlockCost = creditConfig.unlockCost
+  const starting = Math.max(1, Number(creditConfig.startingBalance) || 100)
 
   const countryRankMap = useMemo(() => {
     const m = {}
@@ -133,21 +141,34 @@ export default function MarketGateDemo() {
     return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([k]) => k)
   }, [enriched])
 
-  const unlock = (id) => {
-    if (unlocked[id] || credits < UNLOCK_COST) return
-    setCredits(c => c - UNLOCK_COST); setUnlocked(u => ({ ...u, [id]: true }))
+  const buyerKeyOf = (b) => makeBuyerKey({ id: b.id, name: b.name, country: b.country, source: b.source })
+
+  const unlock = (b) => {
+    const key = buyerKeyOf(b)
+    setUnlockMsg('')
+    const result = unlockBuyer(key, { hasContact: !!(b.emailMasked || b.phoneMasked || b.website) })
+    if (result.ok) {
+      setWallet(result.wallet)
+      setUnlockMsg(result.already ? '이미 열람한 연락처입니다.' : `${unlockCost}C 차감 · 열람 처리`)
+      return
+    }
+    if (result.reason === 'insufficient') {
+      setTopUpOpen(true)
+      setUnlockMsg(`잔액 부족 (필요 ${result.need}C)`)
+    }
   }
 
   if (err) return <div style={{ padding: 40, color: '#b91c1c', fontFamily: 'sans-serif' }}>데이터 로드 실패: {err}</div>
   if (!summary) return <div style={{ padding: 40, fontFamily: 'sans-serif', color: '#64748b' }}>실데이터 불러오는 중…</div>
 
-  const creditPct = Math.round((credits / 1000) * 100)
+  const creditPct = Math.min(100, Math.round((wallet.balance / starting) * 100))
   const maxSource = summary.bySource[0].count
   const officialCount = summary.bySource.filter(s => s.official).length
 
   return (
     <div className="mg-root">
       <style>{STYLE}</style>
+      <CreditTopUpSheet open={topUpOpen} onClose={() => setTopUpOpen(false)} />
 
       <header className="mg-top">
         <div className="mg-brand">MARKETGATE</div>
@@ -156,11 +177,11 @@ export default function MarketGateDemo() {
           <button className="mg-tab" onClick={() => { window.location.hash = 'simulation' }}>수익성 시뮬레이션</button>
         </nav>
         <div className="mg-top-right">
-          <div className="mg-credit" title="크레딧 — 바이어 컨택 시 차감">
-            <span className="mg-credit-num">{credits.toLocaleString()}C</span>
+          <div className="mg-credit" title="시뮬레이션 크레딧 — 클릭하여 충전" onClick={() => setTopUpOpen(true)} style={{ cursor: 'pointer' }}>
+            <span className="mg-credit-num">{wallet.balance.toLocaleString()}C</span>
             <div className="mg-credit-track"><div className="mg-credit-fill" style={{ width: `${creditPct}%` }} /></div>
           </div>
-          <span className="mg-navitem">요금제</span>
+          <span className="mg-navitem" onClick={() => setTopUpOpen(true)} style={{ cursor: 'pointer' }}>충전</span>
           <span className="mg-logout">로그아웃</span>
         </div>
       </header>
@@ -281,9 +302,9 @@ export default function MarketGateDemo() {
         const rank = countryRankMap[b.country]
         const reasons = matchReasons(b, b.fit, rank, countryInfoMap[b.country])
         const t = TRUST[b.trust]
-        const isOpen = !!unlocked[b.id]
+        const isOpen = isUnlocked(buyerKeyOf(b))
         return (
-          <div className="mg-modal-bg" onClick={() => setSelected(null)}>
+          <div className="mg-modal-bg" onClick={() => { setSelected(null); setUnlockMsg('') }}>
             <div className="mg-modal" onClick={e => e.stopPropagation()}>
               <button className="mg-modal-x" onClick={() => setSelected(null)}>✕</button>
               <div className="mg-modal-head">
@@ -334,12 +355,14 @@ export default function MarketGateDemo() {
                     <div>✉ {b.emailMasked || '—'}</div>
                     <div>☎ {b.phoneMasked || '—'}</div>
                     {b.website && <div>🌐 {b.website}</div>}
-                    <p className="mg-contact-note">※ 데모: 실연락처는 마스킹 표시 (실서비스는 원본 제공)</p>
+                    <p className="mg-contact-note">※ 데모 API는 마스킹 유지 · 실연락처 열람은 본편(바이어검색)에서</p>
+                    {unlockMsg ? <p className="mg-contact-note">{unlockMsg}</p> : null}
                   </div>
                 ) : (
                   <div className="mg-contact-locked">
-                    <span>🔒 이메일 · 전화 · 웹사이트 — 잠김</span>
-                    <button className="mg-unlock" disabled={credits < UNLOCK_COST} onClick={() => unlock(b.id)}>컨택 언락 · {UNLOCK_COST}C</button>
+                    <span>🔒 이메일 · 전화 · 웹사이트 — 잠김 · 잔액 {wallet.balance}C</span>
+                    <button className="mg-unlock" onClick={() => unlock(b)}>컨택 언락 · {unlockCost}C</button>
+                    {unlockMsg ? <p className="mg-contact-note">{unlockMsg}</p> : null}
                   </div>
                 )}
               </div>
