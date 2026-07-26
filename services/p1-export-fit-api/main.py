@@ -113,7 +113,7 @@ def demo_snapshot(limit: int = Query(default=60, ge=1, le=200)):
 
     Returns the aggregation shape MarketGateDemo consumes:
     {summary:{total,countryCount,byCountry[],bySource[]}, buyers:[...]}.
-    Contact details are masked; no plaintext email/phone is returned.
+    Contact details are masked unless DEMO_UNMASK_CONTACTS is enabled (temporary).
     """
     return get_demo_snapshot(limit)
 
@@ -126,7 +126,7 @@ def demo_summary():
 
 @app.get("/v1/demo/buyers")
 def demo_buyers(limit: int = Query(default=60, ge=1, le=200)):
-    """Public (no-auth) masked buyer samples only."""
+    """Public (no-auth) buyer samples (masked unless DEMO_UNMASK_CONTACTS)."""
     return get_demo_buyers(limit)
 
 

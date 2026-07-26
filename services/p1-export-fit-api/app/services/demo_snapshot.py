@@ -6,11 +6,15 @@ buyer dataset (services/cosmetics_mvp_preprocess/output/buyer_candidate.csv,
 ~36k rows) into the exact shape the demo consumes, reusing the cached pandas
 frame from shortlist_service (no new loader, no new dependency).
 
-Sensitive contact details (email / phone) are only ever returned in a MASKED
-form. Plaintext email / phone are never emitted.
+Sensitive contact details (email / phone) are MASKED by default.
+
+TEMPORARY: set DEMO_UNMASK_CONTACTS=1 (default while 실사용 확인) to return
+plaintext in the existing emailMasked/phoneMasked fields (same response keys).
+Set DEMO_UNMASK_CONTACTS=0 to restore masking.
 """
 from __future__ import annotations
 
+import os
 import sys
 from functools import lru_cache
 from pathlib import Path
@@ -73,10 +77,18 @@ def _trust_level(has_contact: bool, official: bool, estimated: bool) -> str:
     return "silver"
 
 
+def _unmask_enabled() -> bool:
+    # TEMPORARY default "1" for 실사용 확인. Flip to "0" to remask.
+    raw = os.getenv("DEMO_UNMASK_CONTACTS", "1").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
+
+
 def _mask_email(value: Any) -> str:
     email = _clean(value)
     if not email or "@" not in email:
         return ""
+    if _unmask_enabled():
+        return email
     local, _, domain = email.partition("@")
     masked_local = (local[0] + "***") if local else "***"
     if "." in domain:
@@ -89,6 +101,8 @@ def _mask_email(value: Any) -> str:
 
 def _mask_phone(value: Any) -> str:
     phone = _clean(value)
+    if _unmask_enabled():
+        return phone
     digits = [c for c in phone if c.isdigit()]
     if not digits:
         return ""
@@ -218,8 +232,10 @@ def _summary_cached() -> dict[str, Any]:
     return _aggregate(load_buyer_frame())
 
 
-@lru_cache(maxsize=4)
-def _buyers_cached(limit: int) -> tuple[dict[str, Any], ...]:
+@lru_cache(maxsize=8)
+def _buyers_cached(limit: int, unmask: bool) -> tuple[dict[str, Any], ...]:
+    # `unmask` is part of the cache key so toggling DEMO_UNMASK_CONTACTS works.
+    _ = unmask
     return tuple(_build_buyers(load_buyer_frame(), limit))
 
 
@@ -229,7 +245,7 @@ def get_demo_summary() -> dict[str, Any]:
 
 def get_demo_buyers(limit: int = _DEFAULT_BUYER_LIMIT) -> list[dict[str, Any]]:
     limit = max(1, min(int(limit or _DEFAULT_BUYER_LIMIT), _MAX_BUYER_LIMIT))
-    return [dict(item) for item in _buyers_cached(limit)]
+    return [dict(item) for item in _buyers_cached(limit, _unmask_enabled())]
 
 
 def get_demo_snapshot(limit: int = _DEFAULT_BUYER_LIMIT) -> dict[str, Any]:

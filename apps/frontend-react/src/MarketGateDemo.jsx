@@ -5,7 +5,7 @@ import { ENDPOINTS } from './config'
  * MarketGateDemo — 바이어 매칭 + 바이어 데이터 수집 (실데이터 기반, 로그인 불필요)
  * 데이터: GET /v1/demo/snapshot (공개·무인증) — buyer_candidate.csv 36,241건 실시간 집계
  *   응답: { summary:{total,countryCount,byCountry[],bySource[]}, buyers:[...] }
- *   연락처(이메일·전화)는 서버에서 마스킹된 형태로만 내려옴(평문 노출 없음).
+ *   연락처: 기본 마스킹. TEMP_UNMASK_CONTACTS=true 이면 실사용 확인용으로 평문 표시.
  * 초점:
  *  (1) 바이어 매칭 — HS·국가·신뢰도 실시간 필터 + FitScore 정렬 + 바이어 상세 매칭 프로필
  *  (2) 바이어 데이터 수집 — 14종 소스·규모·수집 추이 현황 + 자동 필터링 파이프라인
@@ -14,6 +14,8 @@ import { ENDPOINTS } from './config'
 
 const AMBER = '#f59e0b'
 const UNLOCK_COST = 5
+/** 임시: 실사용 확인용 연락처 마스킹 해제. 끝나면 false로 되돌릴 것. */
+const TEMP_UNMASK_CONTACTS = true
 
 /* ── ITC EPI 스타일 설명가능 적합도: 수요 × 무역용이성 × 공급신뢰 ── */
 function computeFit(buyer, countryRank, countryCount) {
@@ -271,7 +273,7 @@ export default function MarketGateDemo() {
             )
           })}
           {filtered.length > 40 && <p className="mg-more">+ {filtered.length - 40}건 더 — 필터로 좁혀보세요</p>}
-          <p className="mg-foot">실수집 {summary.total.toLocaleString()}건 중 표본 {buyers.length}건 표시 · 연락처는 개인정보 보호를 위해 마스킹 · © 2026 MarketGate</p>
+          <p className="mg-foot">실수집 {summary.total.toLocaleString()}건 중 표본 {buyers.length}건 표시 · {TEMP_UNMASK_CONTACTS ? '임시: 실연락처 마스킹 해제 중' : '연락처는 개인정보 보호를 위해 마스킹'} · © 2026 MarketGate</p>
         </div>
       </div>
 
@@ -281,7 +283,7 @@ export default function MarketGateDemo() {
         const rank = countryRankMap[b.country]
         const reasons = matchReasons(b, b.fit, rank, countryInfoMap[b.country])
         const t = TRUST[b.trust]
-        const isOpen = !!unlocked[b.id]
+        const isOpen = TEMP_UNMASK_CONTACTS || !!unlocked[b.id]
         return (
           <div className="mg-modal-bg" onClick={() => setSelected(null)}>
             <div className="mg-modal" onClick={e => e.stopPropagation()}>
@@ -334,7 +336,7 @@ export default function MarketGateDemo() {
                     <div>✉ {b.emailMasked || '—'}</div>
                     <div>☎ {b.phoneMasked || '—'}</div>
                     {b.website && <div>🌐 {b.website}</div>}
-                    <p className="mg-contact-note">※ 데모: 실연락처는 마스킹 표시 (실서비스는 원본 제공)</p>
+                    <p className="mg-contact-note">{TEMP_UNMASK_CONTACTS ? '※ 임시: 실연락처 마스킹 해제 (DEMO_UNMASK_CONTACTS)' : '※ 데모: 실연락처는 마스킹 표시 (실서비스는 원본 제공)'}</p>
                   </div>
                 ) : (
                   <div className="mg-contact-locked">
