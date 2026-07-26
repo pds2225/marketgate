@@ -12,6 +12,8 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { buildP1Url, ENDPOINTS } from "./config";
 import { displayPhone } from "./lib/phone";
+import api from "./lib/api";
+import { saveCompareSnapshot } from "./ComparePage";
 
 const hsExamples = [
   { code: "330499", label: "K-뷰티" },
@@ -447,6 +449,37 @@ function normalizeP1Response(payload) {
     diagnostics,
     buyers,
   };
+}
+
+function persistCompareFromAnalysis(analysis) {
+  if (!analysis?.recommendations?.length) return;
+  const hs = analysis.request?.hsCode || "";
+  const buyerItems =
+    analysis.buyers?.items || analysis.buyers?.buyers || analysis.buyers?.candidates || [];
+  saveCompareSnapshot({
+    hs_code: hs,
+    generated_at: new Date().toISOString(),
+    countries: analysis.recommendations.map((r, i) => ({
+      rank: i + 1,
+      iso3: r.iso3 || r.countryIso3 || r.id,
+      name: r.name || r.countryName || r.title,
+      score: r.score ?? r.finalScore,
+      trade: r.metrics?.find?.((m) => /무역|trade/i.test(m.label))?.value,
+      growth: r.metrics?.find?.((m) => /성장|growth/i.test(m.label))?.value,
+      gdp: r.metrics?.find?.((m) => /gdp|GDP/i.test(m.label))?.value,
+      distance: r.metrics?.find?.((m) => /거리|distance|물류/i.test(m.label))?.value,
+    })),
+    buyers: (Array.isArray(buyerItems) ? buyerItems : []).slice(0, 20).map((b, i) => ({
+      rank: i + 1,
+      name: b.buyer_name || b.name,
+      country: b.country_norm || b.source_target_country_name || "",
+      score: b.final_score ?? b.score,
+      has_contact: !!b.has_contact,
+      source: b.source_dataset || "",
+      hs: b.hs_code_norm || hs,
+      matched_by: b.matched_by || "",
+    })),
+  });
 }
 
 function buildOpportunitySignals(meta) {
@@ -1058,6 +1091,8 @@ export default function AnalysisPage({ onBack, preset }) {
   const [inquiryResult, setInquiryResult] = useState(null);
   const [inquiryError, setInquiryError] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
+  const [queueRecord, setQueueRecord] = useState(null);
+  const [queueSubmitted, setQueueSubmitted] = useState(false);
 
   const deferredSelectedId = useDeferredValue(selectedId);
   const selectedRecommendation =
@@ -1078,6 +1113,7 @@ export default function AnalysisPage({ onBack, preset }) {
       try {
         const analysis = await requestAnalysis(code, topN, year);
         if (cancelled) return;
+        persistCompareFromAnalysis(analysis);
         startTransition(() => {
           setResult(analysis);
           setSelectedId(analysis.recommendations[0]?.id || null);
@@ -1110,6 +1146,7 @@ export default function AnalysisPage({ onBack, preset }) {
 
     try {
       const analysis = await requestAnalysis(hsCode, topN, year);
+      persistCompareFromAnalysis(analysis);
 
       startTransition(() => {
         setResult(analysis);
@@ -1144,6 +1181,8 @@ export default function AnalysisPage({ onBack, preset }) {
     setInquiryResult(null);
     setInquiryError("");
     setCopyStatus("");
+    setQueueRecord(null);
+    setQueueSubmitted(false);
   };
 
   const handleCopyDraft = async (text, label) => {
@@ -1208,6 +1247,59 @@ export default function AnalysisPage({ onBack, preset }) {
       setInquiryResult(data);
     } catch (err) {
       setInquiryError(err.message || "잠시 후 다시 시도해 주세요.");
+    } finally {
+      setInquiryLoading(false);
+    }
+  };
+
+  const handleQueueSubmit = async () => {
+    if (!inquiryBuyer?.contact_email || !String(inquiryBuyer.contact_email).includes("@")) {
+      setInquiryError("이메일이 있는 바이어만 발송 검토 요청을 할 수 있습니다.");
+      return;
+    }
+    if (!inquiryForm.sender_company.trim() || !inquiryForm.sender_name.trim()) {
+      setInquiryError("회사명과 담당자 이름을 입력해 주세요.");
+      return;
+    }
+    setInquiryLoading(true);
+    setInquiryError("");
+    try {
+      let record = queueRecord;
+      if (!record) {
+        const created = await api.post("/v1/inquiries", {
+          buyer_name: inquiryBuyer.buyer_name || "Unknown",
+          buyer_id: inquiryBuyer.buyer_name || "unknown",
+          recipient_email: inquiryBuyer.contact_email,
+          hs_code: inquiryBuyer.hs_code_norm || hsCode || "",
+          sender_company: inquiryForm.sender_company.trim(),
+          sender_name: inquiryForm.sender_name.trim(),
+          message: inquiryForm.message.trim(),
+          country: inquiryBuyer.source_target_country_name || inquiryBuyer.country_norm || "",
+          match_relevance: inquiryBuyer.match_relevance,
+          recommendation_lines: inquiryBuyer.recommendation_lines,
+        });
+        record = created.data;
+        setQueueRecord(record);
+        if (!inquiryResult && record.draft_ko) {
+          setInquiryResult({ draft_ko: record.draft_ko, draft_en: record.draft_en });
+        }
+      }
+      const submitted = await api.post(`/v1/inquiries/${record.inquiry_id}/submit`);
+      setQueueRecord(submitted.data);
+      setQueueSubmitted(true);
+      setCopyStatus("발송 검토 요청이 접수되었습니다. 관리자 승인 후 발송됩니다.");
+      try {
+        await api.post("/v1/credits/deduct", { action: "contact_send" });
+      } catch {
+        /* 잔액 부족이어도 큐 접수는 유지 */
+      }
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      setInquiryError(
+        detail === "contact_missing"
+          ? "연락처(이메일)가 없는 바이어는 발송 요청을 만들 수 없습니다."
+          : detail || err.message || "발송 검토 요청에 실패했습니다."
+      );
     } finally {
       setInquiryLoading(false);
     }
@@ -1680,6 +1772,21 @@ export default function AnalysisPage({ onBack, preset }) {
                         <button className="ui-button ui-button--solid" style={{ flex: 1, minWidth: 120 }} onClick={() => handleCopyDraft(inquiryResult.draft_en, "영문")}>
                           영문 복사
                         </button>
+                        {!queueSubmitted ? (
+                          <button
+                            className="ui-button ui-button--solid"
+                            style={{ flex: 1, minWidth: 140 }}
+                            onClick={handleQueueSubmit}
+                            disabled={inquiryLoading || !inquiryBuyer?.contact_email}
+                            title={!inquiryBuyer?.contact_email ? "이메일 필요" : "관리자 검토 큐에 제출"}
+                          >
+                            {inquiryLoading ? "제출 중…" : "발송 검토 요청"}
+                          </button>
+                        ) : (
+                          <span style={{ flex: 1, minWidth: 140, fontSize: 12, color: "#86efac", alignSelf: "center" }}>
+                            검토 대기 ({queueRecord?.status || "review_required"})
+                          </span>
+                        )}
                         <button className="ui-button ui-button--ghost" style={{ flex: 1, minWidth: 120 }} onClick={handleCloseInquiry}>
                           닫기
                         </button>

@@ -370,6 +370,11 @@ function DispatchRequestModal({ buyer, hsCode, onClose }) {
       const res = await api.post(`/v1/inquiries/${draftRecord.inquiry_id}/submit`);
       setDraftRecord(res.data);
       setSubmitted(true);
+      try {
+        await api.post("/v1/credits/deduct", { action: "contact_send" });
+      } catch {
+        /* 큐 접수는 유지 */
+      }
     } catch (err) {
       setError(err.response?.data?.detail || "검토 요청에 실패했습니다.");
     } finally {

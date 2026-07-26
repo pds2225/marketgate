@@ -5,7 +5,7 @@ import {
   getWallet,
   isUnlocked,
   subscribeWallet,
-  unlockBuyer,
+  unlockBuyerServer,
 } from '../lib/creditWallet.js'
 import CreditTopUpSheet from './CreditTopUpSheet.jsx'
 
@@ -42,9 +42,9 @@ export default function CreditUnlockPanel({
 
   const muted = { color: dark ? '#94a3b8' : '#64748b', fontSize: 11, marginTop: 8 }
 
-  const tryUnlock = () => {
+  const tryUnlock = async () => {
     setMessage('')
-    const result = unlockBuyer(buyerKey, { hasContact })
+    const result = await unlockBuyerServer(buyerKey, { hasContact })
     if (result.ok) {
       setWallet(result.wallet)
       setMessage(result.already ? '이미 열람한 연락처입니다.' : `${cost}C 차감 · 연락처 열림`)
@@ -57,7 +57,9 @@ export default function CreditUnlockPanel({
     }
     if (result.reason === 'no_contact') {
       setMessage('열람할 연락처가 없습니다.')
+      return
     }
+    setMessage(typeof result.reason === 'string' ? `열람 실패: ${result.reason}` : '열람에 실패했습니다.')
   }
 
   const showEmail = displayContact(email, { unlocked, kind: 'email' })
@@ -103,7 +105,7 @@ export default function CreditUnlockPanel({
         )}
         {message ? <p style={muted}>{message}</p> : null}
         {!unlocked && hasContact ? (
-          <p style={muted}>시뮬레이션 지갑 · 단가·패키지는 creditConfig에서 변경</p>
+          <p style={muted}>서버 지갑 차감 · 단가·패키지는 creditConfig</p>
         ) : null}
       </div>
       <CreditTopUpSheet

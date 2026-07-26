@@ -19,8 +19,8 @@ export default function CreditTopUpSheet({ open, onClose, onToppedUp }) {
 
   const packages = activePackages()
 
-  const handleTopUp = (pkgId) => {
-    const result = topUpPackage(pkgId)
+  const handleTopUp = async (pkgId) => {
+    const result = await topUpPackage(pkgId)
     if (!result.ok) return
     setWallet(result.wallet)
     onToppedUp?.(result)
@@ -60,7 +60,7 @@ export default function CreditTopUpSheet({ open, onClose, onToppedUp }) {
         <p style={{ margin: '0 0 14px', fontSize: 12, color: '#64748b' }}>
           잔액 <strong style={{ color: '#b45309' }}>{wallet.balance}C</strong>
           {' · '}언락 {creditConfig.unlockCost}C/건
-          {' · '}<span style={{ color: '#dc2626' }}>시뮬레이션 충전 (결제 미연동)</span>
+          {' · '}<span style={{ color: '#b45309' }}>서버 지갑 충전 (파일럿·결제 전에도 charge API)</span>
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {packages.map((pkg) => (

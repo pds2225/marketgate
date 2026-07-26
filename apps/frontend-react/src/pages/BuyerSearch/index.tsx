@@ -24,6 +24,7 @@ import {
 } from './buyerViewModel';
 import CreditUnlockPanel from '@/components/CreditUnlockPanel';
 import { displayContact, makeBuyerKey } from '@/lib/creditWallet';
+import { detectCategory as detectCategoryShared } from '@/lib/hsKeywordMap';
 
 /* ── Types ── */
 // 데이터 정책: API·CSV 원본에 없는 값(수입이력·수입액·성장률·RFM·갱신일)은 항상 null 이며
@@ -52,8 +53,9 @@ interface Buyer {
 interface CategoryData { label: string; hsCode: string; hsLabel: string; icon: React.ReactNode; buyers: Buyer[]; countries: string[]; }
 interface CountryRec { countryName: string; countryCode: string; flag: string; buyerCount: number; avgScore: number; contactableCount: number; topBuyerName: string; topBuyerScore: number; buyers: Buyer[]; }
 type Step = 'countries' | 'buyers' | 'detail';
-const KEYWORD_MAP: Record<string, string> = { 'k-뷰티': 'K-뷰티', 'k뷰티': 'K-뷰티', '뷰티': 'K-뷰티', '화장품': 'K-뷰티', '스킨': 'K-뷰티', '스킨케어': 'K-뷰티', '세럼': 'K-뷰티', '메이크업': 'K-뷰티', '건강': '건강식품', '건강식품': '건강식품', '홍삼': '건강식품', '인삼': '건강식품', '프로바이오틱스': '건강식품', '건기식': '건강식품', '영양제': '건강식품', '패션': 'K-패션', 'k-패션': 'K-패션', 'k패션': 'K-패션', '의류': 'K-패션', '옷': 'K-패션', '한복': 'K-패션', '디자이너': 'K-패션', '반도체': '반도체', '칩': '반도체', '메모리': '반도체', '전자': '반도체', 'semiconductor': '반도체', 'chip': '반도체', 'skincare': 'K-뷰티', 'health': '건강식품', 'fashion': 'K-패션', 'apparel': 'K-패션' };
-function detectCategory(input: string): string | null { const lower = input.toLowerCase().replace(/[\s\-]/g, ''); for (const [k, v] of Object.entries(KEYWORD_MAP)) { if (lower.includes(k.replace(/[\s\-]/g, ''))) return v; } if (input.startsWith('33')) return 'K-뷰티'; if (input.startsWith('21')) return '건강식품'; if (input.startsWith('62')) return 'K-패션'; if (input.startsWith('85')) return '반도체'; return null; }
+function detectCategory(input: string): string | null {
+  return detectCategoryShared(input);
+}
 function copyToClipboard(text: string) { navigator.clipboard.writeText(text).then(() => toast.success('클립보드에 복사되었습니다', { description: text })); }
 function formatDate() { const d = new Date(); return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`; }
 // 보고서 내용은 화면에 이미 렌더링된 데이터로 클라이언트에서 직접 파일을 만들어 내려준다.
@@ -118,7 +120,12 @@ const CATEGORIES: CategoryData[] = [
 /* ── Reusable small components ── */
 // 검증 상태 3축 뱃지 — has_contact 하나로 '신뢰도 높음/검증 완료'를 표시하던 것을 대체
 const StatusBadges: React.FC<{ buyer: Buyer; compact?: boolean }> = ({ buyer, compact }) => {
-  const contactTone = buyer.contactStatus === 'unavailable' ? 'bg-slate-100 text-slate-500 border border-slate-200' : 'bg-amber-50 text-amber-700 border border-amber-200';
+  const contactTone =
+    buyer.contactStatus === 'unavailable'
+      ? 'bg-slate-100 text-slate-500 border border-slate-200'
+      : buyer.contactStatus === 'format_validated'
+        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+        : 'bg-amber-50 text-amber-700 border border-amber-200';
   const tradeTone = buyer.tradeStatus === 'source_confirmed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500 border border-slate-200';
   return (
     <span className="inline-flex flex-wrap items-center gap-1">

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { resolveProductToHs } from "./lib/hsKeywordMap";
 
 const trustMetrics = [
   { icon: Globe2, value: "20+", label: "분석 대상 국가" },
@@ -121,6 +122,8 @@ export default function LandingPage({
   onStartAnalysis,
   onStartFlow,
   onStartBuyerSearch,
+  onStartOpportunities,
+  onStartCompare,
 }) {
   const [toast, setToast] = useState(null);
   const [query, setQuery] = useState("");
@@ -160,6 +163,9 @@ export default function LandingPage({
   // 하단 CTA: 검색창에 HS/키워드가 있으면 분석·바이어 화면으로 이어 준다.
   const resolveHsFromQuery = () => {
     const q = query.trim();
+    if (!q) return null;
+    const mapped = resolveProductToHs(q);
+    if (mapped?.hsCode) return mapped.hsCode;
     const six = q.match(/\b(\d{6})\b/);
     if (six) return six[1];
     const fourToSix = q.match(/\b(\d{4,6})\b/);
@@ -193,13 +199,27 @@ export default function LandingPage({
         <div className="landing-brand">
           <span className="landing-brand-mark">MarketGate</span>
         </div>
-        <button
-          className="ui-button ui-button--ghost"
-          onClick={startBuyerSearch}
-        >
-          바이어 검색
-          <ArrowRight size={16} />
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            className="ui-button ui-button--ghost"
+            onClick={() => onStartOpportunities?.()}
+          >
+            구매신호 탐색
+          </button>
+          <button
+            className="ui-button ui-button--ghost"
+            onClick={() => onStartCompare?.()}
+          >
+            국가·바이어 비교
+          </button>
+          <button
+            className="ui-button ui-button--ghost"
+            onClick={startBuyerSearch}
+          >
+            바이어 검색
+            <ArrowRight size={16} />
+          </button>
+        </div>
       </header>
 
       {/* === Hero === */}
@@ -430,6 +450,18 @@ export default function LandingPage({
           </p>
         </div>
         <div className="landing-cta-actions">
+          <button
+            className="ui-button ui-button--ghost"
+            onClick={() => onStartOpportunities?.()}
+          >
+            구매신호 탐색
+          </button>
+          <button
+            className="ui-button ui-button--ghost"
+            onClick={() => onStartCompare?.()}
+          >
+            비교 테이블
+          </button>
           <button
             className="ui-button ui-button--ghost"
             onClick={startAnalysis}

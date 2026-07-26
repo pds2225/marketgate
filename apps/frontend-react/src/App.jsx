@@ -8,8 +8,10 @@ import AuthPage from './AuthPage'
 import SimulationPage from './SimulationPage'
 import PricingPage from './PricingPage'
 import PaymentCallbackPage from './PaymentCallbackPage'
+import OpportunityExplorePage from './OpportunityExplorePage'
+import ComparePage from './ComparePage'
 import CreditTopUpSheet from './components/CreditTopUpSheet'
-import { getWallet, subscribeWallet } from './lib/creditWallet'
+import { getWallet, subscribeWallet, syncBalanceFromServer } from './lib/creditWallet'
 import api from './lib/api'
 import './App.css'
 
@@ -72,14 +74,21 @@ function App() {
     return () => window.removeEventListener('auth:logout', onLogout)
   }, [])
 
-  // 로컬 시뮬레이션 지갑 (서버 /v1/credits 와 분리 — 파일럿)
+  // 서버 크레딧 잔액 동기화 (실패 시 로컬 폴백)
   useEffect(() => {
     setBalance(getWallet().balance)
-    return subscribeWallet((w) => setBalance(w.balance))
-  }, [])
+    const unsub = subscribeWallet((w) => setBalance(w.balance))
+    if (authed) {
+      syncBalanceFromServer().then((r) => {
+        if (r.ok) setBalance(r.wallet.balance)
+      })
+    }
+    return unsub
+  }, [authed])
 
-  const refreshBalance = () => {
-    setBalance(getWallet().balance)
+  const refreshBalance = async () => {
+    const r = await syncBalanceFromServer()
+    setBalance(r.wallet.balance)
   }
   useEffect(() => {
     if (!authed) return
@@ -132,12 +141,14 @@ function App() {
                   letterSpacing: '0.08em',
                   fontWeight: 500,
                 }}
-                title="시뮬레이션 크레딧 — 클릭하여 충전"
+                title="서버 크레딧 잔액 — 클릭하여 충전"
               >
                 {balance}C
               </span>
             )}
             {[
+              { label: '구매신호', page: 'opportunities' },
+              { label: '비교', page: 'compare' },
               { label: '요금제', page: 'pricing' },
               { label: '시뮬레이션', page: 'simulation' },
               // 관리자 메뉴는 서버가 role=admin 을 내려준 계정에만 노출 (서버 403이 최종 방어선)
@@ -191,6 +202,8 @@ function App() {
           onStartFlow={() => navigate('exportFlow')}
           onStartBuyerSearch={() => navigate('buyerSearch')}
           onStartAnalysis={(preset) => navigate('analysis', preset || null)}
+          onStartOpportunities={() => navigate('opportunities')}
+          onStartCompare={() => navigate('compare')}
         />
       )}
 
@@ -198,6 +211,14 @@ function App() {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <BuyerSearchPage onClose={() => navigate('landing')} onBalanceRefresh={refreshBalance} />
         </div>
+      )}
+
+      {page === 'opportunities' && (
+        <OpportunityExplorePage onBack={() => navigate('landing')} />
+      )}
+
+      {page === 'compare' && (
+        <ComparePage onBack={() => navigate('landing')} />
       )}
 
       {page === 'analysis' && (

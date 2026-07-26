@@ -10,6 +10,8 @@ from app.services.demo_snapshot import get_demo_snapshot, get_demo_summary, get_
 from app.services.project_snapshot import build_project_snapshot
 from app.services.scoring import recommend_countries
 from app.services.inquiry_service import build_draft
+from app.services.opportunity_browse import list_opportunities
+from app.services.p2_status import get_p2_dropin_status
 from app.utils import now_seoul_iso, new_request_id
 from app.credit_store import charge, get_balance, deduct, get_history
 from app.auth_deps import get_current_user, require_plan
@@ -130,6 +132,38 @@ def demo_buyers(limit: int = Query(default=60, ge=1, le=200)):
     return get_demo_buyers(limit)
 
 
+@app.get("/v1/opportunities")
+def opportunities_browse(
+    q: str = Query(default=""),
+    country: str = Query(default=""),
+    hs: str = Query(default=""),
+    signal_type: str = Query(default=""),
+    source: str = Query(default=""),
+    usable_only: bool = Query(default=False),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    _: dict = Depends(get_current_user),
+):
+    """보유 opportunity_item 전체 탐색(검색·필터)."""
+    return list_opportunities(
+        q=q,
+        country=country,
+        hs=hs,
+        signal_type=signal_type,
+        source=source,
+        usable_only=usable_only,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@app.get("/v1/admin/p2-status")
+def admin_p2_status(user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="admin_required")
+    return get_p2_dropin_status()
+
+
 @app.get("/v1/credits/balance")
 def credits_balance(user: dict = Depends(get_current_user)):
     return {"user_id": user["user_id"], "balance": get_balance(user["user_id"])}
@@ -160,12 +194,14 @@ def credits_deduct(
         "buyer_fit_pro": 25,
         "contact_send": 5,
         "contact_reply": 13,
+        "contact_unlock": 5,
     }
     NOTE_MAP = {
         "buyer_fit_lite": "바이어 적합성 분석 (Lite)",
         "buyer_fit_pro": "바이어 적합성 분석 (Pro)",
         "contact_send": "컨택 메시지 발송",
         "contact_reply": "컨택 답변 작성",
+        "contact_unlock": "바이어 연락처 열람",
     }
     if action not in CREDIT_MAP:
         raise HTTPException(status_code=400, detail=f"unknown action: {action}")

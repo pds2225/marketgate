@@ -37,12 +37,34 @@ export const CREDIT_STATUS_LABELS = {
   expired: '신용보고서 만료',
 };
 
+/** 이메일 형식(소유 확인 아님). */
+export function isEmailFormatValid(email) {
+  const text = String(email || '').trim()
+  if (!text) return false
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)
+}
+
+/** 전화 형식(소유 확인 아님) — 숫자 8자리 이상. */
+export function isPhoneFormatValid(phone) {
+  const digits = String(phone || '').replace(/\D/g, '')
+  return digits.length >= 8
+}
+
 /**
- * 연락처 상태: 보유 여부만 원본에서 확인 가능하다.
- * format_validated / ownership_verified 는 검증 절차 도입 전까지 부여하지 않는다.
+ * 연락처 상태:
+ * - unavailable: 없음
+ * - discovered: 보유(형식 미통과·추정 등)
+ * - format_validated: 이메일/전화 형식이 통과 (소유 검증 아님)
+ * - ownership_verified: 별도 소유 확인 절차 전까지 부여하지 않음
  */
 export function deriveContactStatus(item) {
-  return item?.has_contact ? 'discovered' : 'unavailable';
+  if (!item?.has_contact) return 'unavailable'
+  const emailOk = isEmailFormatValid(item.contact_email)
+  const phoneOk = isPhoneFormatValid(item.contact_phone)
+  if ((emailOk || phoneOk) && !item.contact_email_estimated) {
+    return 'format_validated'
+  }
+  return 'discovered'
 }
 
 /**

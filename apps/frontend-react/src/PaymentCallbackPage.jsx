@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import api from './lib/api'
+import { syncBalanceFromServer } from './lib/creditWallet'
 
 const VERIFY_ATTEMPTS = 5
 const VERIFY_INTERVAL_MS = 1500
@@ -35,6 +36,7 @@ export default function PaymentCallbackPage({ onBack, onBalanceRefresh }) {
         if (cancelled) return
         if (confirmed) {
           setStatus('success')
+          await syncBalanceFromServer()
           if (onBalanceRefresh) onBalanceRefresh()
           return
         }

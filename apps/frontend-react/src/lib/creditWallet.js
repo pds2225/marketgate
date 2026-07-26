@@ -1,8 +1,9 @@
 /**
- * 로컬 크레딧 지갑 (서버 미연동).
- * localStorage 기반 — 파일럿 UX 검증용. 조작·기기 간 불일치는 알려진 한계.
+ * 크레딧 지갑 — 서버(/v1/credits) 잔액 + 로컬 unlockedKeys.
+ * 잔액은 서버가 권위, 열람 키는 기기 로컬(파일럿).
  */
 import { creditConfig } from '../config/creditConfig.js'
+import api from './api.js'
 
 const STORAGE_KEY = 'mg_credit_wallet_v1'
 const EVENT = 'mg:wallet'
@@ -11,6 +12,7 @@ function emptyWallet() {
   return {
     balance: Number(creditConfig.startingBalance) || 0,
     unlockedKeys: [],
+    source: 'local',
   }
 }
 
@@ -25,6 +27,7 @@ function readRaw() {
       unlockedKeys: Array.isArray(parsed.unlockedKeys)
         ? parsed.unlockedKeys.map(String)
         : [],
+      source: parsed.source || 'local',
     }
   } catch {
     return emptyWallet()
@@ -66,8 +69,27 @@ export function isUnlocked(buyerKey) {
   return getWallet().unlockedKeys.includes(String(buyerKey))
 }
 
+function setBalanceLocal(balance, { source = 'server' } = {}) {
+  const wallet = readRaw()
+  return writeRaw({ ...wallet, balance: Math.max(0, Number(balance) || 0), source })
+}
+
+/** 서버 잔액 동기화. 실패 시 로컬 잔액 유지. */
+export async function syncBalanceFromServer() {
+  try {
+    const { data } = await api.get('/v1/credits/balance')
+    const balance = Number(data?.balance)
+    if (Number.isFinite(balance)) {
+      return { ok: true, wallet: setBalanceLocal(balance, { source: 'server' }) }
+    }
+    return { ok: false, reason: 'invalid', wallet: readRaw() }
+  } catch (err) {
+    return { ok: false, reason: err.response?.status || 'network', wallet: readRaw() }
+  }
+}
+
 /**
- * @returns {{ ok: true, wallet, already: boolean } | { ok: false, reason: 'insufficient'|'empty_key'|'no_contact', wallet, need?: number }}
+ * 로컬 전용 언락(오프라인 폴백).
  */
 export function unlockBuyer(buyerKey, { hasContact = true } = {}) {
   const key = String(buyerKey || '').trim()
@@ -84,26 +106,80 @@ export function unlockBuyer(buyerKey, { hasContact = true } = {}) {
   const next = {
     balance: wallet.balance - cost,
     unlockedKeys: [...wallet.unlockedKeys, key],
+    source: wallet.source || 'local',
   }
   writeRaw(next)
   return { ok: true, already: false, wallet: next }
 }
 
 /**
- * 목업 충전 — 결제 없이 즉시 가산. UI에 시뮬레이션임을 표시할 것.
+ * 서버 차감(contact_unlock) 후 로컬 키 기록. 실패 시 로컬 폴백하지 않음(이중 차감 방지).
  */
-export function topUpPackage(packageId) {
+export async function unlockBuyerServer(buyerKey, { hasContact = true } = {}) {
+  const key = String(buyerKey || '').trim()
+  const wallet = readRaw()
+  if (!key) return { ok: false, reason: 'empty_key', wallet }
+  if (!hasContact) return { ok: false, reason: 'no_contact', wallet }
+  if (wallet.unlockedKeys.includes(key)) {
+    return { ok: true, already: true, wallet }
+  }
+  try {
+    const { data } = await api.post('/v1/credits/deduct', { action: 'contact_unlock' })
+    const next = {
+      balance: Number(data.balance),
+      unlockedKeys: [...wallet.unlockedKeys, key],
+      source: 'server',
+    }
+    writeRaw(next)
+    return { ok: true, already: false, wallet: next, deducted: data.deducted }
+  } catch (err) {
+    if (err.response?.status === 402 || err.response?.data?.detail === 'insufficient_credits') {
+      const synced = await syncBalanceFromServer()
+      return {
+        ok: false,
+        reason: 'insufficient',
+        wallet: synced.wallet,
+        need: creditConfig.unlockCost,
+      }
+    }
+    return {
+      ok: false,
+      reason: err.response?.data?.detail || 'server_error',
+      wallet: readRaw(),
+    }
+  }
+}
+
+/**
+ * 시뮬레이션 충전 — 서버 charge 우선, 실패 시 로컬만.
+ */
+export async function topUpPackage(packageId) {
   const pkg = (creditConfig.packages || []).find((p) => p.id === packageId && p.active !== false)
   if (!pkg) {
     return { ok: false, reason: 'unknown_package', wallet: readRaw() }
   }
-  const wallet = readRaw()
-  const next = {
-    ...wallet,
-    balance: wallet.balance + Number(pkg.credits || 0),
+  const credits = Number(pkg.credits || 0)
+  try {
+    const { data } = await api.post('/v1/credits/charge', {
+      amount: credits,
+      note: `sim_topup_${pkg.id}`,
+    })
+    const wallet = readRaw()
+    const next = writeRaw({
+      ...wallet,
+      balance: Number(data.balance),
+      source: 'server',
+    })
+    return { ok: true, wallet: next, package: pkg, via: 'server' }
+  } catch {
+    const wallet = readRaw()
+    const next = writeRaw({
+      ...wallet,
+      balance: wallet.balance + credits,
+      source: 'local',
+    })
+    return { ok: true, wallet: next, package: pkg, via: 'local' }
   }
-  writeRaw(next)
-  return { ok: true, wallet: next, package: pkg }
 }
 
 export function maskEmail(email) {

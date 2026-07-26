@@ -89,6 +89,8 @@ export default function AdminDashboard() {
   const [inquiryBusy, setInquiryBusy] = useState(false);
   const [dataInventory, setDataInventory] = useState(null);
   const [dataInventoryError, setDataInventoryError] = useState("");
+  const [p2Status, setP2Status] = useState(null);
+  const [p2Error, setP2Error] = useState("");
 
   const pushLog = (msg, type = "info") => {
     setLogs((prev) => [...prev, { time: new Date().toLocaleTimeString(), msg, type }]);
@@ -160,6 +162,21 @@ export default function AdminDashboard() {
     }
   };
 
+  const loadP2Status = async () => {
+    setP2Error("");
+    try {
+      const res = await api.get("/v1/admin/p2-status");
+      setP2Status(res.data);
+    } catch (err) {
+      setP2Status(null);
+      setP2Error(
+        err.response?.status === 403
+          ? "관리자 권한이 없습니다."
+          : err.response?.data?.detail || "P2 드롭인 상태 조회 실패"
+      );
+    }
+  };
+
   const checkSystemStatus = async () => {
     setLoading(true);
     try {
@@ -180,6 +197,7 @@ export default function AdminDashboard() {
         apiBase: API_BASE,
       });
       await loadDataInventory();
+      await loadP2Status();
 
       pushLog("✓ 시스템 정상", "success");
     } catch (err) {
@@ -411,6 +429,65 @@ export default function AdminDashboard() {
           </>
         ) : !dataInventoryError ? (
           <div style={{ fontSize: 13, color: "#78716c" }}>상태 새로고침 시 인벤토리를 불러옵니다.</div>
+        ) : null}
+      </div>
+
+      <div
+        style={{
+          backgroundColor: "#eff6ff",
+          padding: 24,
+          borderRadius: 12,
+          marginBottom: 32,
+          border: "1px solid #93c5fd",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 12 }}>
+          <h2 style={{ fontSize: 20, fontWeight: "bold", margin: 0 }}>
+            <GitBranch style={{ display: "inline", marginRight: 8, width: 20, height: 20 }} />
+            P2 드롭인 상태 (ACCESS_GATED)
+          </h2>
+          <Button onClick={loadP2Status} disabled={loading} icon={<RefreshCw />} variant="primary">
+            P2 상태 새로고침
+          </Button>
+        </div>
+        <p style={{ margin: "0 0 12px", color: "#1e40af", fontSize: 13 }}>
+          TradeKorea·KITA·KOTRA 무역관 등 회원 수령 CSV만 드롭인. 스크래핑·미확인 덤프 금지.
+          {p2Status?.folder ? ` · 폴더: ${p2Status.folder}` : ""}
+          {p2Status?.merge_command ? ` · 병합: ${p2Status.merge_command}` : ""}
+        </p>
+        {p2Error ? <div style={{ color: "#b91c1c", fontSize: 13 }}>{p2Error}</div> : null}
+        {p2Status?.items?.length ? (
+          <div style={{ display: "grid", gap: 8 }}>
+            {p2Status.items.map((item) => (
+              <div
+                key={item.key}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  padding: "10px 12px",
+                  background: "#fff",
+                  borderRadius: 8,
+                  border: "1px solid #bfdbfe",
+                  fontSize: 13,
+                }}
+              >
+                <span>
+                  <strong>{item.label}</strong>
+                  <span style={{ marginLeft: 8, color: "#64748b" }}>{item.filename}</span>
+                </span>
+                <strong style={{ color: item.present ? "#059669" : "#d97706" }}>
+                  {item.status}
+                </strong>
+              </div>
+            ))}
+            <div style={{ fontSize: 12, color: "#64748b" }}>
+              준비 {p2Status.ready_count}/{p2Status.total}
+              {p2Status.note ? ` · ${p2Status.note}` : ""}
+            </div>
+          </div>
+        ) : !p2Error ? (
+          <div style={{ fontSize: 13, color: "#64748b" }}>상태 새로고침 시 P2 드롭인 현황을 불러옵니다.</div>
         ) : null}
       </div>
 
