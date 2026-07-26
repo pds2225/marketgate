@@ -1303,8 +1303,6 @@ export default function AnalysisPage({ onBack, preset }) {
                   </div>
                 </div>
 
-                <DiagnosticsPanel diagnostics={result.diagnostics} />
-
                 <div className="analysis-panels">
                   <div className="analysis-list">
                     {result.recommendations.map((item) => (
@@ -1436,8 +1434,7 @@ export default function AnalysisPage({ onBack, preset }) {
                         <CircleAlert size={18} />
                         <h3>현재 데이터 기준으로 추천 국가가 잡히지 않았습니다.</h3>
                         <p>
-                          화면 연결 문제라기보다, 지금 들어 있는 CSV 데이터로는 국가별 추천을
-                          만들지 못한 상태입니다.
+                          현재 조건으로는 국가별 추천을 만들지 못했습니다. HS 코드나 연도를 바꿔 다시 시도해 주세요.
                         </p>
                       </div>
                     )}
@@ -1446,10 +1443,6 @@ export default function AnalysisPage({ onBack, preset }) {
 
                 <OpportunitySignalsPanel meta={result.buyers?.meta} />
                 <BuyerShortlistPanel buyers={result.buyers} onInquiry={handleOpenInquiry} />
-
-                {result.diagnostics ? (
-                  <DiagnosticsPanel diagnostics={result.diagnostics} />
-                ) : null}
               </motion.div>
             ) : null}
           </AnimatePresence>

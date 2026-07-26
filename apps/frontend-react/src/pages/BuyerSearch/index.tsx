@@ -72,7 +72,7 @@ function buildBuyerReportText(buyer: Buyer): string {
   lines.push('바이어 상세 보고서 (BUYER DETAIL REPORT)');
   lines.push(`리포트 ID: #${buyer.id}`);
   lines.push(`발행일: ${formatDate()}`);
-  lines.push('데이터 제공: KOTRA 공공데이터 CSV 기반 분석');
+  lines.push('데이터 제공: MarketGate 바이어 후보 분석');
   lines.push('='.repeat(50));
   lines.push('');
   lines.push('[기본 프로필]');
@@ -82,7 +82,6 @@ function buildBuyerReportText(buyer: Buyer): string {
   lines.push(`HS 코드: ${buyer.hsCode} (${buyer.hsLabel})`);
   lines.push(`적합도 점수: ${buyer.score}점 (${buyer.scoreLabel})`);
   lines.push(`데이터 출처: ${buyer.dataSource}`);
-  lines.push(`원본 추적: ${buyer.csvTrace || '자료 내 확인 불가'}`);
   lines.push(`데이터 수집일: ${buyer.dataDate || '자료 내 확인 불가'}`);
   lines.push('');
   lines.push('[연락처]');
@@ -106,7 +105,6 @@ function buildBuyerReportText(buyer: Buyer): string {
 // API 응답 → 뷰모델 변환·국가 그룹핑은 buyerViewModel.js 의 순수 함수를 사용한다
 // (Math.random / Date 기반 합성값 생성 금지 — 동일 입력 = 동일 결과).
 
-/* ── Data ── */
 // 카테고리 정의 (검색 진입용). 바이어 목록은 항상 API 실데이터로만 채운다 —
 // 가상의 예시 바이어(하드코딩 목업)는 데이터 정책 위반이라 제거했다.
 const CATEGORIES: CategoryData[] = [
@@ -117,30 +115,6 @@ const CATEGORIES: CategoryData[] = [
 ];
 
 /* ── Reusable small components ── */
-// 실측 데이터만 표시한다: /v1/demo/summary 의 실제 바이어 후보 집계.
-// 조회 실패 시 숫자를 지어내지 않고 '자료 내 확인 불가'로 표시한다.
-const DataStatsBanner: React.FC = () => {
-  const [summary, setSummary] = useState<{ total: number; countryCount: number } | null>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    api.get('/v1/demo/summary')
-      .then((res) => setSummary({ total: res.data?.total ?? 0, countryCount: res.data?.countryCount ?? 0 }))
-      .catch(() => setFailed(true));
-  }, []);
-  const fmt = (v: number | undefined) => (v == null ? '—' : v.toLocaleString());
-  return (
-    <div className="bg-white border-b border-slate-200 px-4 py-3">
-      <div className="flex items-center justify-between max-w-4xl mx-auto">
-        <div className="flex items-center gap-1.5 text-xs text-slate-500"><Globe2 className="h-4 w-4 text-blue-600" /><span className="font-bold text-slate-800">{failed ? '자료 내 확인 불가' : fmt(summary?.countryCount)}</span><span>개국 데이터</span></div>
-        <Separator orientation="vertical" className="h-4" />
-        <div className="flex items-center gap-1.5 text-xs text-slate-500"><Users className="h-4 w-4 text-emerald-600" /><span className="font-bold text-slate-800">{failed ? '자료 내 확인 불가' : fmt(summary?.total)}</span><span>개 바이어 후보 (등록 데이터 기준)</span></div>
-        <Separator orientation="vertical" className="h-4" />
-        <div className="flex items-center gap-1 text-[10px] text-slate-400">KOTRA 공공데이터 CSV 기반 · K-뷰티 HS 330499 파일럿</div>
-      </div>
-    </div>
-  );
-};
-
 // 검증 상태 3축 뱃지 — has_contact 하나로 '신뢰도 높음/검증 완료'를 표시하던 것을 대체
 const StatusBadges: React.FC<{ buyer: Buyer; compact?: boolean }> = ({ buyer, compact }) => {
   const contactTone = buyer.contactStatus === 'unavailable' ? 'bg-slate-100 text-slate-500 border border-slate-200' : 'bg-amber-50 text-amber-700 border border-amber-200';
@@ -503,7 +477,6 @@ const BuyerListPanel: React.FC<{ country: CountryRec; onSelectBuyer: (b: Buyer) 
 
 /* ── BuyerDetailPanel ── */
 const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode: string; category: string; }> = ({ buyer, onBack, inputHsCode, category }) => {
-  const [showMeta, setShowMeta] = useState(false);
   const [favorited, setFavorited] = useState(false);
   const [activeTab, setActiveTab] = useState('match');
 
@@ -546,7 +519,7 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
             </div>
           </div>
 
-          <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3 mb-5"><Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" /><p className="text-xs text-blue-800 leading-relaxed">KOTRA 공공데이터 CSV 기반 바이어 후보 분석 결과입니다. 원본에 없는 수입실적·신용정보는 표시하지 않습니다.</p></div>
+          <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3 mb-5"><Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" /><p className="text-xs text-blue-800 leading-relaxed">원본에 없는 수입실적·신용정보는 표시하지 않습니다.</p></div>
 
           {isMismatch && <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-5"><AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" /><div className="text-xs text-amber-800 leading-relaxed"><span className="font-semibold">입력하신 {inputHsCode}과(와) 유사한 HS 코드 {buyer.hsCode}({buyer.hsLabel})의 결과입니다.</span><br />해당 코드는 동일 카테고리({buyer.hsLabel}) 내 유사 품목으로 매칭되었습니다.</div></div>}
 
@@ -568,7 +541,6 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
                   <div><span className="text-xs text-slate-500 block mb-0.5">업종</span><span className="text-slate-800 font-medium">{buyer.industry}</span></div>
                   <div><span className="text-xs text-slate-500 block mb-0.5">국가/지역</span><span className="text-slate-800 font-medium">{buyer.country} · {buyer.region}</span></div>
                   <div><span className="text-xs text-slate-500 block mb-0.5">데이터 출처</span><span className="text-slate-800">{buyer.dataSource}</span></div>
-                  <div><span className="text-xs text-slate-500 block mb-0.5">원본 추적</span><span className="text-slate-800 text-xs font-mono">{buyer.csvTrace || '자료 내 확인 불가'}</span></div>
                   <div className="col-span-2"><span className="text-xs text-slate-500 block mb-0.5">데이터 수집일</span><span className="text-slate-800">{buyer.dataDate || '자료 내 확인 불가'}</span></div>
                 </div>
                 <Separator className="my-3" />
@@ -678,13 +650,8 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
                 <div className="flex justify-between"><span className="text-slate-500">거래·출처 상태 (trade_status)</span><span className="font-semibold text-slate-800">{TRADE_STATUS_LABELS[buyer.tradeStatus]}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">신용 상태 (credit_status)</span><span className="font-semibold text-slate-800">{CREDIT_STATUS_LABELS[buyer.creditStatus]}</span></div>
               </div>
-              <p className="text-xs text-slate-500 leading-relaxed mt-3">출처: {buyer.dataSource} · 검증일: 자료 내 확인 불가. 연락처 보유는 검증 완료를 의미하지 않습니다.</p>
+              <p className="text-xs text-slate-500 leading-relaxed mt-3">출처: {buyer.dataSource}. 연락처 보유는 검증 완료를 의미하지 않습니다.</p>
             </div>
-          </div>
-
-          <div className="mb-8">
-            <button onClick={() => setShowMeta(!showMeta)} className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-700 transition-colors"><ChevronRight className={`h-3.5 w-3.5 transition-transform ${showMeta ? 'rotate-90' : ''}`} />원본 데이터 상세 보기</button>
-            {showMeta && <div className="mt-2 bg-slate-50 border border-slate-200 rounded-lg p-4 text-xs text-slate-600 space-y-1 font-mono"><div>원본 파일: {buyer.csvTrace || '자료 내 확인 불가'}</div><div>수집 기관: {buyer.dataSource}</div><div>수집 일시: {buyer.dataDate || '자료 내 확인 불가'}</div><div>출처 검증: {buyer.sourceVerification}</div></div>}
           </div>
         </div>
       </ScrollArea>
@@ -906,7 +873,6 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
           </div>
           <div className="flex items-center gap-2"><Button variant="outline" size="sm" className="h-7 text-xs gap-1.5"><LayoutGrid className="h-3.5 w-3.5" />품 모드</Button></div>
         </div>
-        <DataStatsBanner />
         <SearchBar onSearch={handleSearch} activeCategory={currentCategory} loading={loading} initialQuery={seedQuery} />
       </header>
       <div className="flex-1 overflow-hidden relative">

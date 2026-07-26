@@ -87,6 +87,8 @@ export default function AdminDashboard() {
   const [inquiries, setInquiries] = useState([]);
   const [inquiryError, setInquiryError] = useState("");
   const [inquiryBusy, setInquiryBusy] = useState(false);
+  const [dataInventory, setDataInventory] = useState(null);
+  const [dataInventoryError, setDataInventoryError] = useState("");
 
   const pushLog = (msg, type = "info") => {
     setLogs((prev) => [...prev, { time: new Date().toLocaleTimeString(), msg, type }]);
@@ -143,6 +145,21 @@ export default function AdminDashboard() {
     inquiryAction(inquiryId, "mark-failed", { failure_reason: reason });
   };
 
+  const loadDataInventory = async () => {
+    setDataInventoryError("");
+    try {
+      const res = await api.get("/v1/demo/summary");
+      // 응답이 { total, bySource } 또는 { summary: {...} } 둘 다 허용
+      const payload = res.data?.summary || res.data || null;
+      setDataInventory(payload);
+    } catch (err) {
+      setDataInventory(null);
+      setDataInventoryError(
+        err.response?.data?.detail || "데이터 인벤토리(/v1/demo/summary) 조회 실패"
+      );
+    }
+  };
+
   const checkSystemStatus = async () => {
     setLoading(true);
     try {
@@ -162,6 +179,7 @@ export default function AdminDashboard() {
         projectSnapshot: snapshotData?.data ?? null,
         apiBase: API_BASE,
       });
+      await loadDataInventory();
 
       pushLog("✓ 시스템 정상", "success");
     } catch (err) {
@@ -301,6 +319,99 @@ export default function AdminDashboard() {
           />
           <ConfigItem label="상태 문구" value={systemStatus?.projectSnapshot?.status_text || "Git 저장소가 아닙니다."} />
         </div>
+      </div>
+
+      <div
+        style={{
+          backgroundColor: "#fff7ed",
+          padding: 24,
+          borderRadius: 12,
+          marginBottom: 32,
+          border: "1px solid #fdba74",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginBottom: 12 }}>
+          <h2 style={{ fontSize: 20, fontWeight: "bold", margin: 0 }}>
+            <Database style={{ display: "inline", marginRight: 8, width: 20, height: 20 }} />
+            내부 데이터 인벤토리 (관리자 전용)
+          </h2>
+          <Button onClick={loadDataInventory} disabled={loading} icon={<RefreshCw />} variant="warning">
+            인벤토리 새로고침
+          </Button>
+        </div>
+        <p style={{ margin: "0 0 16px", color: "#9a3412", fontSize: 13 }}>
+          데이터소스별 건수·국가 분포 등 서비스 내부 집계입니다. 고객 화면에는 노출하지 않습니다.
+        </p>
+        {dataInventoryError ? (
+          <div style={{ color: "#b91c1c", fontSize: 13 }}>{dataInventoryError}</div>
+        ) : null}
+        {dataInventory ? (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 16 }}>
+              <Stat label="바이어 후보 총건" value={dataInventory.total} />
+              <Stat label="국가 수" value={dataInventory.countryCount} />
+              <Stat label="소스 수" value={(dataInventory.bySource || []).length} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+              <div>
+                <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>데이터소스별 건수</h3>
+                <div style={{ maxHeight: 240, overflow: "auto", border: "1px solid #fed7aa", borderRadius: 8, background: "#fff" }}>
+                  {(dataInventory.bySource || []).map((row) => (
+                    <div
+                      key={row.name}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        padding: "8px 12px",
+                        borderBottom: "1px solid #ffedd5",
+                        fontSize: 13,
+                      }}
+                    >
+                      <span>
+                        {row.name}
+                        {row.official ? <span style={{ marginLeft: 6, color: "#059669", fontSize: 11 }}>공식</span> : null}
+                      </span>
+                      <strong>{Number(row.count || 0).toLocaleString()}</strong>
+                    </div>
+                  ))}
+                  {(dataInventory.bySource || []).length === 0 ? (
+                    <div style={{ padding: 12, fontSize: 13, color: "#78716c" }}>소스 집계 없음</div>
+                  ) : null}
+                </div>
+              </div>
+              <div>
+                <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>국가별 건수 (상위)</h3>
+                <div style={{ maxHeight: 240, overflow: "auto", border: "1px solid #fed7aa", borderRadius: 8, background: "#fff" }}>
+                  {(dataInventory.byCountry || []).slice(0, 20).map((row) => (
+                    <div
+                      key={`${row.name}-${row.iso3}`}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        padding: "8px 12px",
+                        borderBottom: "1px solid #ffedd5",
+                        fontSize: 13,
+                      }}
+                    >
+                      <span>
+                        {row.name}
+                        {row.iso3 ? <span style={{ marginLeft: 6, color: "#78716c", fontSize: 11 }}>{row.iso3}</span> : null}
+                      </span>
+                      <strong>{Number(row.count || 0).toLocaleString()}</strong>
+                    </div>
+                  ))}
+                  {(dataInventory.byCountry || []).length === 0 ? (
+                    <div style={{ padding: 12, fontSize: 13, color: "#78716c" }}>국가 집계 없음</div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : !dataInventoryError ? (
+          <div style={{ fontSize: 13, color: "#78716c" }}>상태 새로고침 시 인벤토리를 불러옵니다.</div>
+        ) : null}
       </div>
 
       <div style={{ display: "flex", gap: 12, marginBottom: 32, flexWrap: "wrap" }}>
