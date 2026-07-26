@@ -5,6 +5,8 @@ import {
   approxUnlockCount,
   creditConfig,
 } from './config/creditConfig.js'
+import { isTossPaymentEnabled } from './config/paymentConfig.js'
+import { startTossCheckout } from './lib/tossCheckout.js'
 
 const PLANS = [
   {
@@ -109,17 +111,23 @@ export default function PricingPage({ onBack }) {
     setLoading(item)
     setError('')
     try {
-      const payload = product_type === 'credit'
-        ? { product_type, package: item }
-        : { product_type, plan: item }
-      const res = await api.post('/v1/payment/checkout', payload)
-      const checkoutUrl = res?.data?.checkout_url
-      if (!checkoutUrl || typeof checkoutUrl !== 'string') {
-        setError('결제 페이지 주소를 받지 못했습니다. 잠시 후 다시 시도해주세요.')
+      // 토스 미활성(sim)이어도 checkout API는 호출해 ready 메시지를 받는다.
+      // 실결제: paymentConfig.mode='toss' + 서버 TOSS_CLIENT_KEY.
+      const result = await startTossCheckout(
+        product_type === 'credit'
+          ? { product_type, package: item }
+          : { product_type, plan: item }
+      )
+      if (!result.ok) {
+        setError(
+          !isTossPaymentEnabled()
+            ? '토스 PG는 아직 비활성(sim)입니다. paymentConfig.mode를 toss로 바꾸고 서버 키를 설정하세요.'
+            : (result.data?.message || '결제 페이지를 열지 못했습니다. TOSS_CLIENT_KEY를 확인하세요.')
+        )
         setLoading(null)
         return
       }
-      window.location.href = checkoutUrl
+      window.location.href = result.checkout_url
     } catch (e) {
       setError(e?.response?.data?.detail || '결제 요청 실패')
       setLoading(null)

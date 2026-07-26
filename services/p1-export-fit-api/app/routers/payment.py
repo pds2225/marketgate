@@ -15,8 +15,33 @@ from app.subscription_store import change_plan
 
 router = APIRouter(prefix="/v1/payment", tags=["payment"])
 
-_TOSS_CLIENT_KEY = os.environ.get("TOSS_CLIENT_KEY", "test_ck_placeholder")
+# 토스 PG — 실키 없으면 ready=false. 나중에 env만 채우면 checkout 활성화.
+_TOSS_CLIENT_KEY = os.environ.get("TOSS_CLIENT_KEY", "")
+_TOSS_SECRET_KEY = os.environ.get("TOSS_SECRET_KEY", "")  # 결제 승인(confirm) 후속용
 _BASE_URL = os.environ.get("BASE_URL", "http://localhost:5173")
+
+
+def _toss_ready() -> bool:
+    key = (_TOSS_CLIENT_KEY or "").strip()
+    if not key or key in ("test_ck_placeholder", "placeholder"):
+        return False
+    return key.startswith("test_ck_") or key.startswith("live_ck_") or len(key) > 8
+
+
+@router.get("/provider")
+def payment_provider():
+    """프론트 paymentConfig / 토스 위젯 연결 시 참조 메타."""
+    ready = _toss_ready()
+    return {
+        "provider": "toss",
+        "ready": ready,
+        "mode_hint": "toss" if ready else "sim",
+        "client_key_configured": ready,
+        "secret_configured": bool((_TOSS_SECRET_KEY or "").strip()),
+        "webhook_configured": bool((os.environ.get("TOSS_WEBHOOK_SECRET") or "").strip()),
+        "base_url": _BASE_URL,
+        "note": "TOSS_CLIENT_KEY + TOSS_WEBHOOK_SECRET + BASE_URL 설정 후 프론트 paymentConfig.mode='toss'",
+    }
 
 
 @router.post("/checkout")
@@ -45,6 +70,7 @@ def checkout(
     else:
         raise HTTPException(status_code=400, detail=f"unknown product_type: {product_type}")
 
+    # 형식 고정: "{uuid}-{product_type}-{item_key}" (웹훅 rsplit('-', 2) 하위호환)
     order_id = f"{user['user_id']}-{product_type}-{item_key}"
     success_url = (
         f"{_BASE_URL}/payment/callback"
@@ -52,16 +78,48 @@ def checkout(
     )
     fail_url = f"{_BASE_URL}/payment/callback?status=fail"
 
-    params = urllib.parse.urlencode({
-        "clientKey": _TOSS_CLIENT_KEY,
+    ready = _toss_ready()
+    client_key = _TOSS_CLIENT_KEY.strip() if ready else None
+
+    # 토스 결제위젯/리다이렉트·SDK가 그대로 쓸 수 있는 필드
+    toss_payload = {
+        "clientKey": client_key or "test_ck_placeholder",
         "amount": amount,
         "orderId": order_id,
         "orderName": order_name,
         "successUrl": success_url,
         "failUrl": fail_url,
-    })
-    checkout_url = f"https://pay.toss.im/v2/checkout?{params}"
-    return {"checkout_url": checkout_url, "order_id": order_id, "amount": amount}
+        "currency": "KRW",
+    }
+
+    checkout_url = None
+    if ready:
+        params = urllib.parse.urlencode({
+            "clientKey": toss_payload["clientKey"],
+            "amount": amount,
+            "orderId": order_id,
+            "orderName": order_name,
+            "successUrl": success_url,
+            "failUrl": fail_url,
+        })
+        checkout_url = f"https://pay.toss.im/v2/checkout?{params}"
+
+    return {
+        "provider": "toss",
+        "ready": ready,
+        "checkout_url": checkout_url,
+        "order_id": order_id,
+        "amount": amount,
+        "order_name": order_name,
+        "currency": "KRW",
+        "client_key": client_key,
+        "success_url": success_url,
+        "fail_url": fail_url,
+        "toss": toss_payload if ready else None,
+        "message": None if ready else (
+            "TOSS_CLIENT_KEY 미설정 — sim 충전을 쓰거나 키 설정 후 재시도하세요."
+        ),
+    }
 
 
 @router.post("/webhook")
