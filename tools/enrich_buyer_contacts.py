@@ -2,13 +2,14 @@
 """우선 풀 바이어 contact enrichment (웹 URL → mailto/전화).
 
 흐름 요약:
-  1) 대상 행 고르기 (K-SURE/EC21/ITC, 웹 비어 있음)
+  1) 대상 행 고르기 (K-SURE/EC21/ITC/SNS, 웹 비어 있음)
   2) 회사명으로 Clearbit에서 공식 도메인 후보 검색
   3) 사이트·Contact/About에서 mailto 이메일·공개 전화 추출
   4) 빈 칸만 채움. 새 이메일은 contact_email_estimated=True
-  5) SNS 전량은 하지 않음 (품질·비용)
 
-주의: 스크래핑 값은 추정이다. 자동 발송에 확정 연락처처럼 쓰지 말 것.
+주의:
+  - 스크래핑 값은 추정이다. 자동 발송에 확정 연락처처럼 쓰지 말 것.
+  - SNS는 제외 필수가 아님. 포함 시 대상 건수·오탐·소요시간이 커진다.
 """
 
 from __future__ import annotations
@@ -34,12 +35,13 @@ BUYER_CSV = ROOT / "services" / "cosmetics_mvp_preprocess" / "output" / "buyer_c
 REPORT_PATH = ROOT / "tools" / "reports" / "buyer_contact_enrich_report.json"
 CHECKPOINT_PATH = ROOT / "tools" / "reports" / "buyer_contact_enrich_checkpoint.jsonl"
 
-# SNS 제외. 이름 품질이 나은 공식·B2B 소스만 1차 enrichment.
+# SNS도 포함 가능(필수 제외 아님). 이름 노이즈↑ → 매칭 성공률↓·오탐↑·소요시간↑.
 PRIORITY_SOURCES = {
     "한국무역보험공사_화장품 바이어 정보",
     "한국무역보험공사_바이어 검색",
     "EC21_GlobalB2B_BuyingLeads",
     "ITC_TradeMap_ImportingCompanies",
+    "대한무역투자진흥공사_SNS 마케팅 수집 바이어 정보",
 }
 
 # 붙여 쓴 상호(예: FOOLTD)에서 떼어낼 법인식 접미사
