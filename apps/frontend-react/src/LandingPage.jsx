@@ -14,6 +14,7 @@ import {
   Users,
   Heart,
   Shirt,
+  Cpu,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
@@ -104,17 +105,25 @@ const quickStartItems = [
     id: "health",
     icon: Heart,
     label: "건강식품",
-    sub: "곧 만나요",
+    sub: "지금 시작",
     hsCode: "210690",
-    available: false,
+    available: true,
   },
   {
     id: "kfashion",
     icon: Shirt,
     label: "K-패션",
-    sub: "곧 만나요",
-    hsCode: "611030",
-    available: false,
+    sub: "지금 시작",
+    hsCode: "6203",
+    available: true,
+  },
+  {
+    id: "semi",
+    icon: Cpu,
+    label: "반도체",
+    sub: "지금 시작",
+    hsCode: "8541",
+    available: true,
   },
 ];
 
@@ -124,6 +133,7 @@ export default function LandingPage({
   onStartBuyerSearch,
   onStartOpportunities,
   onStartCompare,
+  onStartMyInquiries,
 }) {
   const [toast, setToast] = useState(null);
   const [query, setQuery] = useState("");
@@ -200,6 +210,12 @@ export default function LandingPage({
           <span className="landing-brand-mark">MarketGate</span>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            className="ui-button ui-button--ghost"
+            onClick={() => onStartMyInquiries?.()}
+          >
+            내 인콰이어리
+          </button>
           <button
             className="ui-button ui-button--ghost"
             onClick={() => onStartOpportunities?.()}
@@ -450,6 +466,12 @@ export default function LandingPage({
           </p>
         </div>
         <div className="landing-cta-actions">
+          <button
+            className="ui-button ui-button--ghost"
+            onClick={() => onStartMyInquiries?.()}
+          >
+            내 인콰이어리
+          </button>
           <button
             className="ui-button ui-button--ghost"
             onClick={() => onStartOpportunities?.()}

@@ -10,6 +10,7 @@ import PricingPage from './PricingPage'
 import PaymentCallbackPage from './PaymentCallbackPage'
 import OpportunityExplorePage from './OpportunityExplorePage'
 import ComparePage from './ComparePage'
+import MyInquiriesPage from './MyInquiriesPage'
 import CreditTopUpSheet from './components/CreditTopUpSheet'
 import { getWallet, subscribeWallet, syncBalanceFromServer } from './lib/creditWallet'
 import api from './lib/api'
@@ -148,6 +149,7 @@ function App() {
             )}
             {[
               { label: '구매신호', page: 'opportunities' },
+              { label: '인콰이어리', page: 'myInquiries' },
               { label: '비교', page: 'compare' },
               { label: '요금제', page: 'pricing' },
               { label: '시뮬레이션', page: 'simulation' },
@@ -202,8 +204,9 @@ function App() {
           onStartFlow={() => navigate('exportFlow')}
           onStartBuyerSearch={() => navigate('buyerSearch')}
           onStartAnalysis={(preset) => navigate('analysis', preset || null)}
-          onStartOpportunities={() => navigate('opportunities')}
+          onStartOpportunities={(preset) => navigate('opportunities', preset || null)}
           onStartCompare={() => navigate('compare')}
+          onStartMyInquiries={() => navigate('myInquiries')}
         />
       )}
 
@@ -214,7 +217,11 @@ function App() {
       )}
 
       {page === 'opportunities' && (
-        <OpportunityExplorePage onBack={() => navigate('landing')} />
+        <OpportunityExplorePage onBack={() => navigate('landing')} preset={chatPreset} />
+      )}
+
+      {page === 'myInquiries' && (
+        <MyInquiriesPage onBack={() => navigate('landing')} />
       )}
 
       {page === 'compare' && (

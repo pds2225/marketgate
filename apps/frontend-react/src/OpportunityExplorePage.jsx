@@ -2,13 +2,20 @@ import { useCallback, useEffect, useState } from 'react'
 import { ArrowLeft, Filter, Search } from 'lucide-react'
 import api from './lib/api'
 
+const CATEGORY_PRESETS = [
+  { label: 'K-뷰티', hs: '3304' },
+  { label: '건강식품', hs: '2106' },
+  { label: 'K-패션', hs: '62' },
+  { label: '반도체', hs: '8541' },
+]
+
 /**
  * 구매신호 전체 탐색 — HS 매칭 상위만이 아니라 보유 opportunity_item 목록·검색·필터.
  */
-export default function OpportunityExplorePage({ onBack }) {
+export default function OpportunityExplorePage({ onBack, preset }) {
   const [q, setQ] = useState('')
   const [country, setCountry] = useState('')
-  const [hs, setHs] = useState('')
+  const [hs, setHs] = useState(() => String(preset?.hsCode || '').replace(/\D/g, '').slice(0, 6))
   const [signalType, setSignalType] = useState('')
   const [source, setSource] = useState('')
   const [usableOnly, setUsableOnly] = useState(false)
@@ -18,15 +25,17 @@ export default function OpportunityExplorePage({ onBack }) {
   const [offset, setOffset] = useState(0)
   const limit = 40
 
-  const load = useCallback(async (nextOffset = 0) => {
+  const load = useCallback(async (nextOffset = 0, overrides = {}) => {
+    const nextHs = overrides.hs !== undefined ? overrides.hs : hs
+    const nextQ = overrides.q !== undefined ? overrides.q : q
     setLoading(true)
     setError('')
     try {
       const res = await api.get('/v1/opportunities', {
         params: {
-          q: q.trim() || undefined,
+          q: String(nextQ || '').trim() || undefined,
           country: country || undefined,
-          hs: hs.trim() || undefined,
+          hs: String(nextHs || '').trim() || undefined,
           signal_type: signalType || undefined,
           source: source || undefined,
           usable_only: usableOnly || undefined,
@@ -45,8 +54,15 @@ export default function OpportunityExplorePage({ onBack }) {
   }, [q, country, hs, signalType, source, usableOnly])
 
   useEffect(() => {
-    load(0)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps — 최초 1회
+    const code = String(preset?.hsCode || '').replace(/\D/g, '').slice(0, 6)
+    if (code) setHs(code)
+    load(0, code ? { hs: code } : {})
+  }, [preset?.hsCode]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const applyCategory = (code) => {
+    setHs(code)
+    load(0, { hs: code })
+  }
 
   const facets = data?.facets || { countries: [], sources: [], signal_types: [] }
   const items = data?.items || []
@@ -73,6 +89,25 @@ export default function OpportunityExplorePage({ onBack }) {
 
       <main className="analysis-layout" style={{ gridTemplateColumns: '1fr' }}>
         <section className="analysis-input-card" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            {CATEGORY_PRESETS.map((c) => (
+              <button
+                key={c.hs}
+                type="button"
+                className="ui-button ui-button--ghost"
+                style={{
+                  borderColor: hs === c.hs || String(hs).startsWith(c.hs) ? 'rgba(245,158,11,0.5)' : undefined,
+                  color: hs === c.hs || String(hs).startsWith(c.hs) ? '#f59e0b' : undefined,
+                }}
+                onClick={() => applyCategory(c.hs)}
+              >
+                {c.label} · {c.hs}
+              </button>
+            ))}
+            <button type="button" className="ui-button ui-button--ghost" onClick={() => applyCategory('')}>
+              전체
+            </button>
+          </div>
           <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
             <label className="analysis-field">
               <span>검색</span>
