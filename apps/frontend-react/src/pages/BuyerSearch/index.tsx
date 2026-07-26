@@ -337,8 +337,77 @@ const SearchBar: React.FC<{ onSearch: (text: string) => void; activeCategory: st
   );
 };
 
+interface OpportunitySignal {
+  title: string;
+  countryIso3: string;
+  countryName: string;
+  signalType: string;
+}
+
+function buildOpportunitySignals(meta: any): OpportunitySignal[] {
+  if (!meta || typeof meta !== 'object') return [];
+  const scores = Array.isArray(meta.selected_opportunity_match_scores) ? meta.selected_opportunity_match_scores : [];
+  const types = Array.isArray(meta.selected_opportunity_signal_types) ? meta.selected_opportunity_signal_types : [];
+  const countries = Array.isArray(meta.selected_opportunity_countries) ? meta.selected_opportunity_countries : [];
+  if (scores.length > 0) {
+    return scores
+      .filter((entry: any) => String(entry?.opportunity_title || '').trim())
+      .map((entry: any, index: number) => ({
+        title: String(entry.opportunity_title).trim(),
+        countryIso3: String(entry.country_iso3 || '').trim().toUpperCase(),
+        countryName: String(countries[index] || '').trim(),
+        signalType: String(types[index] || '').trim(),
+      }));
+  }
+  const titles = Array.isArray(meta.selected_opportunity_titles) ? meta.selected_opportunity_titles : [];
+  return titles
+    .map((title: string, index: number) => ({
+      title: String(title || '').trim(),
+      countryIso3: '',
+      countryName: String(countries[index] || '').trim(),
+      signalType: String(types[index] || '').trim(),
+    }))
+    .filter((row: OpportunitySignal) => row.title);
+}
+
+function signalTypeLabel(type: string): string {
+  const key = String(type || '').toLowerCase();
+  if (key === 'inquiry' || key.includes('inqu')) return '인콰이어리';
+  if (key === 'consultation' || key.includes('consult')) return '상담 요청';
+  if (key === 'offer' || key.includes('offer') || key.includes('구매')) return '구매 오퍼';
+  if (!key) return '구매 신호';
+  return type;
+}
+
+const OpportunitySignalsBanner: React.FC<{ signals: OpportunitySignal[] }> = ({ signals }) => (
+  <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-5">
+    <div className="flex items-center justify-between gap-2 mb-2">
+      <h2 className="text-sm font-semibold text-amber-950">구매 신호</h2>
+      <span className="text-[11px] font-medium text-amber-800">{signals.length}건</span>
+    </div>
+    <p className="text-[11px] text-amber-900/80 mb-3 leading-relaxed">
+      buyKOREA 인콰이어리 등 <strong>수요 신호</strong>입니다. 연락 가능한 바이어 명단이 아니며, 점수 순위가 아닙니다.
+    </p>
+    {signals.length === 0 ? (
+      <p className="text-xs text-amber-900/70">연결된 구매 신호 없음 — 자료 내 확인 불가 또는 현재 조건에 매칭된 신호 없음</p>
+    ) : (
+      <ul className="space-y-2">
+        {signals.map((signal, index) => (
+          <li key={`${signal.title}-${index}`} className="bg-white/80 border border-amber-100 rounded-lg px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px]">{signalTypeLabel(signal.signalType)}</Badge>
+              <span className="text-[11px] text-slate-600">{signal.countryName || signal.countryIso3 || '국가 미상'}</span>
+            </div>
+            <p className="text-sm font-medium text-slate-900 leading-snug">{signal.title}</p>
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+);
+
 /* ── CountryListPanel ── */
-const CountryListPanel: React.FC<{ countries: CountryRec[]; categoryLabel: string; categoryHs: string; onSelectCountry: (c: CountryRec) => void; onOpenConditions: () => void; hasConditions: boolean; }> = ({ countries, categoryLabel, categoryHs, onSelectCountry, onOpenConditions, hasConditions }) => {
+const CountryListPanel: React.FC<{ countries: CountryRec[]; categoryLabel: string; categoryHs: string; onSelectCountry: (c: CountryRec) => void; onOpenConditions: () => void; hasConditions: boolean; opportunitySignals?: OpportunitySignal[]; }> = ({ countries, categoryLabel, categoryHs, onSelectCountry, onOpenConditions, hasConditions, opportunitySignals = [] }) => {
   // 파일럿: 점수 순위가 아니라 연락처·후보 수 실측으로 정렬해 사용자가 판단하게 한다.
   const sorted = useMemo(
     () => [...countries].sort((a, b) => b.contactableCount - a.contactableCount || b.buyerCount - a.buyerCount),
@@ -356,6 +425,7 @@ const CountryListPanel: React.FC<{ countries: CountryRec[]; categoryLabel: strin
             <div className="flex items-center justify-between mb-2"><span className="text-xs font-bold tracking-wider text-blue-200">COUNTRY FACTS</span><span className="text-xs text-slate-400">{categoryLabel} · HS {categoryHs}</span></div>
             <p className="text-xs text-slate-300 mt-2">{sorted.length}개국 · 정렬: 연락처 보유 수 → 바이어 후보 수 (공공데이터 CSV). 적합도 점수로 순위를 매기지 않습니다.</p>
           </div>
+          <OpportunitySignalsBanner signals={opportunitySignals} />
           <div className="space-y-3">
             {sorted.map((c) => (
               <button key={c.countryCode} onClick={() => onSelectCountry(c)} className="w-full text-left bg-white border border-slate-200 rounded-xl p-5 hover:border-blue-300 hover:shadow-md transition-all group">
@@ -612,6 +682,7 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
   const [dynamicCategory, setDynamicCategory] = useState<CategoryData | null>(null);
   // 랜딩에서 sessionStorage(mg_search_query)로 넘긴 검색어 — 마운트 시 1회 소비·자동 검색
   const [seedQuery, setSeedQuery] = useState('');
+  const [opportunitySignals, setOpportunitySignals] = useState<OpportunitySignal[]>([]);
 
   const categoryData = useMemo(() => dynamicCategory || CATEGORIES.find((c) => c.label === currentCategory), [dynamicCategory, currentCategory]);
   // 바이어별 수입실적 데이터가 원본에 없어 MOQ 기반 바이어 필터링은 제공하지 않는다.
@@ -671,6 +742,7 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
 
       setDynamicCategory(newCategory);
       setCurrentCategory(detected || hsCode);
+      setOpportunitySignals(buildOpportunitySignals(buyersData.meta));
       setStep('countries');
       setSelectedCountry(null);
       setSelectedBuyer(null);
@@ -697,6 +769,7 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
       // Clear stale results so the error panel is shown instead of the previous search's data.
       setDynamicCategory(null);
       setCurrentCategory('');
+      setOpportunitySignals([]);
       setStep('countries');
       setSelectedCountry(null);
       setSelectedBuyer(null);
@@ -778,7 +851,7 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
         )}
       </div>
     );
-    if (step === 'countries') return <CountryListPanel countries={countryRecs} categoryLabel={currentCategory} categoryHs={categoryData.hsCode} onSelectCountry={handleSelectCountry} onOpenConditions={() => setShowConditionPanel(true)} hasConditions={hasConditions} />;
+    if (step === 'countries') return <CountryListPanel countries={countryRecs} categoryLabel={currentCategory} categoryHs={categoryData.hsCode} onSelectCountry={handleSelectCountry} onOpenConditions={() => setShowConditionPanel(true)} hasConditions={hasConditions} opportunitySignals={opportunitySignals} />;
     if (step === 'buyers' && selectedCountry) return <BuyerListPanel country={selectedCountry} onSelectBuyer={handleSelectBuyer} onBack={handleBackToCountries} onOpenConditions={() => setShowConditionPanel(true)} hasConditions={hasConditions} />;
     if (step === 'detail' && selectedBuyer) return <BuyerDetailPanel buyer={selectedBuyer} onBack={handleBackToBuyers} inputHsCode={inputHsCode || '330303'} category={currentCategory} />;
     return null;

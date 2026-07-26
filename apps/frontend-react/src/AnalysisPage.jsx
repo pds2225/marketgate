@@ -375,6 +375,125 @@ function normalizeP1Response(payload) {
   };
 }
 
+function buildOpportunitySignals(meta) {
+  if (!meta || typeof meta !== "object") return [];
+  const scores = Array.isArray(meta.selected_opportunity_match_scores)
+    ? meta.selected_opportunity_match_scores
+    : [];
+  if (scores.length > 0) {
+    const types = Array.isArray(meta.selected_opportunity_signal_types)
+      ? meta.selected_opportunity_signal_types
+      : [];
+    const countries = Array.isArray(meta.selected_opportunity_countries)
+      ? meta.selected_opportunity_countries
+      : [];
+    return scores
+      .filter((entry) => String(entry?.opportunity_title || "").trim())
+      .map((entry, index) => ({
+        title: String(entry.opportunity_title).trim(),
+        countryIso3: String(entry.country_iso3 || "").trim().toUpperCase(),
+        countryName: String(countries[index] || "").trim(),
+        signalType: String(types[index] || "").trim(),
+      }));
+  }
+  const titles = Array.isArray(meta.selected_opportunity_titles)
+    ? meta.selected_opportunity_titles
+    : [];
+  const countries = Array.isArray(meta.selected_opportunity_countries)
+    ? meta.selected_opportunity_countries
+    : [];
+  const types = Array.isArray(meta.selected_opportunity_signal_types)
+    ? meta.selected_opportunity_signal_types
+    : [];
+  return titles
+    .map((title, index) => ({
+      title: String(title || "").trim(),
+      countryIso3: "",
+      countryName: String(countries[index] || "").trim(),
+      signalType: String(types[index] || "").trim(),
+    }))
+    .filter((row) => row.title);
+}
+
+function signalTypeLabel(type) {
+  const key = String(type || "").toLowerCase();
+  if (key === "inquiry" || key.includes("inqu")) return "인콰이어리";
+  if (key === "consultation" || key.includes("consult")) return "상담 요청";
+  if (key === "offer" || key.includes("offer") || key.includes("구매")) return "구매 오퍼";
+  if (!key) return "구매 신호";
+  return type;
+}
+
+/** 구매 신호(수요 인콰이어리 등) — 바이어 연락처가 아닐 수 있음. predict meta만 사용. */
+function OpportunitySignalsPanel({ meta }) {
+  const signals = buildOpportunitySignals(meta);
+  return (
+    <div
+      style={{
+        marginTop: 20,
+        padding: 18,
+        borderRadius: 20,
+        border: "1px solid rgba(245, 158, 11, 0.28)",
+        background: "rgba(41, 37, 36, 0.55)",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
+        <div>
+          <p className="analysis-kicker">Purchase Signals</p>
+          <h3 style={{ margin: "6px 0 0", fontSize: 20 }}>구매 신호</h3>
+          <p style={{ margin: "8px 0 0", color: "#a8a29e", fontSize: 13, lineHeight: 1.5 }}>
+            buyKOREA 인콰이어리 등 <strong style={{ color: "#e7e5e4" }}>수요 신호</strong>입니다.
+            연락 가능한 바이어 명단이 아니며, 점수 순위가 아닙니다.
+          </p>
+        </div>
+        <strong style={{ color: "#fbbf24", whiteSpace: "nowrap" }}>{signals.length}건</strong>
+      </div>
+
+      {signals.length === 0 ? (
+        <div className="analysis-empty analysis-empty--compact" style={{ marginTop: 14 }}>
+          <CircleAlert size={18} />
+          <h3>연결된 구매 신호 없음</h3>
+          <p>현재 HS·추천국 조건으로 매칭된 인콰이어리/오퍼가 자료에 없거나 선택되지 않았습니다.</p>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
+          {signals.map((signal, index) => {
+            const metaCountry = signal.countryIso3
+              ? countryInfo[signal.countryIso3]
+              : null;
+            const countryLabel =
+              metaCountry?.name ||
+              signal.countryName ||
+              signal.countryIso3 ||
+              "국가 미상";
+            const flag = metaCountry?.flag || "";
+            return (
+              <div
+                key={`${signal.title}-${index}`}
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: 12,
+                  border: "1px solid rgba(168, 162, 158, 0.25)",
+                  background: "rgba(12, 10, 9, 0.45)",
+                  textAlign: "left",
+                }}
+              >
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                  <span style={badgeStyle("#78350f", "#fcd34d")}>{signalTypeLabel(signal.signalType)}</span>
+                  <span style={{ fontSize: 13, color: "#d6d3d1" }}>
+                    {flag} {countryLabel}
+                  </span>
+                </div>
+                <strong style={{ color: "#fafaf9", fontSize: 15, lineHeight: 1.4 }}>{signal.title}</strong>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BuyerShortlistPanel({ buyers, onInquiry }) {
   if (!buyers) {
     return null;
@@ -1194,6 +1313,7 @@ export default function AnalysisPage({ onBack, preset }) {
                   </div>
                 </div>
 
+                <OpportunitySignalsPanel meta={result.buyers?.meta} />
                 <BuyerShortlistPanel buyers={result.buyers} onInquiry={handleOpenInquiry} />
 
                 {result.diagnostics ? (
