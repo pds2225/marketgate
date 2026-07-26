@@ -33,6 +33,7 @@ _SOURCE_META: dict[str, dict[str, Any]] = {
     "한국무역보험공사_화장품 바이어 정보": {"name": "K-SURE 화장품", "official": True},
     "한국무역보험공사_바이어 검색": {"name": "K-SURE 바이어검색", "official": True},
     "중소벤처기업진흥공단_GoBizKorea인콰이어리": {"name": "GoBizKorea", "official": True},
+    "중소벤처기업진흥공단_GoBizKorea구매오퍼": {"name": "GoBizKorea 구매오퍼", "official": True},
     "EC21_GlobalB2B_BuyingLeads": {"name": "EC21", "official": False},
     "대한무역투자진흥공사_buyKOREA인콰이어리": {"name": "buyKOREA", "official": True},
     "ITC_TradeMap_ImportingCompanies": {"name": "ITC TradeMap", "official": True},

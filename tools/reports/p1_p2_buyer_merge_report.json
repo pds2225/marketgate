@@ -1,0 +1,140 @@
+{
+  "generated_at": "2026-07-26T05:48:50.006949+00:00",
+  "before": {
+    "buyer_candidate": {
+      "rows": 36241,
+      "by_source": {
+        "대한무역투자진흥공사_SNS 마케팅 수집 바이어 정보": 33446,
+        "정보통신산업진흥원_글로벌ICT포털해외바이어": 1847,
+        "한국무역보험공사_화장품 바이어 정보": 386,
+        "한국무역보험공사_바이어 검색": 235,
+        "중소벤처기업진흥공단_GoBizKorea인콰이어리": 202,
+        "EC21_GlobalB2B_BuyingLeads": 103,
+        "대한무역투자진흥공사_buyKOREA인콰이어리": 11,
+        "ITC_TradeMap_ImportingCompanies": 11
+      },
+      "with_email": 2136,
+      "with_name": 35875,
+      "email_ratio": 0.0589
+    },
+    "opportunity_item": {
+      "rows": 0
+    }
+  },
+  "p1": {
+    "loaded": [
+      {
+        "source": "대한무역투자진흥공사_buyKOREA인콰이어리",
+        "path": "buykorea_inquiry_2023_2025_cosmetics.csv",
+        "status": "CONFIRMED",
+        "rows": 5076,
+        "with_email": 0,
+        "with_name": 0
+      },
+      {
+        "source": "중소벤처기업진흥공단_GoBizKorea인콰이어리",
+        "path": "gobiz_inquiry_2021_2023.csv",
+        "status": "CONFIRMED",
+        "rows": 2981,
+        "with_email": 0,
+        "with_name": 0
+      },
+      {
+        "source": "중소벤처기업진흥공단_GoBizKorea인콰이어리",
+        "path": "gobiz_inquiry_2024.csv",
+        "status": "CONFIRMED",
+        "rows": 2429,
+        "with_email": 0,
+        "with_name": 0
+      },
+      {
+        "source": "중소벤처기업진흥공단_GoBizKorea구매오퍼",
+        "path": "gobiz_purchase_offer.csv",
+        "status": "CONFIRMED",
+        "rows": 166,
+        "with_email": 0,
+        "with_name": 0
+      }
+    ],
+    "missing": []
+  },
+  "p2": [
+    {
+      "key": "tradekorea",
+      "label": "TradeKorea_BuyerOrInquiry",
+      "status": "UNKNOWN",
+      "note": "계정·ToS·공식 export 확인 전 자동수집 금지",
+      "drop_in": "/workspace/services/cosmetics_mvp_preprocess/input/p2_optional/tradekorea.csv"
+    },
+    {
+      "key": "kita",
+      "label": "KITA_BuyerOrInquiry",
+      "status": "UNKNOWN",
+      "note": "회원·이용권 확인 전 단정 금지",
+      "drop_in": "/workspace/services/cosmetics_mvp_preprocess/input/p2_optional/kita.csv"
+    },
+    {
+      "key": "kotra_trade_office",
+      "label": "KOTRA_TradeOffice_BuyerList",
+      "status": "UNKNOWN",
+      "note": "무역관 배포분 수령·재배포 범위 문서화 필요",
+      "drop_in": "/workspace/services/cosmetics_mvp_preprocess/input/p2_optional/kotra_trade_office.csv"
+    }
+  ],
+  "actions": [
+    {
+      "action": "move_inquiry_rows_buyer_to_opportunity",
+      "rows": 213,
+      "sources": [
+        "대한무역투자진흥공사_buyKOREA인콰이어리",
+        "중소벤처기업진흥공단_GoBizKorea인콰이어리"
+      ]
+    },
+    {
+      "action": "dedupe_buyer",
+      "removed": 9
+    },
+    {
+      "action": "dedupe_opportunity",
+      "removed": 3071
+    }
+  ],
+  "after": {
+    "buyer_candidate": {
+      "rows": 36019,
+      "by_source": {
+        "대한무역투자진흥공사_SNS 마케팅 수집 바이어 정보": 33440,
+        "정보통신산업진흥원_글로벌ICT포털해외바이어": 1845,
+        "한국무역보험공사_화장품 바이어 정보": 386,
+        "한국무역보험공사_바이어 검색": 234,
+        "EC21_GlobalB2B_BuyingLeads": 103,
+        "ITC_TradeMap_ImportingCompanies": 11
+      },
+      "with_email": 2134,
+      "with_name": 35866,
+      "email_ratio": 0.0592
+    },
+    "opportunity_item": {
+      "rows": 7794,
+      "by_source": {
+        "대한무역투자진흥공사_buyKOREA인콰이어리": 4837,
+        "중소벤처기업진흥공단_GoBizKorea인콰이어리": 2791,
+        "중소벤처기업진흥공단_GoBizKorea구매오퍼": 166
+      },
+      "with_email": 0,
+      "with_name": 0,
+      "email_ratio": 0.0
+    },
+    "paths": {
+      "buyer_candidate": "/workspace/services/cosmetics_mvp_preprocess/output/buyer_candidate.csv",
+      "opportunity_item": "/workspace/services/cosmetics_mvp_preprocess/output/opportunity_item.csv"
+    }
+  },
+  "verdict": {
+    "p1_opportunity_expanded": true,
+    "buyer_inquiries_removed": 213,
+    "p2_confirmed_files": 0,
+    "p2_unknown_sources": 3,
+    "note": "P2 TradeKorea/KITA 등은 드롭인 CSV 없을 때 UNKNOWN (L002). contact_* 스크래핑 미수행."
+  }
+}
