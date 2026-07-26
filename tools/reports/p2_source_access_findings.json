@@ -1,0 +1,65 @@
+{
+  "verified_at": "2026-07-26",
+  "policy": "L002 — 실존·접근·권리 CONFIRMED 전 로드맵 단정 금지. 공개 일괄 덤프 없음 → ACCESS_GATED.",
+  "sources": [
+    {
+      "key": "tradekorea",
+      "label": "TradeKorea_BuyerOrInquiry",
+      "status": "ACCESS_GATED",
+      "bulk_csv_public": false,
+      "bulk_api_public": false,
+      "access_mode": "member_ui_cl_send_only",
+      "access_url": "https://kr.tradekorea.com/seller/buyer/buyerDB.do",
+      "constraints": [
+        "1일 1회, 월 최대 5회",
+        "1회 거래제안 최대 20개사",
+        "개인정보보호로 연락처 미제공(국가·회사·품목만)"
+      ],
+      "how_to_ingest": "회원 수령/합법 export를 COMMON 스키마 CSV로 만든 뒤 input/p2_optional/tradekorea.csv 드롭인 후 merge 스크립트 실행",
+      "rows_ingested": 0
+    },
+    {
+      "key": "kita",
+      "label": "KITA_BuyerOrInquiry",
+      "status": "ACCESS_GATED",
+      "bulk_csv_public": false,
+      "bulk_api_public": false,
+      "access_mode": "member_matching_via_tradekorea",
+      "access_url": "https://www.kita.org/info/globalService/tradeKorea.do",
+      "constraints": [
+        "KITA 바이어 DB 일괄 CSV/OpenAPI 미확인·미제공",
+        "tradeKorea 회원 매칭·C/L 경로와 동일 계열"
+      ],
+      "public_substitute_already_in_p1": {
+        "name": "한국무역보험공사_바이어 검색 / 화장품 바이어",
+        "portal": "https://www.data.go.kr/data/15144480/openapi.do",
+        "note": "이미 buyer_candidate에 편입됨 — KITA 대체 공개 API로 중복 수집하지 않음"
+      },
+      "how_to_ingest": "협회 수령분을 COMMON 스키마로 input/p2_optional/kita.csv 드롭인",
+      "rows_ingested": 0
+    },
+    {
+      "key": "kotra_trade_office",
+      "label": "KOTRA_TradeOffice_BuyerList",
+      "status": "ACCESS_GATED",
+      "bulk_csv_public": false,
+      "bulk_api_public": false,
+      "access_mode": "paid_discovery_or_member_search",
+      "access_url": "https://www.kotra.or.kr",
+      "constraints": [
+        "무역관 바이어 일괄 다운로드 없음",
+        "수출24 잠재바이어 발굴은 유료·건당",
+        "트라이빅/기업회원 맞춤 검색 — 재배포 범위 문서화 필요"
+      ],
+      "how_to_ingest": "무역관 배포분 권리 확인 후 COMMON 스키마로 input/p2_optional/kotra_trade_office.csv 드롭인",
+      "rows_ingested": 0
+    }
+  ],
+  "verdict": {
+    "p2_csv_files_found": 0,
+    "p2_rows_merged": 0,
+    "all_three_verified_access_gated": true,
+    "scraping_performed": false,
+    "note": "가짜 CSV·스크래핑 편입 없음. 상태만 UNKNOWN→ACCESS_GATED로 승격하고 획득 경로를 문서화함."
+  }
+}

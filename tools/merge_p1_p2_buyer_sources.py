@@ -89,25 +89,44 @@ INQUIRY_SOURCES_IN_BUYER = {
     "중소벤처기업진흥공단_GoBizKorea구매오퍼",
 }
 
-# P2 기대 소스 — 파일 없으면 UNKNOWN (L002)
+# P2 기대 소스 — 2026-07-26 접근 경로 검증 결과.
+# 공개 일괄 CSV/API 없음 → 드롭인 파일 없으면 ACCESS_GATED (L002: 무료 덤프 단정 금지)
 P2_EXPECTED: list[dict[str, str]] = [
     {
         "key": "tradekorea",
         "label": "TradeKorea_BuyerOrInquiry",
-        "status_if_missing": "UNKNOWN",
-        "note": "계정·ToS·공식 export 확인 전 자동수집 금지",
+        "status_if_missing": "ACCESS_GATED",
+        "note": (
+            "일괄 export/API 없음. tradeKorea 셀러 회원 UI에서 바이어 검색·C/L 발송만 가능 "
+            "(1일 1회·월 5회, 1회 20개사). 연락처는 개인정보보호로 미제공(국가·회사·품목만). "
+            "회원 수령분을 COMMON 스키마 CSV로 변환해 input/p2_optional/tradekorea.csv 드롭인."
+        ),
+        "access_url": "https://kr.tradekorea.com/seller/buyer/buyerDB.do",
+        "verified_at": "2026-07-26",
     },
     {
         "key": "kita",
         "label": "KITA_BuyerOrInquiry",
-        "status_if_missing": "UNKNOWN",
-        "note": "회원·이용권 확인 전 단정 금지",
+        "status_if_missing": "ACCESS_GATED",
+        "note": (
+            "KITA 바이어 DB 일괄 CSV/OpenAPI 없음. tradeKorea(KITA 운영) 회원 매칭·C/L 경로와 동일 계열. "
+            "공개 대체는 K-SURE 바이어검색 API(data.go.kr)이며 이미 buyer_candidate에 편입됨. "
+            "협회 수령분이 있으면 input/p2_optional/kita.csv 드롭인."
+        ),
+        "access_url": "https://www.kita.org/info/globalService/tradeKorea.do",
+        "verified_at": "2026-07-26",
     },
     {
         "key": "kotra_trade_office",
         "label": "KOTRA_TradeOffice_BuyerList",
-        "status_if_missing": "UNKNOWN",
-        "note": "무역관 배포분 수령·재배포 범위 문서화 필요",
+        "status_if_missing": "ACCESS_GATED",
+        "note": (
+            "무역관 바이어 일괄 다운로드 없음. 수출24 잠재바이어 발굴(유료·건당) 또는 "
+            "트라이빅/기업회원 맞춤 검색. 무역관 배포분은 재배포 범위 문서화 후 "
+            "input/p2_optional/kotra_trade_office.csv 드롭인."
+        ),
+        "access_url": "https://www.kotra.or.kr",
+        "verified_at": "2026-07-26",
     },
 ]
 
@@ -211,6 +230,9 @@ def _load_p2_optional() -> tuple[list[pd.DataFrame], list[dict[str, Any]]]:
 
     found_labels: set[str] = set()
     for path in sorted(P2_DIR.glob("*.csv")):
+        # 스키마 예시(*.csv.example)는 glob에 안 걸리지만, *.example.csv 잔존도 제외
+        if path.name.endswith(".example.csv") or ".example." in path.name:
+            continue
         df = _load_csv(path)
         # COMMON 최소 컬럼 없으면 스킵
         if "country_norm" not in df.columns and "country_raw" not in df.columns:
@@ -252,15 +274,18 @@ def _load_p2_optional() -> tuple[list[pd.DataFrame], list[dict[str, Any]]]:
         matched = any(expected["key"] in str(s.get("file", "")).casefold() for s in status)
         if matched:
             continue
-        status.append(
-            {
-                "key": expected["key"],
-                "label": label,
-                "status": expected["status_if_missing"],
-                "note": expected["note"],
-                "drop_in": str(P2_DIR / f"{expected['key']}.csv"),
-            }
-        )
+        entry: dict[str, Any] = {
+            "key": expected["key"],
+            "label": label,
+            "status": expected["status_if_missing"],
+            "note": expected["note"],
+            "drop_in": str(P2_DIR / f"{expected['key']}.csv"),
+        }
+        if expected.get("access_url"):
+            entry["access_url"] = expected["access_url"]
+        if expected.get("verified_at"):
+            entry["verified_at"] = expected["verified_at"]
+        status.append(entry)
     return frames, status
 
 
@@ -360,8 +385,12 @@ def main() -> int:
         > report["before"].get("opportunity_item", {}).get("rows", 0),
         "buyer_inquiries_removed": int(len(moved)),
         "p2_confirmed_files": sum(1 for s in p2_status if s.get("status") == "CONFIRMED"),
+        "p2_access_gated_sources": sum(1 for s in p2_status if s.get("status") == "ACCESS_GATED"),
         "p2_unknown_sources": sum(1 for s in p2_status if s.get("status") == "UNKNOWN"),
-        "note": "P2 TradeKorea/KITA 등은 드롭인 CSV 없을 때 UNKNOWN (L002). contact_* 스크래핑 미수행.",
+        "note": (
+            "P2 TradeKorea/KITA/KOTRA 무역관은 공개 일괄 CSV 없음 → ACCESS_GATED (L002). "
+            "회원·무역관 수령 CSV만 드롭인 편입. contact_* 스크래핑 미수행."
+        ),
     }
 
     report_path = REPORT_DIR / "p1_p2_buyer_merge_report.json"
