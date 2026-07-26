@@ -301,9 +301,89 @@ function buildP1Recommendation(entry) {
   const missingIndicators = explanation.missing_indicators || {};
   const dataCoverage = entry.data_coverage || null;
   const warnings = Array.isArray(entry.warnings) ? entry.warnings : [];
-  const topFactors = (explanation.top_factors || [])
+  const rawTopFactors = Array.isArray(explanation.top_factors) ? explanation.top_factors : [];
+  const topFactors = rawTopFactors
     .map((item) => factorNames[item.factor] || item.factor)
     .filter(Boolean);
+
+  const metrics = Object.entries(p1MetricMeta).map(([key, metaInfo]) => {
+    const missingKey = p1MetricMissingKey[key];
+    const missing = Boolean(missingKey && missingIndicators[missingKey]);
+    return {
+      key,
+      label: metaInfo.label,
+      tone: metaInfo.tone,
+      missing,
+      value: missing ? 0 : clampMetric(key, components[key]),
+      displayValue: missing ? "자료 내 확인 불가" : formatMetricValue(key, components[key]),
+    };
+  });
+
+  const tradeSourceLabels = {
+    partner_observed: "상대국 관측 무역 실적",
+    world_total_allocated: "세계 합계 배분(폴백)",
+  };
+  const tradeSource = explanation.trade_signal_source;
+  const evidence = [];
+  rawTopFactors.forEach((item, index) => {
+    const label = factorNames[item.factor] || item.factor;
+    if (!label) return;
+    evidence.push({
+      id: `factor-${index}`,
+      label: `${index + 1}순위 기여 요인`,
+      value: label,
+      note: item.direction === "positive" ? "점수에 양의 기여" : item.direction || "",
+    });
+  });
+  metrics.forEach((metric) => {
+    evidence.push({
+      id: `metric-${metric.key}`,
+      label: metric.label,
+      value: metric.displayValue,
+      note: metric.missing ? "결측 — 점수에 반영하지 않음" : "정규화 지표",
+    });
+  });
+  if (components.soft_adjustment != null && Number(components.soft_adjustment) !== 0) {
+    evidence.push({
+      id: "soft",
+      label: "소프트 보정",
+      value: `${Number(components.soft_adjustment) > 0 ? "+" : ""}${Number(components.soft_adjustment).toFixed(1)}점`,
+      note: "규제·리스크 등 보정",
+    });
+  }
+  if (components.compliance_penalty != null && Number(components.compliance_penalty) !== 0) {
+    evidence.push({
+      id: "compliance",
+      label: "수출제한 페널티",
+      value: `${Number(components.compliance_penalty).toFixed(1)}점`,
+      note: "제한 국가 반영",
+    });
+  }
+  if (tradeSource) {
+    evidence.push({
+      id: "trade-source",
+      label: "무역 신호 출처",
+      value: tradeSourceLabels[tradeSource] || tradeSource,
+      note: "",
+    });
+  }
+  if (explanation.kotra_weight_score != null) {
+    evidence.push({
+      id: "kotra",
+      label: "KOTRA 가중 신호",
+      value: String(explanation.kotra_weight_score),
+      note: "원본 가중치",
+    });
+  }
+  const sources = explanation.data_sources || [];
+  if (sources.length) {
+    evidence.push({
+      id: "sources",
+      label: "데이터 출처",
+      value: sources.join(" · "),
+      note: "",
+    });
+  }
 
   return {
     id: `${meta.iso3}-${entry.rank}`,
@@ -313,22 +393,12 @@ function buildP1Recommendation(entry) {
     badge: "P1 API",
     dataCoverage,
     warnings,
+    evidence,
     summary:
       topFactors.length > 0
-        ? `${topFactors.join(" · ")} 쪽에서 점수가 높게 반영됐습니다.`
-        : "CSV 기반 지표를 합산한 적합도 점수입니다.",
-    metrics: Object.entries(p1MetricMeta).map(([key, metaInfo]) => {
-      const missingKey = p1MetricMissingKey[key];
-      const missing = Boolean(missingKey && missingIndicators[missingKey]);
-      return {
-        key,
-        label: metaInfo.label,
-        tone: metaInfo.tone,
-        missing,
-        value: missing ? 0 : clampMetric(key, components[key]),
-        displayValue: missing ? "데이터 없음" : formatMetricValue(key, components[key]),
-      };
-    }),
+        ? `근거: ${topFactors.join(" · ")}`
+        : "표시 가능한 상위 기여 요인이 응답에 없습니다.",
+    metrics,
     detailRows: [
       { label: "주요 근거", value: topFactors.join(", ") || "표시 가능한 상위 요인 없음" },
       {
@@ -337,7 +407,11 @@ function buildP1Recommendation(entry) {
       },
       {
         label: "데이터 출처",
-        value: (explanation.data_sources || []).join(", ") || "CSV 파일 기준",
+        value: sources.join(", ") || "CSV 파일 기준",
+      },
+      {
+        label: "무역 신호",
+        value: tradeSource ? (tradeSourceLabels[tradeSource] || tradeSource) : "자료 내 확인 불가",
       },
     ],
   };
@@ -367,7 +441,7 @@ function normalizeP1Response(payload) {
 
   return {
     engine: "p1",
-    hint: "CSV 기반 P1 지표·후보를 표시합니다. 점수는 참고용입니다.",
+    hint: "적합도 점수와 함께 기여 요인·출처·결측 근거를 표시합니다.",
     request: { hsCode: input.hs_code, topN: input.top_n, year: input.year },
     recommendations: results.map((entry) => buildP1Recommendation(entry)),
     diagnostics,
@@ -592,8 +666,17 @@ function BuyerShortlistPanel({ buyers, onInquiry }) {
                       ) : null}
                     </div>
                   </div>
+                  <span className="analysis-card-badge">
+                    {item.final_score != null
+                      ? `${Number(item.final_score).toFixed?.(1) ?? item.final_score}점`
+                      : "점수 없음"}
+                  </span>
                 </div>
-                <p>{(item.explanation_reasons || []).join(" · ") || "근거 문장 없음"}</p>
+                <p>
+                  <strong style={{ color: "#e7e5e4" }}>근거 </strong>
+                  {(item.explanation_reasons || item.recommendation_lines || []).join(" · ") ||
+                    "근거 문장 없음"}
+                </p>
                 <div className="analysis-detail-grid" style={{ marginTop: 12 }}>
                   <div className="analysis-detail-row">
                     <span>추천 국가</span>
@@ -1079,7 +1162,7 @@ export default function AnalysisPage({ onBack, preset }) {
               <div>
                 <span>3</span>
                 <strong>결과 검토</strong>
-                <p>국가 실측 지표와 바이어 후보를 함께 봅니다.</p>
+                <p>국가 점수와 그 근거(요인·출처·결측)를 함께 봅니다.</p>
               </div>
             </div>
 
@@ -1174,7 +1257,7 @@ export default function AnalysisPage({ onBack, preset }) {
                     <span className="analysis-empty-step-num">3</span>
                     <div>
                       <strong>결과 확인 및 바이어 탐색</strong>
-                      <span>사실 지표·출처·바이어 후보까지 한 화면에 정리됩니다. 점수로 순위를 강제하지 않습니다.</span>
+                      <span>점수·근거·바이어 후보·구매 신호까지 한 화면에 정리됩니다.</span>
                     </div>
                   </div>
                 </div>
@@ -1243,15 +1326,13 @@ export default function AnalysisPage({ onBack, preset }) {
                               </strong>
                               <span>{item.country.region}</span>
                             </div>
-                            <span className="analysis-card-badge">
-                              지표 {(item.metrics || []).filter((m) => !m.missing).length}/{(item.metrics || []).length || 0}
-                            </span>
+                            <span className="analysis-card-badge">{item.badge}</span>
                           </div>
                           <p>{item.summary}</p>
                         </div>
-                        <div className="analysis-card-score analysis-card-score--facts">
-                          <strong>{(item.detailRows || []).length}</strong>
-                          <span>사실행</span>
+                        <div className="analysis-card-score">
+                          <strong>{item.score.toFixed(1)}</strong>
+                          <span>점</span>
                         </div>
                       </button>
                     ))}
@@ -1282,14 +1363,64 @@ export default function AnalysisPage({ onBack, preset }) {
 
                         <ConfidenceNotice recommendation={selectedRecommendation} />
 
+                        <div
+                          style={{
+                            marginBottom: 16,
+                            padding: "14px 16px",
+                            borderRadius: 14,
+                            border: "1px solid rgba(245, 158, 11, 0.3)",
+                            background: "rgba(41, 37, 36, 0.55)",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
+                            <div>
+                              <p className="analysis-kicker">Score Evidence</p>
+                              <h4 style={{ margin: "4px 0 0", fontSize: 16, color: "#fafaf9" }}>
+                                이 순위·점수의 근거
+                              </h4>
+                            </div>
+                            <strong style={{ color: "#fbbf24", fontSize: 20 }}>
+                              {selectedRecommendation.score.toFixed(1)}
+                              <span style={{ fontSize: 12, marginLeft: 4 }}>점</span>
+                            </strong>
+                          </div>
+                          {(selectedRecommendation.evidence || []).length === 0 ? (
+                            <p style={{ margin: "12px 0 0", fontSize: 13, color: "#a8a29e" }}>
+                              응답에 표시 가능한 근거 항목이 없습니다.
+                            </p>
+                          ) : (
+                            <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                              {selectedRecommendation.evidence.map((row) => (
+                                <div
+                                  key={row.id}
+                                  style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "minmax(96px, 140px) 1fr",
+                                    gap: 10,
+                                    padding: "8px 10px",
+                                    borderRadius: 10,
+                                    background: "rgba(12, 10, 9, 0.45)",
+                                    border: "1px solid rgba(168, 162, 158, 0.2)",
+                                  }}
+                                >
+                                  <span style={{ fontSize: 12, color: "#a8a29e" }}>{row.label}</span>
+                                  <div>
+                                    <strong style={{ fontSize: 13, color: "#f5f5f4", fontWeight: 600 }}>{row.value}</strong>
+                                    {row.note ? (
+                                      <div style={{ fontSize: 11, color: "#78716c", marginTop: 2 }}>{row.note}</div>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
                         <div className="analysis-metrics">
                           {selectedRecommendation.metrics.map((metric) => (
                             <MetricBar key={metric.key} metric={metric} />
                           ))}
                         </div>
-                        <p style={{ margin: "0 0 12px", fontSize: 12, color: "#78716c" }}>
-                          위 막대는 엔진이 쓰는 정규화 지표입니다. 아래 사실 행으로 판단하세요. 엔진 점수 {selectedRecommendation.score?.toFixed?.(1) ?? "—"}점은 참고용입니다.
-                        </p>
 
                         <div className="analysis-detail-grid">
                           {selectedRecommendation.detailRows.map((row) => (

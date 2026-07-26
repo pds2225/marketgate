@@ -112,10 +112,29 @@ export function mapApiBuyerToViewModel(item, index, hsCode, categoryLabel) {
     hsCode,
     hsLabel: categoryLabel,
     keywords: item.matched_terms || [],
-    reasons: (item.recommendation_lines || item.explanation_reasons || []).map((text) => ({
-      text,
-      source: item.source_dataset || '출처 미상',
-    })),
+    matchedBy: item.matched_by || '',
+    reasons: (() => {
+      const lines = [...(item.recommendation_lines || item.explanation_reasons || [])]
+        .map((text) => String(text || '').trim())
+        .filter(Boolean);
+      if (item.matched_by) lines.push(`매칭 방식: ${item.matched_by}`);
+      if (Array.isArray(item.matched_terms) && item.matched_terms.length) {
+        lines.push(`매칭 키워드: ${item.matched_terms.join(', ')}`);
+      }
+      if (item.source_dataset) lines.push(`출처 데이터셋: ${item.source_dataset}`);
+      // 중복 제거(동일 문장)
+      const seen = new Set();
+      return lines
+        .filter((text) => {
+          if (seen.has(text)) return false;
+          seen.add(text);
+          return true;
+        })
+        .map((text) => ({
+          text,
+          source: item.source_dataset || '출처 미상',
+        }));
+    })(),
     // 원본에 없는 값 — 전부 null ('자료 내 확인 불가'로 렌더링)
     importHistory: null,
     totalImportValue: null,

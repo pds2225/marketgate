@@ -80,6 +80,7 @@ function buildBuyerReportText(buyer: Buyer): string {
   lines.push(`업종: ${buyer.industry}`);
   lines.push(`국가/지역: ${buyer.country} · ${buyer.region}`);
   lines.push(`HS 코드: ${buyer.hsCode} (${buyer.hsLabel})`);
+  lines.push(`적합도 점수: ${buyer.score}점 (${buyer.scoreLabel})`);
   lines.push(`데이터 출처: ${buyer.dataSource}`);
   lines.push(`원본 추적: ${buyer.csvTrace || '자료 내 확인 불가'}`);
   lines.push(`데이터 수집일: ${buyer.dataDate || '자료 내 확인 불가'}`);
@@ -97,12 +98,9 @@ function buildBuyerReportText(buyer: Buyer): string {
   lines.push('누적 수입액·성장률·RFM: 자료 내 확인 불가 (원본 데이터에 수입실적 미포함)');
   if (buyer.reasons.length) {
     lines.push('');
-    lines.push('[매칭 근거]');
+    lines.push('[점수 근거]');
     buyer.reasons.forEach(r => lines.push(`- ${r.text}${r.source ? ` (출처: ${r.source})` : ''}`));
   }
-  lines.push('');
-  lines.push('[참고·엔진 점수 — 공식 순위 아님]');
-  lines.push(`엔진 점수: ${buyer.score}점 (${buyer.scoreLabel})`);
   return lines.join('\n');
 }
 // API 응답 → 뷰모델 변환·국가 그룹핑은 buyerViewModel.js 의 순수 함수를 사용한다
@@ -423,7 +421,7 @@ const CountryListPanel: React.FC<{ countries: CountryRec[]; categoryLabel: strin
         <div className="px-5 py-5 max-w-3xl mx-auto">
           <div className="bg-slate-900 text-white rounded-xl px-5 py-4 mb-6">
             <div className="flex items-center justify-between mb-2"><span className="text-xs font-bold tracking-wider text-blue-200">COUNTRY FACTS</span><span className="text-xs text-slate-400">{categoryLabel} · HS {categoryHs}</span></div>
-            <p className="text-xs text-slate-300 mt-2">{sorted.length}개국 · 정렬: 연락처 보유 수 → 바이어 후보 수 (공공데이터 CSV). 적합도 점수로 순위를 매기지 않습니다.</p>
+            <p className="text-xs text-slate-300 mt-2">{sorted.length}개국 · 정렬: 연락처 보유 수 → 바이어 후보 수. 각 후보의 점수·근거는 바이어 상세에서 확인합니다.</p>
           </div>
           <OpportunitySignalsBanner signals={opportunitySignals} />
           <div className="space-y-3">
@@ -437,7 +435,10 @@ const CountryListPanel: React.FC<{ countries: CountryRec[]; categoryLabel: strin
                       <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />바이어 후보 {c.buyerCount}개</span>
                       <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" />연락처 보유 {c.contactableCount}개</span>
                     </div>
-                    <p className="text-xs text-slate-400">대표 후보: <span className="font-medium text-slate-600">{c.topBuyerName || '자료 내 확인 불가'}</span></p>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="flex items-center gap-1.5 bg-emerald-50 rounded-lg px-2.5 py-1"><span className="text-sm font-bold text-emerald-700">{c.avgScore}</span><span className="text-[10px] text-emerald-600">점(평균)</span></div>
+                      <span className="text-xs text-slate-400">대표: <span className="font-medium text-slate-600">{c.topBuyerName || '자료 내 확인 불가'}</span>{c.topBuyerScore != null ? ` · ${c.topBuyerScore}점` : ''}</span>
+                    </div>
                   </div>
                   <div className="flex-shrink-0 self-center"><ChevronRight className="h-5 w-5 text-slate-300 group-hover:text-blue-500 transition-colors" /></div>
                 </div>
@@ -454,12 +455,10 @@ const CountryListPanel: React.FC<{ countries: CountryRec[]; categoryLabel: strin
 const BuyerListPanel: React.FC<{ country: CountryRec; onSelectBuyer: (b: Buyer) => void; onBack: () => void; onOpenConditions: () => void; hasConditions: boolean; }> = ({ country, onSelectBuyer, onBack, onOpenConditions, hasConditions }) => {
   const sortedBuyers = useMemo(
     () => [...country.buyers].sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
       const ac = a.contactStatus === 'unavailable' ? 0 : 1;
       const bc = b.contactStatus === 'unavailable' ? 0 : 1;
-      if (bc !== ac) return bc - ac;
-      const at = a.tradeStatus === 'source_confirmed' ? 1 : 0;
-      const bt = b.tradeStatus === 'source_confirmed' ? 1 : 0;
-      return bt - at;
+      return bc - ac;
     }),
     [country.buyers],
   );
@@ -467,7 +466,7 @@ const BuyerListPanel: React.FC<{ country: CountryRec; onSelectBuyer: (b: Buyer) 
     <div className="flex flex-col h-full bg-white">
       <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-200">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack}><ChevronLeft className="h-4 w-4 text-slate-600" /></Button>
-        <div className="flex items-center gap-2"><span className="text-2xl">{country.flag}</span><div><h1 className="text-sm font-semibold text-slate-800">{country.countryName} 바이어 리스트</h1><p className="text-xs text-slate-500">총 {country.buyers.length}개 · 정렬: 연락처 → 출처 확인 (점수 순위 없음)</p></div></div>
+        <div className="flex items-center gap-2"><span className="text-2xl">{country.flag}</span><div><h1 className="text-sm font-semibold text-slate-800">{country.countryName} 바이어 리스트</h1><p className="text-xs text-slate-500">총 {country.buyers.length}개 · 정렬: 적합도 점수 → 연락처 · 평균 {country.avgScore}점</p></div></div>
         <div className="ml-auto"><Button variant="ghost" size="sm" className={`h-7 text-xs gap-1 ${hasConditions ? 'text-blue-600 bg-blue-50' : 'text-slate-500'}`} onClick={onOpenConditions}><Settings2 className="h-3.5 w-3.5" />수익성 시뮬레이션</Button></div>
       </div>
       <ScrollArea className="flex-1">
@@ -477,8 +476,15 @@ const BuyerListPanel: React.FC<{ country: CountryRec; onSelectBuyer: (b: Buyer) 
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0"><div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center"><Building2 className="h-6 w-6 text-slate-400" /></div></div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5"><h3 className="text-base font-bold text-slate-900">{buyer.name}</h3></div>
+                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                    <h3 className="text-base font-bold text-slate-900">{buyer.name}</h3>
+                    <Badge className={`text-[10px] ${buyer.score >= 90 ? 'bg-emerald-100 text-emerald-700' : buyer.score >= 80 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>적합도 {buyer.score}점</Badge>
+                  </div>
                   <p className="text-xs text-slate-500">({buyer.legalName})</p>
+                  <p className="text-xs text-slate-600 mt-2 leading-relaxed line-clamp-2">
+                    <span className="font-semibold text-slate-700">근거 </span>
+                    {buyer.reasons?.[0]?.text || '응답에 근거 문장이 없습니다.'}
+                  </p>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-slate-500"><span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{buyer.region}</span><span>{buyer.industry}</span><span className="text-slate-400">HS {buyer.hsCode}</span><span className="flex items-center gap-1"><Mail className="h-3 w-3" />{buyer.email ? displayContact(buyer.email, { unlocked: false, kind: 'email' }) : '연락처 없음'}</span></div>
                   <div className="flex flex-wrap items-center gap-2 mt-3">
                     <StatusBadges buyer={buyer} compact />
@@ -499,7 +505,7 @@ const BuyerListPanel: React.FC<{ country: CountryRec; onSelectBuyer: (b: Buyer) 
 const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode: string; category: string; }> = ({ buyer, onBack, inputHsCode, category }) => {
   const [showMeta, setShowMeta] = useState(false);
   const [favorited, setFavorited] = useState(false);
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState('match');
 
   const handleFavorite = () => { setFavorited(!favorited); toast.success(favorited ? '관심 바이어에서 제거했습니다' : '관심 바이어로 등록했습니다'); };
   const handleShare = () => { copyToClipboard(`${window.location.origin}?buyer=${buyer.id}`); };
@@ -507,10 +513,10 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
   const isMismatch = inputHsCode !== buyer.hsCode && inputHsCode !== category;
 
   const tabs = [
+    { key: 'match', label: '점수·근거', icon: <Sparkles className="h-3.5 w-3.5" /> },
     { key: 'profile', label: '기본 프로필', icon: <Building2 className="h-3.5 w-3.5" /> },
-    { key: 'match', label: '매칭 근거', icon: <Sparkles className="h-3.5 w-3.5" /> },
     { key: 'import', label: '수입 이력', icon: <TrendingUp className="h-3.5 w-3.5" /> },
-    { key: 'fit', label: '참고 점수', icon: <BarChart3 className="h-3.5 w-3.5" /> },
+    { key: 'fit', label: '세부 지표', icon: <BarChart3 className="h-3.5 w-3.5" /> },
   ];
 
   return (
@@ -597,22 +603,18 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
 
           {activeTab === 'fit' && (
             <div className="mb-6">
-              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 text-xs text-amber-900 leading-relaxed">
-                이 탭의 숫자는 <strong>엔진 참고용</strong>이며 공식 순위·추천이 아닙니다. 파일럿에서는 연락처·출처·HS 등 실데이터로 판단하세요.
-              </div>
-              <details className="bg-white border border-slate-200 rounded-xl p-5">
-                <summary className="cursor-pointer text-sm font-semibold text-slate-700">엔진 참고 점수 펼치기 ({buyer.score}점 · {buyer.scoreLabel})</summary>
-                <div className="flex items-center gap-4 mt-5 mb-5">
-                  <div className="text-center"><div className="text-3xl font-bold text-slate-500">{buyer.score}<span className="text-base">점</span></div><div className="flex items-center justify-center gap-1 mt-1"><span className="text-xs text-slate-400">{buyer.scoreLabel}</span></div></div>
+              <div className="bg-white border border-slate-200 rounded-xl p-5">
+                <div className="flex items-center gap-4 mb-5">
+                  <div className="text-center"><div className="text-4xl font-extrabold text-emerald-600">{buyer.score}<span className="text-lg">점</span></div><div className="flex items-center justify-center gap-1 mt-1"><div className="w-2 h-2 rounded-full bg-emerald-500" /><span className="text-xs text-slate-500">{buyer.scoreLabel}</span></div></div>
                   <Separator orientation="vertical" className="h-12" />
-                  <div className="flex-1"><p className="text-xs text-slate-500 mb-2">P1이 공공데이터 지표를 합산한 참고값입니다 (100점 만점). 의사결정 기준으로 쓰지 마세요.</p></div>
+                  <div className="flex-1"><p className="text-xs text-slate-500 mb-2">score_breakdown 세부 지표입니다. 문장 근거는 「점수·근거」탭을 보세요.</p></div>
                 </div>
                 {buyer.metrics ? (
                   <div className="bg-slate-50 rounded-lg p-4">{buyer.metrics.map((m) => <ScoreBar key={m.label} label={m.label} value={m.value} />)}</div>
                 ) : (
                   <DataUnavailable title="세부 점수" description="이 바이어의 점수 세부 내역이 응답에 포함되어 있지 않습니다." />
                 )}
-              </details>
+              </div>
               <div className="mt-5">
                 <DataUnavailable
                   title="RFM 모델"
@@ -624,14 +626,44 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
 
           {activeTab === 'match' && (
             <div className="mb-6">
+              <div className="bg-white border border-slate-200 rounded-xl p-5 mb-4">
+                <div className="flex items-end justify-between gap-3 mb-4">
+                  <div>
+                    <p className="text-[11px] font-semibold tracking-wider text-slate-400 uppercase">Score + Evidence</p>
+                    <h3 className="text-sm font-semibold text-slate-800 mt-1">이 점수의 근거</h3>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-3xl font-extrabold text-emerald-600 leading-none">{buyer.score}<span className="text-base">점</span></div>
+                    <div className="text-xs text-slate-500 mt-1">{buyer.scoreLabel}</div>
+                  </div>
+                </div>
+                {buyer.metrics ? (
+                  <div className="bg-slate-50 rounded-lg p-4 mb-4">{buyer.metrics.map((m) => <ScoreBar key={m.label} label={m.label} value={m.value} />)}</div>
+                ) : (
+                  <p className="text-xs text-slate-500 mb-4">세부 score_breakdown 없음 — 문장 근거만 표시합니다.</p>
+                )}
+                {buyer.reasons.length === 0 ? (
+                  <DataUnavailable title="근거 문장" description="recommendation_lines / explanation_reasons 가 응답에 없습니다." />
+                ) : (
+                  <ol className="space-y-3">
+                    {buyer.reasons.map((r, idx) => (
+                      <li key={idx} className="flex items-start gap-2.5 text-sm text-slate-700">
+                        <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-50 text-blue-600 text-xs font-bold flex items-center justify-center mt-0.5">{idx + 1}</span>
+                        <div className="flex-1">
+                          <p className="leading-relaxed">{r.text}</p>
+                          <button onClick={() => toast.info(r.source, { description: '원본 데이터 출처' })} className="inline-flex items-center gap-1 mt-1 text-[10px] text-blue-600 hover:text-blue-800 hover:underline">
+                            <ExternalLink className="h-3 w-3" /> 출처: {r.source}
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
               <div className="bg-white border border-slate-200 rounded-xl p-5">
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div><span className="text-xs text-slate-500 block mb-1">매칭 HS 코드</span><span className="text-sm font-semibold text-slate-800">{buyer.hsCode} ({buyer.hsLabel})</span></div>
-                  <div><span className="text-xs text-slate-500 block mb-1">매칭 키워드</span><div className="flex flex-wrap gap-1.5">{buyer.keywords.map((kw) => <Badge key={kw} className="bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100 text-[10px] font-medium px-2 py-0.5">{kw}</Badge>)}</div></div>
-                </div>
-                <div>
-                  <span className="text-xs text-slate-500 block mb-2">추천 이유</span>
-                  <ol className="space-y-3">{buyer.reasons.map((r, idx) => <li key={idx} className="flex items-start gap-2.5 text-sm text-slate-700"><span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-50 text-blue-600 text-xs font-bold flex items-center justify-center mt-0.5">{idx + 1}</span><div className="flex-1"><p className="leading-relaxed">{r.text}</p><button onClick={() => toast.info(r.source, { description: '원본 데이터 출처' })} className="inline-flex items-center gap-1 mt-1 text-[10px] text-blue-600 hover:text-blue-800 hover:underline"><ExternalLink className="h-3 w-3" /> 출처: {r.source}</button></div></li>)}</ol>
+                  <div><span className="text-xs text-slate-500 block mb-1">매칭 키워드</span><div className="flex flex-wrap gap-1.5">{buyer.keywords.length ? buyer.keywords.map((kw) => <Badge key={kw} className="bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100 text-[10px] font-medium px-2 py-0.5">{kw}</Badge>) : <span className="text-xs text-slate-400">자료 내 확인 불가</span>}</div></div>
                 </div>
               </div>
             </div>
