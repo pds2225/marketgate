@@ -473,15 +473,13 @@ function BuyerShortlistPanel({ buyers, onInquiry }) {
                       ) : null}
                     </div>
                   </div>
-                  <span className="analysis-card-badge">{item.final_score?.toFixed?.(1) || item.final_score}점</span>
                 </div>
-                <p>{(item.explanation_reasons || []).join(" · ") || "추천 사유 없음"}</p>
+                <p>{(item.explanation_reasons || []).join(" · ") || "근거 문장 없음"}</p>
                 <div className="analysis-detail-grid" style={{ marginTop: 12 }}>
                   <div className="analysis-detail-row">
                     <span>추천 국가</span>
                     <strong>
                       {item.source_target_country_name || item.source_target_country_iso3 || "-"}
-                      {item.source_target_country_rank ? ` (Top ${item.source_target_country_rank})` : ""}
                     </strong>
                   </div>
                   <div className="analysis-detail-row">
@@ -649,7 +647,7 @@ function MetricBar({ metric }) {
       </div>
       <div className="analysis-metric-track">
         {metric.missing ? (
-          <div className="analysis-metric-empty">데이터가 없어 점수에 반영하지 못했습니다</div>
+          <div className="analysis-metric-empty">자료 내 확인 불가</div>
         ) : (
           <div
             className={`analysis-metric-fill analysis-metric-fill--${metric.tone}`}
@@ -962,7 +960,7 @@ export default function AnalysisPage({ onBack, preset }) {
               <div>
                 <span>3</span>
                 <strong>결과 검토</strong>
-                <p>국가 점수와 추천 바이어를 함께 봅니다.</p>
+                <p>국가 실측 지표와 바이어 후보를 함께 봅니다.</p>
               </div>
             </div>
 
@@ -1057,7 +1055,7 @@ export default function AnalysisPage({ onBack, preset }) {
                     <span className="analysis-empty-step-num">3</span>
                     <div>
                       <strong>결과 확인 및 바이어 탐색</strong>
-                      <span>점수·지표·바이어 후보까지 한 화면에 정리됩니다.</span>
+                      <span>사실 지표·출처·바이어 후보까지 한 화면에 정리됩니다. 점수로 순위를 강제하지 않습니다.</span>
                     </div>
                   </div>
                 </div>
@@ -1126,13 +1124,15 @@ export default function AnalysisPage({ onBack, preset }) {
                               </strong>
                               <span>{item.country.region}</span>
                             </div>
-                            <span className="analysis-card-badge">{item.badge}</span>
+                            <span className="analysis-card-badge">
+                              지표 {(item.metrics || []).filter((m) => !m.missing).length}/{(item.metrics || []).length || 0}
+                            </span>
                           </div>
                           <p>{item.summary}</p>
                         </div>
-                        <div className="analysis-card-score">
-                          <strong>{item.score.toFixed(1)}</strong>
-                          <span>점</span>
+                        <div className="analysis-card-score analysis-card-score--facts">
+                          <strong>{(item.detailRows || []).length}</strong>
+                          <span>사실행</span>
                         </div>
                       </button>
                     ))}
@@ -1168,6 +1168,9 @@ export default function AnalysisPage({ onBack, preset }) {
                             <MetricBar key={metric.key} metric={metric} />
                           ))}
                         </div>
+                        <p style={{ margin: "0 0 12px", fontSize: 12, color: "#78716c" }}>
+                          위 막대는 엔진이 쓰는 정규화 지표입니다. 아래 사실 행으로 판단하세요. 엔진 점수 {selectedRecommendation.score?.toFixed?.(1) ?? "—"}점은 참고용입니다.
+                        </p>
 
                         <div className="analysis-detail-grid">
                           {selectedRecommendation.detailRows.map((row) => (

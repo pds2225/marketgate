@@ -5,7 +5,7 @@ import {
   Loader2, Database, AlertCircle, RefreshCw, Shield,
   TrendingUp, ExternalLink, Search, Zap, Cpu, Shirt, Stethoscope,
   Settings2, X, Calculator, DollarSign, Percent, TrendingDown, ArrowUpRight,
-  Globe2, Users, ChevronLeft, MapPin, Award,
+  Globe2, Users, ChevronLeft, MapPin,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -77,7 +77,6 @@ function buildBuyerReportText(buyer: Buyer): string {
   lines.push('');
   lines.push('[기본 프로필]');
   lines.push(`기업명: ${buyer.name}${buyer.legalName ? ` (${buyer.legalName})` : ''}`);
-  lines.push(`적합도 점수: ${buyer.score}점 (${buyer.scoreLabel})`);
   lines.push(`업종: ${buyer.industry}`);
   lines.push(`국가/지역: ${buyer.country} · ${buyer.region}`);
   lines.push(`HS 코드: ${buyer.hsCode} (${buyer.hsLabel})`);
@@ -101,6 +100,9 @@ function buildBuyerReportText(buyer: Buyer): string {
     lines.push('[매칭 근거]');
     buyer.reasons.forEach(r => lines.push(`- ${r.text}${r.source ? ` (출처: ${r.source})` : ''}`));
   }
+  lines.push('');
+  lines.push('[참고·엔진 점수 — 공식 순위 아님]');
+  lines.push(`엔진 점수: ${buyer.score}점 (${buyer.scoreLabel})`);
   return lines.join('\n');
 }
 // API 응답 → 뷰모델 변환·국가 그룹핑은 buyerViewModel.js 의 순수 함수를 사용한다
@@ -337,33 +339,35 @@ const SearchBar: React.FC<{ onSearch: (text: string) => void; activeCategory: st
 
 /* ── CountryListPanel ── */
 const CountryListPanel: React.FC<{ countries: CountryRec[]; categoryLabel: string; categoryHs: string; onSelectCountry: (c: CountryRec) => void; onOpenConditions: () => void; hasConditions: boolean; }> = ({ countries, categoryLabel, categoryHs, onSelectCountry, onOpenConditions, hasConditions }) => {
+  // 파일럿: 점수 순위가 아니라 연락처·후보 수 실측으로 정렬해 사용자가 판단하게 한다.
+  const sorted = useMemo(
+    () => [...countries].sort((a, b) => b.contactableCount - a.contactableCount || b.buyerCount - a.buyerCount),
+    [countries],
+  );
   return (
     <div className="flex flex-col h-full bg-white">
       <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
-        <div className="flex items-center gap-2"><Globe className="h-4 w-4 text-slate-500" /><h1 className="text-sm font-semibold text-slate-800">국가 추천 리스트</h1></div>
+        <div className="flex items-center gap-2"><Globe className="h-4 w-4 text-slate-500" /><h1 className="text-sm font-semibold text-slate-800">국가 후보 리스트</h1></div>
         <Button variant="ghost" size="sm" className={`h-7 text-xs gap-1 ${hasConditions ? 'text-blue-600 bg-blue-50' : 'text-slate-500'}`} onClick={onOpenConditions}><Settings2 className="h-3.5 w-3.5" />수익성 시뮬레이션</Button>
       </div>
       <ScrollArea className="flex-1">
         <div className="px-5 py-5 max-w-3xl mx-auto">
           <div className="bg-slate-900 text-white rounded-xl px-5 py-4 mb-6">
-            <div className="flex items-center justify-between mb-2"><span className="text-xs font-bold tracking-wider text-blue-200">RECOMMENDED COUNTRIES</span><span className="text-xs text-slate-400">{categoryLabel} · HS {categoryHs}</span></div>
-            <p className="text-xs text-slate-300 mt-2">P1 엔진이 {countries.length}개국을 적합도 점수 기준으로 정렬한 결과입니다 (공공데이터 CSV 기반).</p>
+            <div className="flex items-center justify-between mb-2"><span className="text-xs font-bold tracking-wider text-blue-200">COUNTRY FACTS</span><span className="text-xs text-slate-400">{categoryLabel} · HS {categoryHs}</span></div>
+            <p className="text-xs text-slate-300 mt-2">{sorted.length}개국 · 정렬: 연락처 보유 수 → 바이어 후보 수 (공공데이터 CSV). 적합도 점수로 순위를 매기지 않습니다.</p>
           </div>
           <div className="space-y-3">
-            {countries.map((c, idx) => (
+            {sorted.map((c) => (
               <button key={c.countryCode} onClick={() => onSelectCountry(c)} className="w-full text-left bg-white border border-slate-200 rounded-xl p-5 hover:border-blue-300 hover:shadow-md transition-all group">
                 <div className="flex items-start gap-4">
                   <div className="flex-shrink-0"><div className="w-14 h-14 rounded-xl bg-slate-100 flex items-center justify-center text-3xl">{c.flag}</div></div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1"><h3 className="text-lg font-bold text-slate-900">{c.countryName}</h3>{idx === 0 && <Badge className="bg-amber-100 text-amber-700 text-[10px] border-amber-200"><Award className="h-3 w-3 mr-0.5" />1위 추천</Badge>}</div>
+                    <div className="flex items-center gap-2 mb-1"><h3 className="text-lg font-bold text-slate-900">{c.countryName}</h3></div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 mb-3">
                       <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />바이어 후보 {c.buyerCount}개</span>
                       <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" />연락처 보유 {c.contactableCount}개</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1.5 bg-emerald-50 rounded-lg px-2.5 py-1"><span className="text-sm font-bold text-emerald-700">{c.avgScore}</span><span className="text-[10px] text-emerald-600">점</span></div>
-                      <span className="text-xs text-slate-400">대표 바이어: <span className="font-medium text-slate-600">{c.topBuyerName}</span> ({c.topBuyerScore}점)</span>
-                    </div>
+                    <p className="text-xs text-slate-400">대표 후보: <span className="font-medium text-slate-600">{c.topBuyerName || '자료 내 확인 불가'}</span></p>
                   </div>
                   <div className="flex-shrink-0 self-center"><ChevronRight className="h-5 w-5 text-slate-300 group-hover:text-blue-500 transition-colors" /></div>
                 </div>
@@ -378,26 +382,37 @@ const CountryListPanel: React.FC<{ countries: CountryRec[]; categoryLabel: strin
 
 /* ── BuyerListPanel ── */
 const BuyerListPanel: React.FC<{ country: CountryRec; onSelectBuyer: (b: Buyer) => void; onBack: () => void; onOpenConditions: () => void; hasConditions: boolean; }> = ({ country, onSelectBuyer, onBack, onOpenConditions, hasConditions }) => {
+  const sortedBuyers = useMemo(
+    () => [...country.buyers].sort((a, b) => {
+      const ac = a.contactStatus === 'unavailable' ? 0 : 1;
+      const bc = b.contactStatus === 'unavailable' ? 0 : 1;
+      if (bc !== ac) return bc - ac;
+      const at = a.tradeStatus === 'source_confirmed' ? 1 : 0;
+      const bt = b.tradeStatus === 'source_confirmed' ? 1 : 0;
+      return bt - at;
+    }),
+    [country.buyers],
+  );
   return (
     <div className="flex flex-col h-full bg-white">
       <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-200">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack}><ChevronLeft className="h-4 w-4 text-slate-600" /></Button>
-        <div className="flex items-center gap-2"><span className="text-2xl">{country.flag}</span><div><h1 className="text-sm font-semibold text-slate-800">{country.countryName} 바이어 리스트</h1><p className="text-xs text-slate-500">총 {country.buyers.length}개 · 평균 적합도 {country.avgScore}점</p></div></div>
+        <div className="flex items-center gap-2"><span className="text-2xl">{country.flag}</span><div><h1 className="text-sm font-semibold text-slate-800">{country.countryName} 바이어 리스트</h1><p className="text-xs text-slate-500">총 {country.buyers.length}개 · 정렬: 연락처 → 출처 확인 (점수 순위 없음)</p></div></div>
         <div className="ml-auto"><Button variant="ghost" size="sm" className={`h-7 text-xs gap-1 ${hasConditions ? 'text-blue-600 bg-blue-50' : 'text-slate-500'}`} onClick={onOpenConditions}><Settings2 className="h-3.5 w-3.5" />수익성 시뮬레이션</Button></div>
       </div>
       <ScrollArea className="flex-1">
         <div className="px-5 py-5 max-w-3xl mx-auto space-y-3">
-          {country.buyers.map((buyer) => (
+          {sortedBuyers.map((buyer) => (
             <button key={buyer.id} onClick={() => onSelectBuyer(buyer)} className="w-full text-left bg-white border border-slate-200 rounded-xl p-4 hover:border-blue-300 hover:shadow-md transition-all group">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0"><div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center"><Building2 className="h-6 w-6 text-slate-400" /></div></div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5"><h3 className="text-base font-bold text-slate-900">{buyer.name}</h3></div>
                   <p className="text-xs text-slate-500">({buyer.legalName})</p>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-slate-500"><span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{buyer.region}</span><span>{buyer.industry}</span><span className="flex items-center gap-1"><Mail className="h-3 w-3" />{buyer.email ? displayContact(buyer.email, { unlocked: false, kind: 'email' }) : '연락처 없음'}</span></div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-slate-500"><span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{buyer.region}</span><span>{buyer.industry}</span><span className="text-slate-400">HS {buyer.hsCode}</span><span className="flex items-center gap-1"><Mail className="h-3 w-3" />{buyer.email ? displayContact(buyer.email, { unlocked: false, kind: 'email' }) : '연락처 없음'}</span></div>
                   <div className="flex flex-wrap items-center gap-2 mt-3">
-                    <Badge className={`text-[10px] ${buyer.score >= 90 ? 'bg-emerald-100 text-emerald-700' : buyer.score >= 80 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>적합도 {buyer.score}점</Badge>
                     <StatusBadges buyer={buyer} compact />
+                    <span className="text-[10px] text-slate-400">{buyer.dataSource || '출처 미상'}</span>
                   </div>
                 </div>
                 <div className="flex-shrink-0 self-center"><ChevronRight className="h-5 w-5 text-slate-300 group-hover:text-blue-500 transition-colors" /></div>
@@ -423,9 +438,9 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
 
   const tabs = [
     { key: 'profile', label: '기본 프로필', icon: <Building2 className="h-3.5 w-3.5" /> },
+    { key: 'match', label: '매칭 근거', icon: <Sparkles className="h-3.5 w-3.5" /> },
     { key: 'import', label: '수입 이력', icon: <TrendingUp className="h-3.5 w-3.5" /> },
-    { key: 'fit', label: '적합도 분석', icon: <BarChart3 className="h-3.5 w-3.5" /> },
-    { key: 'match', label: '매칭 상세', icon: <Sparkles className="h-3.5 w-3.5" /> },
+    { key: 'fit', label: '참고 점수', icon: <BarChart3 className="h-3.5 w-3.5" /> },
   ];
 
   return (
@@ -512,22 +527,25 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
 
           {activeTab === 'fit' && (
             <div className="mb-6">
-              <div className="bg-white border border-slate-200 rounded-xl p-5">
-                <div className="flex items-center gap-4 mb-5">
-                  <div className="text-center"><div className="text-4xl font-extrabold text-emerald-600">{buyer.score}<span className="text-lg">점</span></div><div className="flex items-center justify-center gap-1 mt-1"><div className="w-2 h-2 rounded-full bg-emerald-500" /><span className="text-xs text-slate-500">{buyer.scoreLabel}</span></div></div>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 text-xs text-amber-900 leading-relaxed">
+                이 탭의 숫자는 <strong>엔진 참고용</strong>이며 공식 순위·추천이 아닙니다. 파일럿에서는 연락처·출처·HS 등 실데이터로 판단하세요.
+              </div>
+              <details className="bg-white border border-slate-200 rounded-xl p-5">
+                <summary className="cursor-pointer text-sm font-semibold text-slate-700">엔진 참고 점수 펼치기 ({buyer.score}점 · {buyer.scoreLabel})</summary>
+                <div className="flex items-center gap-4 mt-5 mb-5">
+                  <div className="text-center"><div className="text-3xl font-bold text-slate-500">{buyer.score}<span className="text-base">점</span></div><div className="flex items-center justify-center gap-1 mt-1"><span className="text-xs text-slate-400">{buyer.scoreLabel}</span></div></div>
                   <Separator orientation="vertical" className="h-12" />
-                  <div className="flex-1"><p className="text-xs text-slate-500 mb-2">P1 엔진이 공공데이터 지표로 채점한 결과입니다 (100점 만점 기준)</p><div className="flex gap-1.5">{['수입 이력 매칭', '시장 성장', 'GDP 규모', '물류'].map((t) => <span key={t} className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{t}</span>)}</div></div>
+                  <div className="flex-1"><p className="text-xs text-slate-500 mb-2">P1이 공공데이터 지표를 합산한 참고값입니다 (100점 만점). 의사결정 기준으로 쓰지 마세요.</p></div>
                 </div>
                 {buyer.metrics ? (
                   <div className="bg-slate-50 rounded-lg p-4">{buyer.metrics.map((m) => <ScoreBar key={m.label} label={m.label} value={m.value} />)}</div>
                 ) : (
                   <DataUnavailable title="세부 점수" description="이 바이어의 점수 세부 내역이 응답에 포함되어 있지 않습니다." />
                 )}
-              </div>
+              </details>
               <div className="mt-5">
-                {/* RFM 은 수입실적 데이터가 있어야 계산 가능 — 원본에 없으므로 표시하지 않는다 */}
                 <DataUnavailable
-                  title="RFM 적합도 모델"
+                  title="RFM 모델"
                   description="RFM(최근성·빈도·금액)은 기업별 수입실적이 필요합니다. 원본 데이터에 수입실적이 없어 계산하지 않습니다."
                 />
               </div>
