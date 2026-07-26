@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """우선 풀 바이어 contact enrichment (웹 URL → mailto/전화).
 
-- 대상: K-SURE / EC21 / ITC 중 contact_website 비어 있고 normalized_name 있는 행
-- 방법: Clearbit company suggest로 공식 도메인 후보 → 사이트/Contact 페이지에서
-  mailto 이메일·공개 전화 추출
-- 원본에 값이 있으면 덮어쓰지 않음. 신규 채움은 contact_email_estimated=True
-- SNS 전량 스크래핑 안 함 (품질·비용)
+흐름 요약:
+  1) 대상 행 고르기 (K-SURE/EC21/ITC, 웹 비어 있음)
+  2) 회사명으로 Clearbit에서 공식 도메인 후보 검색
+  3) 사이트·Contact/About에서 mailto 이메일·공개 전화 추출
+  4) 빈 칸만 채움. 새 이메일은 contact_email_estimated=True
+  5) SNS 전량은 하지 않음 (품질·비용)
+
+주의: 스크래핑 값은 추정이다. 자동 발송에 확정 연락처처럼 쓰지 말 것.
 """
 
 from __future__ import annotations
@@ -16,16 +19,22 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 import pandas as pd
 import requests
 
+# ---------------------------------------------------------------------------
+# 경로·상수
+# ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parents[1]
+# 채울 대상 CSV (gitignore). 실행 결과가 여기 저장된다.
 BUYER_CSV = ROOT / "services" / "cosmetics_mvp_preprocess" / "output" / "buyer_candidate.csv"
+# 집계 리포트 / 건별 체크포인트 (재현·오탐 롤백용)
 REPORT_PATH = ROOT / "tools" / "reports" / "buyer_contact_enrich_report.json"
 CHECKPOINT_PATH = ROOT / "tools" / "reports" / "buyer_contact_enrich_checkpoint.jsonl"
 
+# SNS 제외. 이름 품질이 나은 공식·B2B 소스만 1차 enrichment.
 PRIORITY_SOURCES = {
     "한국무역보험공사_화장품 바이어 정보",
     "한국무역보험공사_바이어 검색",
@@ -33,6 +42,7 @@ PRIORITY_SOURCES = {
     "ITC_TradeMap_ImportingCompanies",
 }
 
+# 붙여 쓴 상호(예: FOOLTD)에서 떼어낼 법인식 접미사
 SUFFIX_TOKENS = [
     "JOINTSTOCKCOMPANY",
     "JOINTSTOCK",
@@ -65,6 +75,7 @@ SUFFIX_TOKENS = [
     "CJSC",
 ]
 
+# SNS·디렉터리·뉴스 등 "회사 공식 사이트"가 아닌 도메인은 후보에서 제외
 BLOCKED_DOMAINS = {
     "facebook.com",
     "linkedin.com",
@@ -84,8 +95,10 @@ BLOCKED_DOMAINS = {
     "edu",
 }
 
+# 학교/정부 도메인은 뷰티 바이어 매칭 오탐이 많아 점수 0 처리
 BLOCKED_TLDS = {".edu", ".gov", ".mil"}
 
+# 홈 → Contact/About 순으로 공개 연락처 페이지를 순회
 CONTACT_PATHS = (
     "",
     "/contact",
@@ -99,12 +112,12 @@ CONTACT_PATHS = (
     "/en/about",
 )
 
+# HTML에서 이메일·전화 뽑는 정규식
 EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
-PHONE_RE = re.compile(
-    r"(?:\+|00)?\d[\d\-\s().]{7,}\d"
-)
+PHONE_RE = re.compile(r"(?:\+|00)?\d[\d\-\s().]{7,}\d")
 MAILTO_RE = re.compile(r"mailto:([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})", re.I)
 
+# 외부 HTTP 공통 세션 (User-Agent에 봇 식별 포함)
 SESSION = requests.Session()
 SESSION.headers.update(
     {
@@ -114,7 +127,11 @@ SESSION.headers.update(
 )
 
 
+# ---------------------------------------------------------------------------
+# 이름 전처리 · 매칭 점수
+# ---------------------------------------------------------------------------
 def _clean(value: Any) -> str:
+    """빈값·nan·none 문자열을 통일해 '' 로 만든다."""
     text = str(value or "").strip()
     if text.lower() in {"", "nan", "none", "null"}:
         return ""
@@ -122,11 +139,13 @@ def _clean(value: Any) -> str:
 
 
 def humanize_company_name(raw: str) -> str:
-    """붙여 쓴 대문자 상호를 검색용으로 느슨히 분리."""
+    """붙여 쓴 대문자 상호를 검색용으로 느슨히 분리.
+
+    예: 접미사 LTD/JSC 등을 띄어 Clearbit 검색 성공률을 높인다.
+    """
     name = _clean(raw)
     if not name:
         return ""
-    # 이미 공백 있으면 법인식 접미사만 정리
     if " " in name:
         return re.sub(r"\s+", " ", name).strip()
     upper = name.upper()
@@ -143,20 +162,23 @@ def humanize_company_name(raw: str) -> str:
 
 
 def build_queries(raw: str) -> list[str]:
+    """Clearbit에 넣을 검색어 후보를 최대 6개까지 만든다.
+
+    순서: 분리명 → 원문 → LTD 등 제거 코어 → 첫 토큰 → 앞 12~20자.
+    하나가 실패해도 다음 변형으로 도메인을 찾을 여지를 남긴다.
+    """
     human = humanize_company_name(raw)
     queries: list[str] = []
     for q in (human, raw[:60]):
         q = _clean(q)
         if q and q.casefold() not in {x.casefold() for x in queries}:
             queries.append(q)
-    # 접미사 제거 코어
     core = human
     for token in SUFFIX_TOKENS:
         core = re.sub(rf"\b{re.escape(token)}\b", " ", core, flags=re.I)
     core = re.sub(r"\s+", " ", core).strip()
     if core and core.casefold() not in {x.casefold() for x in queries}:
         queries.append(core)
-    # 첫 토큰 / 압축명 앞 12~20자
     if core:
         first = core.split()[0]
         if len(first) >= 4:
@@ -166,7 +188,6 @@ def build_queries(raw: str) -> list[str]:
         for n in (12, 16, 20):
             if len(compact) >= n:
                 chunk = compact[:n]
-                # camel guess: EuroCosmetics style not available — use as-is
                 if chunk.casefold() not in {x.casefold() for x in queries}:
                     queries.append(chunk)
                 break
@@ -174,42 +195,25 @@ def build_queries(raw: str) -> list[str]:
 
 
 def _name_tokens(text: str) -> set[str]:
+    """매칭용 의미 토큰. LTD/BEAUTY 등 흔한 단어는 제외, 4글자 이상만."""
     raw = re.sub(r"[^a-zA-Z0-9]+", " ", _clean(text).upper())
     stop = {
-        "CO",
-        "LTD",
-        "LLC",
-        "INC",
-        "CORP",
-        "COMPANY",
-        "THE",
-        "AND",
-        "OF",
-        "PTY",
-        "SDN",
-        "BHD",
-        "JSC",
-        "LIMITED",
-        "PRIVATE",
-        "JOINT",
-        "STOCK",
-        "GROUP",
-        "BEAUTY",
-        "LABS",
-        "LAB",
-        "SKIN",
-        "CARE",
-        "COSMETIC",
-        "COSMETICS",
+        "CO", "LTD", "LLC", "INC", "CORP", "COMPANY", "THE", "AND", "OF",
+        "PTY", "SDN", "BHD", "JSC", "LIMITED", "PRIVATE", "JOINT", "STOCK",
+        "GROUP", "BEAUTY", "LABS", "LAB", "SKIN", "CARE", "COSMETIC", "COSMETICS",
     }
     return {t for t in raw.split() if len(t) >= 4 and t not in stop}
 
 
 def domain_match_score(company: str, domain: str, clearbit_name: str = "") -> float:
-    """회사명과 도메인/Clearbit명 토큰 겹침 점수 (0~1)."""
+    """회사명 ↔ 도메인/Clearbit명 토큰 겹침 점수 (0~1).
+
+    동명·엉뚱한 도메인(대학 .edu, 신문사 등)을 걸러내는 핵심 가드.
+    0.3 미만은 후보에서 버린다.
+    """
     tokens = _name_tokens(company) | _name_tokens(humanize_company_name(company))
     if not tokens:
-        # 짧은 브랜드 (REVLON 등)
+        # REVLON 처럼 짧은 브랜드명
         compact = re.sub(r"[^a-zA-Z0-9]", "", company).upper()
         if len(compact) >= 4:
             tokens = {compact}
@@ -224,19 +228,25 @@ def domain_match_score(company: str, domain: str, clearbit_name: str = "") -> fl
     label_tokens = _name_tokens(label.replace("-", " ")) | ({label} if len(label) >= 4 else set())
     cb_tokens = _name_tokens(clearbit_name)
     overlap = tokens & (label_tokens | cb_tokens)
-    # 도메인 라벨이 회사 토큰을 포함
     contains = {t for t in tokens if t in label or label in t}
     hits = overlap | contains
     if not hits:
         return 0.0
     score = len(hits) / max(len(tokens), 1)
-    # 단일 강한 브랜드 매치
+    # 토큰 길이≥5 이고 도메인 라벨과 강하게 일치하면 가점
     if any(len(t) >= 5 and (t == label or t in label) for t in tokens):
         score = max(score, 0.67)
     return min(score, 1.0)
 
 
+# ---------------------------------------------------------------------------
+# 외부 호출: Clearbit · HTML 가져오기 · 연락처 추출
+# ---------------------------------------------------------------------------
 def clearbit_domains(query: str, company: str, limit: int = 5) -> list[dict[str, Any]]:
+    """Clearbit 회사 자동완성으로 공식 도메인 후보를 가져온다.
+
+    점수가 낮은 후보는 버리고, 브랜드와 맞는 .com 은 가산점.
+    """
     if not query or len(query) < 2:
         return []
     try:
@@ -256,10 +266,11 @@ def clearbit_domains(query: str, company: str, limit: int = 5) -> list[dict[str,
             score = domain_match_score(company, domain, cb_name)
             if score < 0.3:
                 continue
-            # brand.com 가산
             label = domain.split(".")[0].upper()
             tokens = _name_tokens(company) | _name_tokens(humanize_company_name(company))
-            if domain.endswith(".com") and any(t == label or label.startswith(t) for t in tokens if len(t) >= 5):
+            if domain.endswith(".com") and any(
+                t == label or label.startswith(t) for t in tokens if len(t) >= 5
+            ):
                 score = min(1.0, score + 0.15)
             out.append({"name": cb_name, "domain": domain, "score": score})
         out.sort(key=lambda x: x["score"], reverse=True)
@@ -269,6 +280,10 @@ def clearbit_domains(query: str, company: str, limit: int = 5) -> list[dict[str,
 
 
 def fetch_html(url: str) -> str:
+    """URL HTML을 가져온다. 실패·비HTML이면 ''.
+
+    응답은 50만자까지만 잘라 메모리·정규식 비용을 제한한다.
+    """
     try:
         resp = SESSION.get(url, timeout=12, allow_redirects=True)
         if not resp.ok:
@@ -282,6 +297,11 @@ def fetch_html(url: str) -> str:
 
 
 def extract_emails(html: str, domain: str) -> list[str]:
+    """페이지에서 공개 이메일을 추출·정렬한다.
+
+    우선순위: 같은 도메인 → info/contact/sales → 기타.
+    noreply·이미지 확장자 오탐은 제거.
+    """
     if not html:
         return []
     found: list[str] = []
@@ -289,31 +309,35 @@ def extract_emails(html: str, domain: str) -> list[str]:
         found.append(m.lower())
     for m in EMAIL_RE.findall(html):
         found.append(m.lower())
-    bad = ("noreply", "no-reply", "example.com", "domain.com", "email.com", "sentry.io", "wixpress", "cloudflare")
+    bad = (
+        "noreply", "no-reply", "example.com", "domain.com",
+        "email.com", "sentry.io", "wixpress", "cloudflare",
+    )
     cleaned = []
     for email in found:
         if any(b in email for b in bad):
             continue
         if email.endswith((".png", ".jpg", ".gif", ".webp")):
             continue
-        # 도메인 일치 또는 일반 info/contact/sales 우선
-        host = email.split("@")[-1]
-        if domain and host != domain and not host.endswith("." + domain):
-            # 외부 메일도 허용하되 우선순위 낮게 — 일단 포함
-            pass
         cleaned.append(email)
-    # 안정 순서: 도메인 일치 → info/contact/sales → 기타
-    def rank(e: str) -> tuple[int, str]:
+
+    def rank(e: str) -> tuple[int, int, str]:
         host = e.split("@")[-1]
         local = e.split("@")[0]
         same = 0 if domain and (host == domain or host.endswith("." + domain)) else 1
-        role = 0 if local in {"info", "contact", "sales", "hello", "office", "enquiry", "inquiry"} else 1
+        role = 0 if local in {
+            "info", "contact", "sales", "hello", "office", "enquiry", "inquiry"
+        } else 1
         return (same, role, e)
 
     return sorted(set(cleaned), key=rank)
 
 
 def extract_phones(html: str) -> list[str]:
+    """페이지에서 대표번호 후보를 추출한다.
+
+    날짜(2026-06-01)·반복 숫자·너무 짧은 숫자열 등 오탐을 걸러낸다.
+    """
     if not html:
         return []
     phones = []
@@ -322,14 +346,13 @@ def extract_phones(html: str) -> list[str]:
         digits = re.sub(r"\D", "", text)
         if len(digits) < 8 or len(digits) > 15:
             continue
-        # 날짜·버전·우편 오탐
         if re.search(r"20\d{2}[-/.]\d{1,2}[-/.]\d{1,2}", text):
             continue
         if digits.startswith("20") and len(digits) <= 10:
             continue
         if len(set(digits)) <= 2:
             continue
-        # tel: 근처 또는 + / 괄호 있는 것만 우선 — 너무 느슨한 숫자열 제외
+        # +, (), 공백, 하이픈 없는 짧은 숫자열은 제외
         if not re.search(r"[\+()]", text) and " " not in text and "-" not in text:
             if len(digits) < 10:
                 continue
@@ -347,11 +370,19 @@ def extract_phones(html: str) -> list[str]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# 바이어 1건 enrichment
+# ---------------------------------------------------------------------------
 def enrich_one(name: str, country: str) -> dict[str, Any]:
+    """바이어 1건: 도메인 찾기 → 사이트 접속 → 이메일/전화 추출.
+
+    반환: website, email, phone, method, score, candidates
+    method 예: clearbit+scrape / no_domain / domain_unreachable
+    """
     raw = _clean(name)
     queries = build_queries(raw)
 
-    # Clearbit에 회사명 변형(쿼리)을 여러 번 보내 도메인 후보를 모은다.
+    # Clearbit에 회사명 변형을 여러 번 보내 도메인 후보를 모은다.
     domains: list[dict[str, Any]] = []
     for q in queries:
         for item in clearbit_domains(q, company=raw):
@@ -359,10 +390,9 @@ def enrich_one(name: str, country: str) -> dict[str, Any]:
                 domains.append(item)
         if len(domains) >= 3:
             break
-        # 요청 속도 제한: Clearbit 연속 호출 사이에 0.12초(120ms) 대기.
-        # 너무 빠르게 치면 API/IP 차단될 수 있어 고의로 간격을 둔다.
+        # 요청 속도 제한: Clearbit 연속 호출 사이 0.12초 대기 (차단 완화)
         time.sleep(0.12)
-    # 점수 높은 순, 동점이면 .com 도메인 우선
+    # 점수 높은 순, 동점이면 .com 우선
     domains.sort(key=lambda x: (x.get("score", 0), x["domain"].endswith(".com")), reverse=True)
 
     result: dict[str, Any] = {
@@ -378,6 +408,7 @@ def enrich_one(name: str, country: str) -> dict[str, Any]:
         result["method"] = "no_domain"
         return result
 
+    # 상위 3개 중 실제로 열리는 첫 사이트를 공식 웹으로 채택
     picked = None
     html_home = ""
     base = ""
@@ -406,7 +437,7 @@ def enrich_one(name: str, country: str) -> dict[str, Any]:
     emails: list[str] = extract_emails(html_home, domain)
     phones: list[str] = extract_phones(html_home)
 
-    # 홈에서 못 찾으면 /contact, /about 등 공개 페이지를 추가로 본다.
+    # 홈에 없으면 /contact, /about 등 공개 페이지를 추가로 본다.
     for path in CONTACT_PATHS[1:]:
         if emails and phones:
             break
@@ -417,10 +448,10 @@ def enrich_one(name: str, country: str) -> dict[str, Any]:
             emails = extract_emails(html, domain)
         if not phones:
             phones = extract_phones(html)
-        # 대상 사이트 연속 요청 간격(0.1초). 상대 서버 부담·차단 완화.
+        # 대상 사이트 연속 요청 간격 0.1초
         time.sleep(0.1)
 
-    # 이메일은 동일 도메인만 확정 채움 (추정 오탐 감소)
+    # 이메일은 동일 도메인만 확정 채움 (외부 도메인 메일은 오탐 많아 제외)
     same_domain_emails = [
         e
         for e in emails
@@ -435,6 +466,7 @@ def enrich_one(name: str, country: str) -> dict[str, Any]:
 
 
 def select_targets(df: pd.DataFrame, limit: int | None) -> pd.DataFrame:
+    """enrich 대상: 우선 소스 ∩ 회사명 있음 ∩ 웹사이트 비어 있음."""
     mask_src = df["source_dataset"].isin(PRIORITY_SOURCES)
     mask_name = df["normalized_name"].map(_clean).ne("")
     mask_no_web = df["contact_website"].map(_clean).eq("")
@@ -444,14 +476,21 @@ def select_targets(df: pd.DataFrame, limit: int | None) -> pd.DataFrame:
     return targets
 
 
+# ---------------------------------------------------------------------------
+# 메인 루프: CSV 읽고 → 한 행씩 채움 → 리포트
+# ---------------------------------------------------------------------------
 def main(limit: int | None = None, sleep_s: float = 0.35) -> int:
     """우선 풀 바이어를 한 행씩 enrichment한다.
 
-    sleep_s: 바이어(행)와 다음 바이어 사이 대기 초.
-             기본 0.35초. CLI --sleep 으로 바꿀 수 있다.
+    - 원본에 이미 값이 있으면 덮어쓰지 않음
+    - 새로 채운 이메일은 contact_email_estimated=True
+    - sleep_s: 바이어 행과 다음 행 사이 대기 초 (CLI --sleep)
     """
     df = pd.read_csv(BUYER_CSV, dtype=str, encoding="utf-8-sig", low_memory=False)
-    for col in ("contact_website", "contact_email", "contact_phone", "has_contact", "contact_email_estimated"):
+    for col in (
+        "contact_website", "contact_email", "contact_phone",
+        "has_contact", "contact_email_estimated",
+    ):
         if col not in df.columns:
             df[col] = ""
 
@@ -479,8 +518,12 @@ def main(limit: int | None = None, sleep_s: float = 0.35) -> int:
             got = enrich_one(name, country)
         except Exception as exc:  # noqa: BLE001
             stats["errors"] += 1
-            got = {"website": "", "email": "", "phone": "", "method": f"error:{type(exc).__name__}"}
+            got = {
+                "website": "", "email": "", "phone": "",
+                "method": f"error:{type(exc).__name__}",
+            }
 
+        # --- 빈 칸만 채움 (기존 값 보존) ---
         changed = {}
         if got.get("website") and not _clean(df.at[idx, "contact_website"]):
             df.at[idx, "contact_website"] = got["website"]
@@ -488,6 +531,7 @@ def main(limit: int | None = None, sleep_s: float = 0.35) -> int:
             changed["contact_website"] = got["website"]
         if got.get("email") and not _clean(df.at[idx, "contact_email"]):
             df.at[idx, "contact_email"] = got["email"]
+            # 스크래핑 메일은 '추정/보강' → 자동발송에 확정값처럼 쓰지 말 것
             df.at[idx, "contact_email_estimated"] = "True"
             stats["email_filled"] += 1
             changed["contact_email"] = got["email"]
@@ -496,8 +540,10 @@ def main(limit: int | None = None, sleep_s: float = 0.35) -> int:
             stats["phone_filled"] += 1
             changed["contact_phone"] = got["phone"]
 
-        if _clean(df.at[idx, "contact_email"]) or _clean(df.at[idx, "contact_phone"]) or _clean(
-            df.at[idx, "contact_website"]
+        if (
+            _clean(df.at[idx, "contact_email"])
+            or _clean(df.at[idx, "contact_phone"])
+            or _clean(df.at[idx, "contact_website"])
         ):
             df.at[idx, "has_contact"] = "True"
 
@@ -506,9 +552,10 @@ def main(limit: int | None = None, sleep_s: float = 0.35) -> int:
         elif got.get("method") == "domain_unreachable":
             stats["unreachable"] += 1
 
+        # 건별 로그. 오탐 시 changed 기준으로 롤백 가능
         rec = {
             "i": i,
-            "idx": int(idx) if isinstance(idx, (int,)) else str(idx),
+            "idx": int(idx) if isinstance(idx, int) else str(idx),
             "name": name[:80],
             "country": country,
             "method": got.get("method"),
@@ -520,30 +567,21 @@ def main(limit: int | None = None, sleep_s: float = 0.35) -> int:
         if len(stats["samples"]) < 25 and changed:
             stats["samples"].append(rec)
 
+        # 25건마다 CSV·리포트 중간 저장 (중단돼도 진행분 보존)
         if i % 25 == 0 or i == len(targets):
             print(
                 f"[{i}/{len(targets)}] web={stats['website_filled']} "
                 f"email={stats['email_filled']} phone={stats['phone_filled']} "
                 f"no_domain={stats['no_domain']}"
             )
-            # 중간 저장
             df.to_csv(BUYER_CSV, index=False, encoding="utf-8-sig")
             REPORT_PATH.write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
 
-        # 바이어 1건 처리 후 다음 건까지 대기 (기본 0.35초, --sleep 로 조절).
-        # Clearbit·웹사이트 전체에 대한 분당 요청 수를 낮추기 위함.
+        # 바이어 1건 후 다음 건까지 대기 (기본 0.35초). 분당 요청 수 제한.
         time.sleep(sleep_s)
 
-    # has_contact 재계산
-    def _has(row: pd.Series) -> str:
-        if _clean(row.get("contact_email")) or _clean(row.get("contact_phone")) or _clean(row.get("contact_website")):
-            return "True"
-        return "False"
-
-    # 전체 재계산은 비용 커서 타겟만 이미 갱신됨
     df.to_csv(BUYER_CSV, index=False, encoding="utf-8-sig")
 
-    # after snapshot for priority
     prio = df[df["source_dataset"].isin(PRIORITY_SOURCES)]
     stats["after_priority"] = {
         "rows": int(len(prio)),
