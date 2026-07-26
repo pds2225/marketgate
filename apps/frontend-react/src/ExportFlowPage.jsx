@@ -22,6 +22,8 @@ import { displayPhone } from "./lib/phone";
 import { computeProfitability } from "./lib/profitability";
 import api from "./lib/api";
 import BuyerReport from "./BuyerReport";
+import CreditUnlockPanel from "./components/CreditUnlockPanel";
+import { isUnlocked, makeBuyerKey } from "./lib/creditWallet";
 
 const hsExamples = [
   { code: "330499", label: "화장품" },
@@ -1105,9 +1107,19 @@ export default function ExportFlowPage({ onBack }) {
                         <p>{(item.explanation_reasons || []).join(" · ") || "추천 사유 없음"}</p>
                         <div className="analysis-detail-grid" style={{ marginTop: 10 }}>
                           <div className="analysis-detail-row"><span>추천 국가</span><strong>{item.source_target_country_name || item.source_target_country_iso3 || "-"}</strong></div>
-                          <div className="analysis-detail-row"><span>이메일</span><strong>{item.contact_email || "-"}</strong></div>
-                          <div className="analysis-detail-row"><span>전화</span><strong>{displayPhone(item.contact_phone)}</strong></div>
-                          <div className="analysis-detail-row"><span>웹사이트</span><strong>{item.contact_website || "-"}</strong></div>
+                        </div>
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <CreditUnlockPanel
+                            buyerKey={makeBuyerKey({
+                              name: item.buyer_name,
+                              country: item.country_norm,
+                              source: item.source_dataset,
+                            })}
+                            email={item.contact_email || ""}
+                            phone={displayPhone(item.contact_phone)}
+                            website={item.contact_website || ""}
+                            variant="dark"
+                          />
                         </div>
                         {selectedBuyer?.buyer_name === item.buyer_name && (
                           <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -1133,6 +1145,15 @@ export default function ExportFlowPage({ onBack }) {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (!item.contact_email) return;
+                                const key = makeBuyerKey({
+                                  name: item.buyer_name,
+                                  country: item.country_norm,
+                                  source: item.source_dataset,
+                                });
+                                if (!isUnlocked(key)) {
+                                  window.alert("발송 요청 전에 크레딧으로 연락처를 먼저 열어주세요.");
+                                  return;
+                                }
                                 setDispatchBuyer(item);
                               }}
                             >

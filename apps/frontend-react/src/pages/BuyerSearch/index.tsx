@@ -22,6 +22,8 @@ import {
   TRADE_STATUS_LABELS,
   CREDIT_STATUS_LABELS,
 } from './buyerViewModel';
+import CreditUnlockPanel from '@/components/CreditUnlockPanel';
+import { displayContact, makeBuyerKey } from '@/lib/creditWallet';
 
 /* ── Types ── */
 // 데이터 정책: API·CSV 원본에 없는 값(수입이력·수입액·성장률·RFM·갱신일)은 항상 null 이며
@@ -389,7 +391,7 @@ const BuyerListPanel: React.FC<{ country: CountryRec; onSelectBuyer: (b: Buyer) 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5"><h3 className="text-base font-bold text-slate-900">{buyer.name}</h3></div>
                   <p className="text-xs text-slate-500">({buyer.legalName})</p>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-slate-500"><span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{buyer.region}</span><span>{buyer.industry}</span><span className="flex items-center gap-1"><Mail className="h-3 w-3" />{buyer.email || '연락처 없음'}</span></div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-slate-500"><span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{buyer.region}</span><span>{buyer.industry}</span><span className="flex items-center gap-1"><Mail className="h-3 w-3" />{buyer.email ? displayContact(buyer.email, { unlocked: false, kind: 'email' }) : '연락처 없음'}</span></div>
                   <div className="flex flex-wrap items-center gap-2 mt-3">
                     <Badge className={`text-[10px] ${buyer.score >= 90 ? 'bg-emerald-100 text-emerald-700' : buyer.score >= 80 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>적합도 {buyer.score}점</Badge>
                     <StatusBadges buyer={buyer} compact />
@@ -478,13 +480,14 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
                 <Separator className="my-3" />
                 <div className="space-y-1">
                   <ContactRow icon={<Building2 className="h-4 w-4" />} label="담당자" value={buyer.contactName} />
-                  <Separator className="my-1" />
-                  <ContactRow icon={<Mail className="h-4 w-4" />} label="이메일" value={buyer.email} action="copy" />
-                  <Separator className="my-1" />
-                  <ContactRow icon={<Phone className="h-4 w-4" />} label="전화" value={buyer.phone} action="phone" href={`tel:${buyer.phone}`} />
-                  <Separator className="my-1" />
-                  <ContactRow icon={<Globe className="h-4 w-4" />} label="웹사이트" value={buyer.website} action="link" href={/^https?:\/\//i.test(buyer.website.trim()) ? buyer.website.trim() : `https://${buyer.website.trim()}`} />
                 </div>
+                <CreditUnlockPanel
+                  buyerKey={makeBuyerKey({ id: buyer.id, name: buyer.name, country: buyer.country, dataSource: buyer.dataSource })}
+                  email={buyer.email}
+                  phone={buyer.phone}
+                  website={buyer.website}
+                  variant="light"
+                />
                 {buyer.contactStatus !== 'unavailable' ? (
                   <div className="flex items-center gap-2 mt-4 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 w-fit"><AlertCircle className="h-4 w-4 text-amber-600" /><span className="text-xs font-medium text-amber-700">{CONTACT_STATUS_LABELS[buyer.contactStatus]}</span><span className="text-[10px] text-amber-500">형식·소유 검증 절차 전 상태입니다</span></div>
                 ) : (

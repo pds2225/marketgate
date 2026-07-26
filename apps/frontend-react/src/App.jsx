@@ -8,6 +8,8 @@ import AuthPage from './AuthPage'
 import SimulationPage from './SimulationPage'
 import PricingPage from './PricingPage'
 import PaymentCallbackPage from './PaymentCallbackPage'
+import CreditTopUpSheet from './components/CreditTopUpSheet'
+import { getWallet, subscribeWallet } from './lib/creditWallet'
 import api from './lib/api'
 import './App.css'
 
@@ -26,7 +28,8 @@ function App() {
   const [page, setPage] = useState(getInitialPage)
   const [chatPreset, setChatPreset] = useState(null)
   const [authed, setAuthed] = useState(!!localStorage.getItem('access_token'))
-  const [balance, setBalance] = useState(null)
+  const [balance, setBalance] = useState(() => getWallet().balance)
+  const [topUpOpen, setTopUpOpen] = useState(false)
   // 서버(/v1/auth/me)의 role 필드 기준으로만 관리자 메뉴를 노출한다.
   // 메뉴 숨김은 UX 차원일 뿐이며 실제 차단은 서버 403이 담당한다.
   const [isAdmin, setIsAdmin] = useState(false)
@@ -56,7 +59,7 @@ function App() {
     localStorage.removeItem('refresh_token')
     setSessionExpired(false)
     setAuthed(false)
-    setBalance(null)
+    setBalance(getWallet().balance)
     setIsAdmin(false)
     navigate('landing')
   }
@@ -64,20 +67,20 @@ function App() {
   useEffect(() => {
     // api.js 인터셉터가 토큰 재발급 실패 시 발생시키는 이벤트.
     // 사용자가 직접 로그아웃한 게 아니라 세션이 만료돼 강제로 끊긴 경우다.
-    const onLogout = () => { setSessionExpired(true); setAuthed(false); setBalance(null); setIsAdmin(false); navigate('landing') }
+    const onLogout = () => { setSessionExpired(true); setAuthed(false); setIsAdmin(false); navigate('landing') }
     window.addEventListener('auth:logout', onLogout)
     return () => window.removeEventListener('auth:logout', onLogout)
   }, [])
 
-  const refreshBalance = () => {
-    api.get('/v1/credits/balance').then(r => setBalance(r.data.balance)).catch(() => {})
-  }
-
+  // 로컬 시뮬레이션 지갑 (서버 /v1/credits 와 분리 — 파일럿)
   useEffect(() => {
-    if (!authed) return
-    refreshBalance()
-  }, [authed, page])
+    setBalance(getWallet().balance)
+    return subscribeWallet((w) => setBalance(w.balance))
+  }, [])
 
+  const refreshBalance = () => {
+    setBalance(getWallet().balance)
+  }
   useEffect(() => {
     if (!authed) return
     let cancelled = false
@@ -116,7 +119,7 @@ function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             {balance !== null && (
               <span
-                onClick={() => navigate('pricing')}
+                onClick={() => setTopUpOpen(true)}
                 style={{
                   cursor: 'pointer',
                   background: 'rgba(245,158,11,0.1)',
@@ -129,7 +132,7 @@ function App() {
                   letterSpacing: '0.08em',
                   fontWeight: 500,
                 }}
-                title="크레딧 잔액 — 클릭하여 충전"
+                title="시뮬레이션 크레딧 — 클릭하여 충전"
               >
                 {balance}C
               </span>
@@ -239,6 +242,7 @@ function App() {
           </div>
         )
       )}
+      <CreditTopUpSheet open={topUpOpen} onClose={() => setTopUpOpen(false)} />
     </div>
   )
 }
