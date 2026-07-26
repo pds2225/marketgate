@@ -7,7 +7,6 @@ from app.models import PredictRequest, PredictResponse, InquiryRequest, InquiryR
 from app.services.buyer_shortlist import build_buyer_shortlist
 from app.services.compliance import filter_blocked_results
 from app.services.demo_snapshot import get_demo_snapshot, get_demo_summary, get_demo_buyers
-from app.services.opportunity_service import get_opportunity_summary, list_opportunities
 from app.services.project_snapshot import build_project_snapshot
 from app.services.scoring import recommend_countries
 from app.services.inquiry_service import build_draft
@@ -129,30 +128,6 @@ def demo_summary():
 def demo_buyers(limit: int = Query(default=60, ge=1, le=200)):
     """Public (no-auth) masked buyer samples only."""
     return get_demo_buyers(limit)
-
-
-@app.get("/v1/opportunities/summary")
-def opportunities_summary():
-    """구매 신호(인콰이어리/오퍼) 집계 — opportunity_item.csv."""
-    return get_opportunity_summary()
-
-
-@app.get("/v1/opportunities")
-def opportunities(
-    country: str = Query(default=""),
-    q: str = Query(default=""),
-    source: str = Query(default=""),
-    limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
-):
-    """구매 신호 목록. 연락처 없는 수요 신호도 실사용 탐색 대상으로 반환."""
-    return list_opportunities(
-        country=country,
-        q=q,
-        source=source,
-        limit=limit,
-        offset=offset,
-    )
 
 
 @app.get("/v1/credits/balance")

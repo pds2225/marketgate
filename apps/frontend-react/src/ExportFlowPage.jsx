@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useEffect, useState } from "react";
+import { startTransition, useDeferredValue, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -793,48 +793,12 @@ export default function ExportFlowPage({ onBack }) {
   const [showBuyerReport, setShowBuyerReport] = useState(false);
   const [reportBuyer, setReportBuyer] = useState(null);
   const [dispatchBuyer, setDispatchBuyer] = useState(null);
-  const [listMode, setListMode] = useState("buyers"); // buyers | signals
-  const [opportunities, setOpportunities] = useState({ total: 0, items: [] });
-  const [oppLoading, setOppLoading] = useState(false);
-  const [oppError, setOppError] = useState("");
-  const [oppQuery, setOppQuery] = useState("");
 
   const deferredSelectedId = useDeferredValue(selectedRecId);
   const selectedRecommendation =
     analysisResult?.recommendations.find((item) => item.id === deferredSelectedId) ||
     analysisResult?.recommendations[0] ||
     null;
-
-  useEffect(() => {
-    if (step !== 2 || listMode !== "signals") return;
-    let cancelled = false;
-    const countryName = selectedRecommendation?.country?.name || "";
-    const params = new URLSearchParams({ limit: "40", offset: "0" });
-    if (countryName) params.set("country", countryName);
-    if (oppQuery.trim()) params.set("q", oppQuery.trim());
-    setOppLoading(true);
-    setOppError("");
-    fetch(`${ENDPOINTS.opportunities}?${params.toString()}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((data) => {
-        if (!cancelled) setOpportunities({ total: data.total || 0, items: data.items || [] });
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setOpportunities({ total: 0, items: [] });
-          setOppError(String(e.message || e));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setOppLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [step, listMode, selectedRecommendation?.country?.name, oppQuery]);
 
   const handleAnalyze = async () => {
     if (!/^\d{2,6}$/.test(hsCode.trim())) {
@@ -1062,122 +1026,12 @@ export default function ExportFlowPage({ onBack }) {
               <div className="analysis-overview" style={{ marginBottom: 20 }}>
                 <div>
                   <p className="analysis-kicker">Step 2</p>
-                  <h2>바이어 · 구매 신호 선정</h2>
-                  <p>연락 가능 바이어와 buyKOREA/GoBiz 구매 신호(인콰이어리·오퍼)를 함께 살펴보세요.</p>
+                  <h2>저품질·저적합 바이어 필터링</h2>
+                  <p>추천된 국가에서 출처 확인된 바이어 후보를 살펴보고 인콰이어리 대상을 선택하세요.</p>
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  className="ui-button"
-                  style={{
-                    fontSize: 12,
-                    padding: "8px 12px",
-                    background: listMode === "buyers" ? "rgba(59,130,246,0.25)" : "transparent",
-                    border: listMode === "buyers" ? "1px solid #3b82f6" : "1px solid rgba(148,163,184,0.3)",
-                  }}
-                  onClick={() => setListMode("buyers")}
-                >
-                  바이어 후보
-                </button>
-                <button
-                  type="button"
-                  className="ui-button"
-                  style={{
-                    fontSize: 12,
-                    padding: "8px 12px",
-                    background: listMode === "signals" ? "rgba(245,158,11,0.2)" : "transparent",
-                    border: listMode === "signals" ? "1px solid #f59e0b" : "1px solid rgba(148,163,184,0.3)",
-                  }}
-                  onClick={() => setListMode("signals")}
-                >
-                  구매 신호 (인콰이어리/오퍼)
-                </button>
-              </div>
-
-              {listMode === "signals" ? (
-                <div>
-                  <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
-                    <input
-                      value={oppQuery}
-                      onChange={(e) => setOppQuery(e.target.value)}
-                      placeholder="키워드·제목 검색 (예: cosmetic, serum)"
-                      style={{
-                        flex: 1,
-                        minWidth: 200,
-                        padding: "10px 12px",
-                        borderRadius: 10,
-                        border: "1px solid rgba(148,163,184,0.35)",
-                        background: "rgba(15,23,42,0.55)",
-                        color: "#e2e8f0",
-                      }}
-                    />
-                    <span style={{ fontSize: 12, color: "#94a3b8" }}>
-                      {selectedRecommendation?.country?.name || "전체"} · {opportunities.total.toLocaleString()}건
-                    </span>
-                  </div>
-                  {oppLoading ? (
-                    <div className="analysis-empty analysis-empty--compact"><LoaderCircle size={18} className="spin" /><h3>구매 신호 불러오는 중…</h3></div>
-                  ) : oppError ? (
-                    <div className="analysis-empty analysis-empty--compact"><CircleAlert size={18} /><h3>구매 신호 로드 실패</h3><p>{oppError}</p></div>
-                  ) : !opportunities.items.length ? (
-                    <div className="analysis-empty analysis-empty--compact">
-                      <CircleAlert size={18} />
-                      <h3>조건에 맞는 구매 신호가 없습니다.</h3>
-                      <p>국가·키워드를 바꾸거나 바이어 후보 탭을 확인하세요.</p>
-                    </div>
-                  ) : (
-                    <div style={{ display: "grid", gap: 12 }}>
-                      {opportunities.items.map((item, index) => (
-                        <div key={item.id || index} className="analysis-card" style={{ textAlign: "left" }}>
-                          <div className="analysis-card-rank">{index + 1}</div>
-                          <div className="analysis-card-body">
-                            <div className="analysis-card-title">
-                              <div>
-                                <strong>{item.title}</strong>
-                                <span>{item.country_norm || "국가 미상"} · {item.source_dataset || "출처 미상"}</span>
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
-                                  <span style={flowBadge("#78350f", "#fcd34d")}>구매 신호</span>
-                                  {item.has_contact ? (
-                                    <span style={flowBadge("#065f46", "#6ee7b7")}>연락처 있음</span>
-                                  ) : (
-                                    <span style={flowBadge("#334155", "#cbd5e1")}>연락처 없음 · 수요 신호</span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            <p>{item.signal_note}</p>
-                            <div className="analysis-detail-grid" style={{ marginTop: 10 }}>
-                              <div className="analysis-detail-row"><span>키워드</span><strong>{item.keywords_norm || "-"}</strong></div>
-                              <div className="analysis-detail-row"><span>HS</span><strong>{item.hs_code_norm || "-"}</strong></div>
-                              <div className="analysis-detail-row"><span>유효</span><strong>{item.valid_until || "-"}</strong></div>
-                              <div className="analysis-detail-row"><span>회사명</span><strong>{item.normalized_name || "(미기재)"}</strong></div>
-                            </div>
-                            {item.has_contact ? (
-                              <div onClick={(e) => e.stopPropagation()}>
-                                <CreditUnlockPanel
-                                  buyerKey={makeBuyerKey({
-                                    name: item.normalized_name || item.title,
-                                    country: item.country_norm,
-                                    source: item.source_dataset,
-                                  })}
-                                  email={item.contact_email || ""}
-                                  phone={item.contact_phone || ""}
-                                  website={item.contact_website || ""}
-                                  variant="dark"
-                                />
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : null}
-
-              {listMode === "buyers" && analysisResult?.buyers?.meta?.buyer_country_mismatch ? (
+              {analysisResult?.buyers?.meta?.buyer_country_mismatch ? (
                 <div
                   style={{
                     marginBottom: 14,
@@ -1200,7 +1054,7 @@ export default function ExportFlowPage({ onBack }) {
                 </div>
               ) : null}
 
-              {listMode === "buyers" && !analysisResult?.buyers?.items?.length ? (
+              {!analysisResult?.buyers?.items?.length ? (
                 <div className="analysis-empty analysis-empty--compact">
                   <CircleAlert size={18} />
                   <h3>
@@ -1215,7 +1069,7 @@ export default function ExportFlowPage({ onBack }) {
                       "1단계에서 다른 HS 코드나 국가를 시도해 보세요."}
                   </p>
                 </div>
-              ) : listMode === "buyers" ? (
+              ) : (
                 <div style={{ display: "grid", gap: 12 }}>
                   {analysisResult.buyers.items.map((item, index) => (
                     <div
@@ -1315,7 +1169,7 @@ export default function ExportFlowPage({ onBack }) {
                     </div>
                   ))}
                 </div>
-              ) : null}
+              )}
 
               <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
                 <button className="ui-button ui-button--ghost" onClick={goPrev}>
