@@ -367,7 +367,7 @@ function normalizeP1Response(payload) {
 
   return {
     engine: "p1",
-    hint: "CSV 기반 P1 추천 점수를 표시하고 있습니다.",
+    hint: "CSV 기반 P1 지표·후보를 표시합니다. 점수는 참고용입니다.",
     request: { hsCode: input.hs_code, topN: input.top_n, year: input.year },
     recommendations: results.map((entry) => buildP1Recommendation(entry)),
     diagnostics,
