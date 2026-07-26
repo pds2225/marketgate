@@ -307,6 +307,8 @@ def shortlist_buyers(
             "selected_opportunity_valid_until": normalize_text((selected_opportunity or {}).get("valid_until")),
             "selected_opportunity_signal_type": normalize_text((selected_opportunity or {}).get("signal_type")),
             "selected_opportunity_signal_usable": bool((selected_opportunity or {}).get("signal_usable", False)),
+            "selected_opportunity_source_dataset": normalize_text((selected_opportunity or {}).get("source_dataset")),
+            "selected_opportunity_source_file": normalize_text((selected_opportunity or {}).get("source_file")),
             "selected_opportunity_match_score": int(_opportunity_fit_score(selected_opportunity or {}, supplier_profile)),
             "scoring_opportunity_applied": scoring_opportunity is not None,
             "total_buyer_rows": int(len(buyers)),

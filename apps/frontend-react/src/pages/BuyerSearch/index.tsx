@@ -314,30 +314,54 @@ interface OpportunitySignal {
   countryIso3: string;
   countryName: string;
   signalType: string;
+  hsCode: string;
+  keywords: string;
+  validUntil: string;
+  sourceDataset: string;
+  sourceFile: string;
+  signalUsable: boolean;
+  scoringApplied: boolean;
+  matchScore: number | null;
 }
 
 function buildOpportunitySignals(meta: any): OpportunitySignal[] {
   if (!meta || typeof meta !== 'object') return [];
   const scores = Array.isArray(meta.selected_opportunity_match_scores) ? meta.selected_opportunity_match_scores : [];
-  const types = Array.isArray(meta.selected_opportunity_signal_types) ? meta.selected_opportunity_signal_types : [];
-  const countries = Array.isArray(meta.selected_opportunity_countries) ? meta.selected_opportunity_countries : [];
   if (scores.length > 0) {
     return scores
       .filter((entry: any) => String(entry?.opportunity_title || '').trim())
-      .map((entry: any, index: number) => ({
+      .map((entry: any) => ({
         title: String(entry.opportunity_title).trim(),
         countryIso3: String(entry.country_iso3 || '').trim().toUpperCase(),
-        countryName: String(countries[index] || '').trim(),
-        signalType: String(types[index] || '').trim(),
+        countryName: String(entry.opportunity_country_norm || '').trim(),
+        signalType: String(entry.opportunity_signal_type || '').trim(),
+        hsCode: String(entry.opportunity_hs_code_norm || '').trim(),
+        keywords: String(entry.opportunity_keywords_norm || '').trim(),
+        validUntil: String(entry.opportunity_valid_until || '').trim(),
+        sourceDataset: String(entry.opportunity_source_dataset || '').trim(),
+        sourceFile: String(entry.opportunity_source_file || '').trim(),
+        signalUsable: Boolean(entry.opportunity_signal_usable),
+        scoringApplied: Boolean(entry.scoring_opportunity_applied),
+        matchScore: entry.match_score == null || entry.match_score === '' ? null : Number(entry.match_score),
       }));
   }
   const titles = Array.isArray(meta.selected_opportunity_titles) ? meta.selected_opportunity_titles : [];
+  const countries = Array.isArray(meta.selected_opportunity_countries) ? meta.selected_opportunity_countries : [];
+  const types = Array.isArray(meta.selected_opportunity_signal_types) ? meta.selected_opportunity_signal_types : [];
   return titles
     .map((title: string, index: number) => ({
       title: String(title || '').trim(),
       countryIso3: '',
       countryName: String(countries[index] || '').trim(),
       signalType: String(types[index] || '').trim(),
+      hsCode: '',
+      keywords: '',
+      validUntil: '',
+      sourceDataset: '',
+      sourceFile: '',
+      signalUsable: false,
+      scoringApplied: false,
+      matchScore: null,
     }))
     .filter((row: OpportunitySignal) => row.title);
 }
@@ -351,6 +375,20 @@ function signalTypeLabel(type: string): string {
   return type;
 }
 
+function formatKeywords(raw: string): string[] {
+  return String(raw || '')
+    .split('|')
+    .map((part) => part.trim())
+    .filter((part) => part && part.toLowerCase() !== 'none');
+}
+
+const OpportunityFact: React.FC<{ label: string; value?: string | null }> = ({ label, value }) => (
+  <div className="grid grid-cols-[72px_1fr] gap-2 text-[11px] leading-snug">
+    <span className="text-slate-500">{label}</span>
+    <span className="text-slate-800 font-medium">{value && String(value).trim() ? value : '자료 내 확인 불가'}</span>
+  </div>
+);
+
 const OpportunitySignalsBanner: React.FC<{ signals: OpportunitySignal[] }> = ({ signals }) => (
   <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-5">
     <div className="flex items-center justify-between gap-2 mb-2">
@@ -358,21 +396,38 @@ const OpportunitySignalsBanner: React.FC<{ signals: OpportunitySignal[] }> = ({ 
       <span className="text-[11px] font-medium text-amber-800">{signals.length}건</span>
     </div>
     <p className="text-[11px] text-amber-900/80 mb-3 leading-relaxed">
-      buyKOREA 인콰이어리 등 <strong>수요 신호</strong>입니다. 연락 가능한 바이어 명단이 아니며, 점수 순위가 아닙니다.
+      buyKOREA 인콰이어리 등 <strong>수요 신호</strong>입니다. 연락 가능한 바이어 명단이 아니며, 원본에 있는 필드만 표시합니다.
     </p>
     {signals.length === 0 ? (
       <p className="text-xs text-amber-900/70">연결된 구매 신호 없음 — 자료 내 확인 불가 또는 현재 조건에 매칭된 신호 없음</p>
     ) : (
       <ul className="space-y-2">
-        {signals.map((signal, index) => (
-          <li key={`${signal.title}-${index}`} className="bg-white/80 border border-amber-100 rounded-lg px-3 py-2">
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px]">{signalTypeLabel(signal.signalType)}</Badge>
-              <span className="text-[11px] text-slate-600">{signal.countryName || signal.countryIso3 || '국가 미상'}</span>
-            </div>
-            <p className="text-sm font-medium text-slate-900 leading-snug">{signal.title}</p>
-          </li>
-        ))}
+        {signals.map((signal, index) => {
+          const keywords = formatKeywords(signal.keywords);
+          return (
+            <li key={`${signal.title}-${index}`} className="bg-white/80 border border-amber-100 rounded-lg px-3 py-2.5">
+              <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px]">{signalTypeLabel(signal.signalType)}</Badge>
+                <span className="text-[11px] text-slate-600">{signal.countryName || signal.countryIso3 || '국가 미상'}</span>
+                {signal.scoringApplied ? (
+                  <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px]">점수 반영됨</Badge>
+                ) : null}
+              </div>
+              <p className="text-sm font-medium text-slate-900 leading-snug mb-2">{signal.title}</p>
+              <div className="space-y-1">
+                <OpportunityFact label="HS" value={signal.hsCode} />
+                <OpportunityFact label="키워드" value={keywords.length ? keywords.join(' · ') : ''} />
+                <OpportunityFact label="유효기한" value={signal.validUntil} />
+                <OpportunityFact label="출처" value={signal.sourceDataset} />
+                <OpportunityFact
+                  label="매칭"
+                  value={signal.matchScore == null || Number.isNaN(signal.matchScore) ? '' : `${signal.matchScore} (엔진 참고)`}
+                />
+                <OpportunityFact label="사용가능" value={signal.signalUsable ? '예' : '자료 기준 미확인/불가'} />
+              </div>
+            </li>
+          );
+        })}
       </ul>
     )}
   </div>

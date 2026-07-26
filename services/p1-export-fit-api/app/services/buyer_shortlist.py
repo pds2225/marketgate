@@ -296,6 +296,14 @@ def _merge_shortlist_results(
         selected_country = str(meta.get("selected_opportunity_country_norm") or "").strip()
         signal_type = str(meta.get("selected_opportunity_signal_type") or "").strip()
         match_score = int(meta.get("selected_opportunity_match_score") or 0)
+        # 구매 신호 상세: shortlist_service meta에 이미 있는 필드를 고객 화면용으로 전달(신규 소스/합성 없음)
+        opportunity_hs = str(meta.get("selected_opportunity_hs_code_norm") or "").strip()
+        opportunity_keywords = str(meta.get("selected_opportunity_keywords_norm") or "").strip()
+        opportunity_valid_until = str(meta.get("selected_opportunity_valid_until") or "").strip()
+        opportunity_usable = bool(meta.get("selected_opportunity_signal_usable", False))
+        opportunity_applied = bool(meta.get("scoring_opportunity_applied", False))
+        opportunity_source = str(meta.get("selected_opportunity_source_dataset") or "").strip()
+        opportunity_source_file = str(meta.get("selected_opportunity_source_file") or "").strip()
         if selected_title:
             selected_titles.append(selected_title)
         if selected_country:
@@ -306,6 +314,15 @@ def _merge_shortlist_results(
             "country_iso3": country_key,
             "opportunity_title": selected_title,
             "match_score": match_score,
+            "opportunity_country_norm": selected_country,
+            "opportunity_signal_type": signal_type,
+            "opportunity_hs_code_norm": opportunity_hs,
+            "opportunity_keywords_norm": opportunity_keywords,
+            "opportunity_valid_until": opportunity_valid_until,
+            "opportunity_signal_usable": opportunity_usable,
+            "scoring_opportunity_applied": opportunity_applied,
+            "opportunity_source_dataset": opportunity_source,
+            "opportunity_source_file": opportunity_source_file,
         })
 
         for item in shortlist.get("items") or []:
