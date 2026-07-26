@@ -157,6 +157,36 @@ export default function LandingPage({
     }
   };
 
+  // 하단 CTA: 검색창에 HS/키워드가 있으면 분석·바이어 화면으로 이어 준다.
+  const resolveHsFromQuery = () => {
+    const q = query.trim();
+    const six = q.match(/\b(\d{6})\b/);
+    if (six) return six[1];
+    const fourToSix = q.match(/\b(\d{4,6})\b/);
+    if (fourToSix) return fourToSix[1];
+    return null;
+  };
+
+  const persistQueryForBuyerSearch = () => {
+    const q = query.trim();
+    if (!q) return;
+    try {
+      sessionStorage.setItem("mg_search_query", q);
+    } catch {
+      /* noop */
+    }
+  };
+
+  const startAnalysis = () => {
+    const hs = resolveHsFromQuery();
+    onStartAnalysis?.(hs ? { hsCode: hs } : undefined);
+  };
+
+  const startBuyerSearch = () => {
+    persistQueryForBuyerSearch();
+    onStartBuyerSearch?.();
+  };
+
   return (
     <div className="landing-page">
       <header className="landing-topbar">
@@ -165,7 +195,7 @@ export default function LandingPage({
         </div>
         <button
           className="ui-button ui-button--ghost"
-          onClick={() => onStartBuyerSearch?.()}
+          onClick={startBuyerSearch}
         >
           바이어 검색
           <ArrowRight size={16} />
@@ -402,7 +432,7 @@ export default function LandingPage({
         <div className="landing-cta-actions">
           <button
             className="ui-button ui-button--ghost"
-            onClick={() => onStartAnalysis?.()}
+            onClick={startAnalysis}
           >
             유망국 분석
           </button>
@@ -414,7 +444,7 @@ export default function LandingPage({
           </button>
           <button
             className="ui-button ui-button--solid"
-            onClick={() => onStartBuyerSearch?.()}
+            onClick={startBuyerSearch}
           >
             바이어 검색 시작
             <ArrowRight size={18} />

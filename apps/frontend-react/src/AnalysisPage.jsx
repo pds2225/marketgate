@@ -770,10 +770,37 @@ export default function AnalysisPage({ onBack, preset }) {
     null;
 
   useEffect(() => {
-    if (preset?.hsCode) {
-      setHsCode(String(preset.hsCode));
-      setError("");
-    }
+    if (!preset?.hsCode) return;
+    const code = String(preset.hsCode).replace(/\D/g, "").slice(0, 6);
+    if (!code) return;
+    setHsCode(code);
+    setError("");
+
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const analysis = await requestAnalysis(code, topN, year);
+        if (cancelled) return;
+        startTransition(() => {
+          setResult(analysis);
+          setSelectedId(analysis.recommendations[0]?.id || null);
+        });
+      } catch (requestError) {
+        if (cancelled) return;
+        setResult(null);
+        setSelectedId(null);
+        setError(requestError.message || "분석 요청에 실패했습니다.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // 랜딩에서 넘긴 HS만 1회 자동 분석 — topN/year 변경으로 재실행하지 않음
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset]);
 
   const handleAnalyze = async () => {

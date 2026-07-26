@@ -190,7 +190,7 @@ function App() {
         <LandingPage
           onStartFlow={() => navigate('exportFlow')}
           onStartBuyerSearch={() => navigate('buyerSearch')}
-          onStartAnalysis={() => navigate('analysis')}
+          onStartAnalysis={(preset) => navigate('analysis', preset || null)}
         />
       )}
 

@@ -295,8 +295,11 @@ const ExportConditionPanel: React.FC<{ open: boolean; onClose: () => void; condi
 
 /* ── SearchBar ── */
 const SUGGESTED_KEYWORDS = ['스킨케어', '홍삼', '여성의류', '메모리 반도체'];
-const SearchBar: React.FC<{ onSearch: (text: string) => void; activeCategory: string; loading: boolean; }> = ({ onSearch, activeCategory, loading }) => {
-  const [input, setInput] = useState('');
+const SearchBar: React.FC<{ onSearch: (text: string) => void; activeCategory: string; loading: boolean; initialQuery?: string; }> = ({ onSearch, activeCategory, loading, initialQuery = '' }) => {
+  const [input, setInput] = useState(initialQuery);
+  useEffect(() => {
+    if (initialQuery) setInput(initialQuery);
+  }, [initialQuery]);
   const submit = () => { if (!input.trim() || loading) return; onSearch(input.trim()); };
   return (
     <div className="bg-white border-b border-slate-200">
@@ -589,6 +592,8 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
   const [showConditionPanel, setShowConditionPanel] = useState(false);
   const [conditions, setConditions] = useState<ExportConditions>({ productionCapacity: '2,000~5,000개', moq: '1,000개', targetAmountKrw: '5천만원', unitPriceUSD: 12.5, costPriceUSD: 8, logisticsRate: 8, tariffRate: 8, exchangeRate: 1300, certifications: ['ISO', 'GMP'] });
   const [dynamicCategory, setDynamicCategory] = useState<CategoryData | null>(null);
+  // 랜딩에서 sessionStorage(mg_search_query)로 넘긴 검색어 — 마운트 시 1회 소비·자동 검색
+  const [seedQuery, setSeedQuery] = useState('');
 
   const categoryData = useMemo(() => dynamicCategory || CATEGORIES.find((c) => c.label === currentCategory), [dynamicCategory, currentCategory]);
   // 바이어별 수입실적 데이터가 원본에 없어 MOQ 기반 바이어 필터링은 제공하지 않는다.
@@ -606,10 +611,13 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
     try {
       let hsCode = text.trim();
       const detected = detectCategory(text);
+      const sixDigit = text.match(/\b(\d{6})\b/);
 
       if (detected) {
         const cat = CATEGORIES.find((c) => c.label === detected);
         if (cat) hsCode = cat.hsCode;
+      } else if (sixDigit) {
+        hsCode = sixDigit[1];
       } else if (!/^\d{6}$/.test(hsCode)) {
         const inputErr: any = new Error('HS 코드는 6자리 숫자이거나, K-뷰티/건강식품/K-패션/반도체 중 하나를 입력해 주세요.');
         inputErr.errorKind = 'input';
@@ -681,6 +689,22 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
       setLoading(false);
     }
   };
+
+  // 랜딩 히어로/칩에서 넘긴 mg_search_query 를 1회 읽어 자동 검색한다.
+  useEffect(() => {
+    let q = '';
+    try {
+      q = (sessionStorage.getItem('mg_search_query') || '').trim();
+      if (q) sessionStorage.removeItem('mg_search_query');
+    } catch {
+      /* noop */
+    }
+    if (!q) return;
+    setSeedQuery(q);
+    void handleSearch(q);
+    // mount 시 1회만 — handleSearch 의존성 의도적으로 제외
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSelectCountry = (c: CountryRec) => { setSelectedCountry(c); setStep('buyers'); };
   const handleSelectBuyer = (b: Buyer) => { setSelectedBuyer(b); setStep('detail'); };
@@ -760,7 +784,7 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
           <div className="flex items-center gap-2"><Button variant="outline" size="sm" className="h-7 text-xs gap-1.5"><LayoutGrid className="h-3.5 w-3.5" />품 모드</Button></div>
         </div>
         <DataStatsBanner />
-        <SearchBar onSearch={handleSearch} activeCategory={currentCategory} loading={loading} />
+        <SearchBar onSearch={handleSearch} activeCategory={currentCategory} loading={loading} initialQuery={seedQuery} />
       </header>
       <div className="flex-1 overflow-hidden relative">
         {loading && <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center"><Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-3" /><p className="text-sm text-slate-600">바이어 데이터를 분석 중입니다...</p><p className="text-xs text-slate-400 mt-1">KOTRA 공공데이터 CSV 기반 분석 중</p></div>}
