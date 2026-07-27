@@ -1,15 +1,16 @@
 import json
 import os
+import uuid
 import urllib.parse
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
 from app.auth_deps import get_current_user
 from app.credit_store import charge
 from app.payment_store import (
-    CREDIT_PACKAGES, PLAN_PRICES, get_payment_history,
-    record_payment, verify_webhook_signature,
+    CREDIT_PACKAGES, PLAN_PRICES, fulfill_payment_once, get_payment_history,
+    verify_webhook_signature,
 )
 from app.subscription_store import change_plan
 
@@ -26,6 +27,29 @@ def _toss_ready() -> bool:
     if not key or key in ("test_ck_placeholder", "placeholder"):
         return False
     return key.startswith("test_ck_") or key.startswith("live_ck_") or len(key) > 8
+
+
+def _build_order_id(user_id: str, product_type: str, item_key: str) -> str:
+    """Unique per checkout. Dot separator avoids UUID hyphen ambiguity.
+
+    Format: '{user_id}.{product_type}.{item_key}.{nonce}'
+    Legacy webhook payloads may still use '{uuid}-{product_type}-{item_key}'.
+    """
+    nonce = uuid.uuid4().hex[:12]
+    return f"{user_id}.{product_type}.{item_key}.{nonce}"
+
+
+def _parse_order_id(order_id: str) -> Tuple[str, str, str]:
+    """Return (user_id, product_type, item_key). Supports new + legacy formats."""
+    if "." in order_id:
+        parts = order_id.split(".")
+        if len(parts) >= 3:
+            return parts[0], parts[1], parts[2]
+    # Legacy: '{uuid}-{product_type}-{item_key}' (UUID has 4 hyphens)
+    parts = order_id.rsplit("-", 2)
+    if len(parts) < 3:
+        raise ValueError("invalid_orderId format")
+    return parts[0], parts[1], parts[2]
 
 
 @router.get("/provider")
@@ -70,8 +94,8 @@ def checkout(
     else:
         raise HTTPException(status_code=400, detail=f"unknown product_type: {product_type}")
 
-    # 형식 고정: "{uuid}-{product_type}-{item_key}" (웹훅 rsplit('-', 2) 하위호환)
-    order_id = f"{user['user_id']}-{product_type}-{item_key}"
+    # 결제마다 고유 orderId (Toss 재결제·웹훅 재시도 대비). 레거시 하이픈 형식은 웹훅에서만 파싱.
+    order_id = _build_order_id(user["user_id"], product_type, str(item_key))
     success_url = (
         f"{_BASE_URL}/payment/callback"
         f"?status=success&type={product_type}&item={item_key}"
@@ -139,33 +163,42 @@ async def webhook(request: Request):
         return {"status": "ignored"}
 
     order_id = str(data.get("orderId", ""))
-    # order_id format: "{uuid}-{product_type}-{item_key}"
-    # UUIDs contain 4 hyphens, so split from the right to keep the UUID intact.
-    parts = order_id.rsplit("-", 2)
-    if len(parts) < 3:
+    try:
+        user_id, product_type, item_key = _parse_order_id(order_id)
+    except ValueError:
         raise HTTPException(status_code=400, detail="invalid_orderId format")
 
-    user_id, product_type, item_key = parts[0], parts[1], parts[2]
+    package = item_key if product_type == "credit" else None
+    plan = item_key if product_type == "subscription" else None
+    amount = data.get("totalAmount", 0)
 
-    if product_type == "credit":
-        pkg = CREDIT_PACKAGES.get(item_key)
-        if pkg:
+    def _apply() -> None:
+        if product_type == "credit":
+            pkg = CREDIT_PACKAGES.get(item_key)
+            if not pkg:
+                raise HTTPException(status_code=400, detail=f"unknown package: {item_key}")
             charge(user_id, pkg["credits"], note=f"결제 완료 - {pkg['name']} 패키지")
-    elif product_type == "subscription":
-        try:
-            change_plan(user_id, item_key)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+        elif product_type == "subscription":
+            try:
+                change_plan(user_id, item_key)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+        else:
+            raise HTTPException(status_code=400, detail=f"unknown product_type: {product_type}")
 
-    record_payment(
-        user_id=user_id,
-        product_type=product_type,
-        package=item_key if product_type == "credit" else None,
-        plan=item_key if product_type == "subscription" else None,
-        amount=data.get("totalAmount", 0),
-        status="DONE",
-    )
-    return {"status": "ok"}
+    try:
+        result = fulfill_payment_once(
+            order_id=order_id,
+            user_id=user_id,
+            product_type=product_type,
+            package=package,
+            plan=plan,
+            amount=amount,
+            apply_fn=_apply,
+        )
+    except HTTPException:
+        raise
+    return result
 
 
 @router.get("/history")
