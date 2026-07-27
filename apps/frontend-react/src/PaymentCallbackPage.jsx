@@ -50,7 +50,38 @@ export default function PaymentCallbackPage({ onBack, onBalanceRefresh }) {
         setStatus('pending')
       }
     }
-    verify(0)
+    // 토스는 successUrl에 paymentKey/orderId/amount를 붙여 리다이렉트한다.
+    // 승인(confirm)을 호출해야 실제로 매입된다 — 호출하지 않으면 카드사 인증만
+    // 끝난 상태로 남아 약 10분 뒤 EXPIRE된다. 파라미터가 없으면 sim 흐름이므로
+    // 기존처럼 결제내역 검증으로 바로 넘어간다.
+    const confirmThenVerify = async () => {
+      const paymentKey = params.get('paymentKey')
+      const orderId = params.get('orderId')
+      const amount = params.get('amount')
+
+      if (paymentKey && orderId && amount) {
+        try {
+          await api.post('/v1/payment/confirm', {
+            paymentKey,
+            orderId,
+            amount: Number(amount),
+          })
+        } catch (err) {
+          if (cancelled) return
+          const code = err?.response?.status
+          // 4xx는 승인이 확정적으로 실패한 경우(소유자·금액 불일치, 토스 거절).
+          // 503(키 미설정)·5xx·네트워크 오류는 웹훅으로 완료될 수 있으므로
+          // 실패로 단정하지 않고 결제내역 검증으로 넘어간다.
+          if (code >= 400 && code < 500) {
+            setStatus('fail')
+            return
+          }
+        }
+      }
+      if (!cancelled) verify(0)
+    }
+
+    confirmThenVerify()
     return () => { cancelled = true }
   }, [])
 
