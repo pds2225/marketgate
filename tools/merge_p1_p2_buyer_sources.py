@@ -145,6 +145,13 @@ def _truthy_contact(row: pd.Series) -> bool:
     return flag in {"1", "true", "yes"}
 
 
+def _actionable_opportunity(row: pd.Series) -> bool:
+    """opportunity_item은 국가+제목/회사명이 있으면 추적 가능한 신호로 본다."""
+    country = _clean(row.get("country_norm"))
+    surface = _clean(row.get("title")) or _clean(row.get("normalized_name"))
+    return bool(country and surface)
+
+
 def _align_frame(df: pd.DataFrame, record_type: str, source_dataset: str | None = None) -> pd.DataFrame:
     out = df.copy()
     for col in BUYER_COLUMNS:
@@ -156,8 +163,13 @@ def _align_frame(df: pd.DataFrame, record_type: str, source_dataset: str | None 
         lambda v: SOURCE_CANONICAL.get(_clean(v), _clean(v))
     )
     out["record_type"] = record_type
-    # has_contact 재계산 (원본 False인데 이메일이 있는 경우 등 보정하지 않고, 빈 연락은 False)
-    out["has_contact"] = out.apply(_truthy_contact, axis=1)
+    # has_contact 재계산: 연락처가 없어도 opportunity는 국가+제목이 있으면 True
+    # CSV/숏리스트 정합을 위해 문자열 True/False로 고정한다.
+    if record_type == "opportunity_item":
+        flags = out.apply(lambda row: _truthy_contact(row) or _actionable_opportunity(row), axis=1)
+    else:
+        flags = out.apply(_truthy_contact, axis=1)
+    out["has_contact"] = flags.map(lambda v: "True" if bool(v) else "False")
     out["contact_email_estimated"] = out["contact_email_estimated"].map(
         lambda v: _clean(v) if _clean(v) else "False"
     )
@@ -210,16 +222,27 @@ def _dedupe_opportunity(df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
 
 def _counts(df: pd.DataFrame) -> dict[str, Any]:
     if df.empty:
-        return {"rows": 0, "by_source": {}, "with_email": 0, "with_name": 0}
+        return {
+            "rows": 0,
+            "by_source": {},
+            "with_email": 0,
+            "with_name": 0,
+            "with_has_contact": 0,
+            "email_ratio": 0.0,
+            "has_contact_ratio": 0.0,
+        }
     email = df["contact_email"].map(_clean).ne("")
     name = df["normalized_name"].map(_clean).ne("")
+    has_contact = df.apply(_truthy_contact, axis=1)
     by_source = df["source_dataset"].fillna("(null)").value_counts().to_dict()
     return {
         "rows": int(len(df)),
         "by_source": {str(k): int(v) for k, v in by_source.items()},
         "with_email": int(email.sum()),
         "with_name": int(name.sum()),
+        "with_has_contact": int(has_contact.sum()),
         "email_ratio": round(float(email.mean()), 4),
+        "has_contact_ratio": round(float(has_contact.mean()), 4),
     }
 
 
@@ -389,8 +412,11 @@ def main() -> int:
         "p2_unknown_sources": sum(1 for s in p2_status if s.get("status") == "UNKNOWN"),
         "note": (
             "P2 TradeKorea/KITA/KOTRA 무역관은 공개 일괄 CSV 없음 → ACCESS_GATED (L002). "
-            "회원·무역관 수령 CSV만 드롭인 편입. contact_* 스크래핑 미수행."
+            "회원·무역관 수령 CSV만 드롭인 편입. contact_* 스크래핑 미수행. "
+            "opportunity_item은 이메일 없이도 국가+제목/회사명이 있으면 has_contact=True "
+            "(actionable signal)로 표기해 숏리스트 노출 가능하게 한다."
         ),
+        "opportunity_actionable_has_contact": True,
     }
 
     report_path = REPORT_DIR / "p1_p2_buyer_merge_report.json"

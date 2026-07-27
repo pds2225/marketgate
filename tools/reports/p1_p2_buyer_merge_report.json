@@ -1,30 +1,35 @@
 {
-  "generated_at": "2026-07-26T09:48:18.464978+00:00",
+  "generated_at": "2026-07-27T02:52:27.042238+00:00",
   "before": {
     "buyer_candidate": {
-      "rows": 36019,
+      "rows": 12322,
       "by_source": {
-        "대한무역투자진흥공사_SNS 마케팅 수집 바이어 정보": 33440,
-        "정보통신산업진흥원_글로벌ICT포털해외바이어": 1845,
-        "한국무역보험공사_화장품 바이어 정보": 386,
-        "한국무역보험공사_바이어 검색": 234,
-        "EC21_GlobalB2B_BuyingLeads": 103,
-        "ITC_TradeMap_ImportingCompanies": 11
+        "대한무역투자진흥공사_SNS 마케팅 수집 바이어 정보": 10477,
+        "정보통신산업진흥원_글로벌ICT포털해외바이어": 1845
       },
-      "with_email": 2134,
-      "with_name": 35866,
-      "email_ratio": 0.0592
+      "with_email": 0,
+      "with_name": 12259,
+      "with_has_contact": 1845,
+      "email_ratio": 0.0,
+      "has_contact_ratio": 0.1497
     },
     "opportunity_item": {
-      "rows": 7794,
+      "rows": 7800,
       "by_source": {
         "대한무역투자진흥공사_buyKOREA인콰이어리": 4837,
         "중소벤처기업진흥공단_GoBizKorea인콰이어리": 2791,
-        "중소벤처기업진흥공단_GoBizKorea구매오퍼": 166
+        "중소벤처기업진흥공단_GoBizKorea구매오퍼": 166,
+        "중소벤처기업진흥공단_업종별 해외시장진출 유망상품 현황": 2,
+        "중소벤처기업진흥공단_해외바이어 구매오퍼 정보": 1,
+        "중소벤처기업진흥공단_해외바이어 인콰이어리 신청": 1,
+        "대한무역투자진흥공사_인콰이어리 정보": 1,
+        "대한무역투자진흥공사_수출유망추천정보": 1
       },
-      "with_email": 0,
-      "with_name": 0,
-      "email_ratio": 0.0
+      "with_email": 3,
+      "with_name": 6,
+      "with_has_contact": 7779,
+      "email_ratio": 0.0004,
+      "has_contact_ratio": 0.9973
     }
   },
   "p1": {
@@ -70,7 +75,7 @@
       "label": "TradeKorea_BuyerOrInquiry",
       "status": "ACCESS_GATED",
       "note": "일괄 export/API 없음. tradeKorea 셀러 회원 UI에서 바이어 검색·C/L 발송만 가능 (1일 1회·월 5회, 1회 20개사). 연락처는 개인정보보호로 미제공(국가·회사·품목만). 회원 수령분을 COMMON 스키마 CSV로 변환해 input/p2_optional/tradekorea.csv 드롭인.",
-      "drop_in": "/workspace/services/cosmetics_mvp_preprocess/input/p2_optional/tradekorea.csv",
+      "drop_in": "D:\\marketgate\\services\\cosmetics_mvp_preprocess\\input\\p2_optional\\tradekorea.csv",
       "access_url": "https://kr.tradekorea.com/seller/buyer/buyerDB.do",
       "verified_at": "2026-07-26"
     },
@@ -79,7 +84,7 @@
       "label": "KITA_BuyerOrInquiry",
       "status": "ACCESS_GATED",
       "note": "KITA 바이어 DB 일괄 CSV/OpenAPI 없음. tradeKorea(KITA 운영) 회원 매칭·C/L 경로와 동일 계열. 공개 대체는 K-SURE 바이어검색 API(data.go.kr)이며 이미 buyer_candidate에 편입됨. 협회 수령분이 있으면 input/p2_optional/kita.csv 드롭인.",
-      "drop_in": "/workspace/services/cosmetics_mvp_preprocess/input/p2_optional/kita.csv",
+      "drop_in": "D:\\marketgate\\services\\cosmetics_mvp_preprocess\\input\\p2_optional\\kita.csv",
       "access_url": "https://www.kita.org/info/globalService/tradeKorea.do",
       "verified_at": "2026-07-26"
     },
@@ -88,7 +93,7 @@
       "label": "KOTRA_TradeOffice_BuyerList",
       "status": "ACCESS_GATED",
       "note": "무역관 바이어 일괄 다운로드 없음. 수출24 잠재바이어 발굴(유료·건당) 또는 트라이빅/기업회원 맞춤 검색. 무역관 배포분은 재배포 범위 문서화 후 input/p2_optional/kotra_trade_office.csv 드롭인.",
-      "drop_in": "/workspace/services/cosmetics_mvp_preprocess/input/p2_optional/kotra_trade_office.csv",
+      "drop_in": "D:\\marketgate\\services\\cosmetics_mvp_preprocess\\input\\p2_optional\\kotra_trade_office.csv",
       "access_url": "https://www.kotra.or.kr",
       "verified_at": "2026-07-26"
     }
@@ -105,33 +110,38 @@
   ],
   "after": {
     "buyer_candidate": {
-      "rows": 36019,
+      "rows": 12322,
       "by_source": {
-        "대한무역투자진흥공사_SNS 마케팅 수집 바이어 정보": 33440,
-        "정보통신산업진흥원_글로벌ICT포털해외바이어": 1845,
-        "한국무역보험공사_화장품 바이어 정보": 386,
-        "한국무역보험공사_바이어 검색": 234,
-        "EC21_GlobalB2B_BuyingLeads": 103,
-        "ITC_TradeMap_ImportingCompanies": 11
+        "대한무역투자진흥공사_SNS 마케팅 수집 바이어 정보": 10477,
+        "정보통신산업진흥원_글로벌ICT포털해외바이어": 1845
       },
-      "with_email": 2134,
-      "with_name": 35866,
-      "email_ratio": 0.0592
+      "with_email": 0,
+      "with_name": 12259,
+      "with_has_contact": 1845,
+      "email_ratio": 0.0,
+      "has_contact_ratio": 0.1497
     },
     "opportunity_item": {
-      "rows": 7794,
+      "rows": 7800,
       "by_source": {
         "대한무역투자진흥공사_buyKOREA인콰이어리": 4837,
         "중소벤처기업진흥공단_GoBizKorea인콰이어리": 2791,
-        "중소벤처기업진흥공단_GoBizKorea구매오퍼": 166
+        "중소벤처기업진흥공단_GoBizKorea구매오퍼": 166,
+        "중소벤처기업진흥공단_업종별 해외시장진출 유망상품 현황": 2,
+        "중소벤처기업진흥공단_해외바이어 구매오퍼 정보": 1,
+        "중소벤처기업진흥공단_해외바이어 인콰이어리 신청": 1,
+        "대한무역투자진흥공사_인콰이어리 정보": 1,
+        "대한무역투자진흥공사_수출유망추천정보": 1
       },
-      "with_email": 0,
-      "with_name": 0,
-      "email_ratio": 0.0
+      "with_email": 3,
+      "with_name": 6,
+      "with_has_contact": 7779,
+      "email_ratio": 0.0004,
+      "has_contact_ratio": 0.9973
     },
     "paths": {
-      "buyer_candidate": "/workspace/services/cosmetics_mvp_preprocess/output/buyer_candidate.csv",
-      "opportunity_item": "/workspace/services/cosmetics_mvp_preprocess/output/opportunity_item.csv"
+      "buyer_candidate": "D:\\marketgate\\services\\cosmetics_mvp_preprocess\\output\\buyer_candidate.csv",
+      "opportunity_item": "D:\\marketgate\\services\\cosmetics_mvp_preprocess\\output\\opportunity_item.csv"
     }
   },
   "verdict": {
@@ -140,6 +150,7 @@
     "p2_confirmed_files": 0,
     "p2_access_gated_sources": 3,
     "p2_unknown_sources": 0,
-    "note": "P2 TradeKorea/KITA/KOTRA 무역관은 공개 일괄 CSV 없음 → ACCESS_GATED (L002). 회원·무역관 수령 CSV만 드롭인 편입. contact_* 스크래핑 미수행."
+    "note": "P2 TradeKorea/KITA/KOTRA 무역관은 공개 일괄 CSV 없음 → ACCESS_GATED (L002). 회원·무역관 수령 CSV만 드롭인 편입. contact_* 스크래핑 미수행. opportunity_item은 이메일 없이도 국가+제목/회사명이 있으면 has_contact=True (actionable signal)로 표기해 숏리스트 노출 가능하게 한다.",
+    "opportunity_actionable_has_contact": true
   }
 }

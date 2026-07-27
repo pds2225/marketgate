@@ -27,7 +27,7 @@ from task05_shortlist import (  # noqa: E402
 from shortlist_service import _select_opportunity  # noqa: E402
 
 
-def test_normalize_opportunity_record_renames_has_contact_to_signal_usable() -> None:
+def test_normalize_opportunity_record_preserves_has_contact_and_sets_signal_usable() -> None:
     reference_date = date(2026, 4, 22)
     record = {
         "has_contact": True,
@@ -39,7 +39,7 @@ def test_normalize_opportunity_record_renames_has_contact_to_signal_usable() -> 
 
     normalized = normalize_opportunity_record(record, reference_date=reference_date)
 
-    assert "has_contact" not in normalized
+    assert normalized["has_contact"] is True
     assert normalized["signal_type"] == "inquiry"
     assert normalized["signal_usable"] is True
     assert normalized["product_name_norm"] == "Hydrating serum"

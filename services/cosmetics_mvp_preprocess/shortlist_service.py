@@ -251,6 +251,8 @@ def _serialize_opportunity_signal(
             or normalize_text(record.get("contact_phone"))
             or normalize_text(record.get("contact_website"))
             or normalize_text(record.get("contact_name"))
+            or record.get("has_contact") is True
+            or str(record.get("has_contact", "")).strip().lower() in {"1", "true", "yes"}
         ),
         "opportunity_contact_name": normalize_text(record.get("contact_name")),
         "opportunity_contact_email": normalize_text(record.get("contact_email")),
