@@ -51,6 +51,7 @@ def record_payment(
     plan: str = None,
     amount: int = 0,
     status: str = "DONE",
+    order_id: str | None = None,
 ) -> dict:
     with _lock:
         data = _load()
@@ -61,11 +62,52 @@ def record_payment(
             "plan": plan,
             "amount": amount,
             "status": status,
+            "order_id": order_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         data.append(record)
         _save(data)
         return record
+
+
+def fulfill_payment_once(
+    *,
+    order_id: str,
+    user_id: str,
+    product_type: str,
+    package: str | None,
+    plan: str | None,
+    amount: int,
+    apply_fn,
+) -> dict:
+    """Apply credit/plan side effect at most once per order_id.
+
+    Holds the payments lock across check → apply → record so concurrent
+    Toss webhook retries cannot double-charge.
+    """
+    if not order_id:
+        raise ValueError("order_id_required")
+    with _lock:
+        data = _load()
+        if any(
+            r.get("order_id") == order_id and r.get("status") == "DONE" for r in data
+        ):
+            return {"status": "ok", "duplicate": True}
+        apply_fn()
+        data.append(
+            {
+                "user_id": user_id,
+                "product_type": product_type,
+                "package": package,
+                "plan": plan,
+                "amount": amount,
+                "status": "DONE",
+                "order_id": order_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        _save(data)
+        return {"status": "ok", "duplicate": False}
 
 
 def get_payment_history(user_id: str | None = None) -> list:
