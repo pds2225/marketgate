@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import uuid
 import urllib.parse
@@ -13,6 +14,8 @@ from app.payment_store import (
     verify_webhook_signature,
 )
 from app.subscription_store import change_plan
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/payment", tags=["payment"])
 
@@ -163,31 +166,87 @@ async def webhook(request: Request):
         return {"status": "ignored"}
 
     order_id = str(data.get("orderId", ""))
+    amount = data.get("totalAmount", 0)
+
+    def _needs_review(
+        reason: str,
+        *,
+        user_id: str = "unknown",
+        product_type: str = "unknown",
+        package: str | None = None,
+        plan: str | None = None,
+    ) -> Dict[str, Any]:
+        """재시도로 고칠 수 없는 상태 — 원장에 남기고 200을 준다.
+
+        비-2xx를 주면 Toss가 재전송 예산을 소진한 뒤 결제를 영구 폐기해
+        돈은 빠졌는데 기록이 0인 상태가 된다 (docs/LESSONS.md L015).
+        """
+        # orderId가 비면 멱등 키가 없다 — paymentKey로 대체해 최소한 기록은 남긴다.
+        review_order_id = order_id or f"missing-orderId:{data.get('paymentKey', '')}"
+        logger.warning(
+            f"[payment] NEEDS_REVIEW order_id={review_order_id!r} "
+            f"amount={amount!r} reason={reason}"
+        )
+        result = fulfill_payment_once(
+            order_id=review_order_id,
+            user_id=user_id,
+            product_type=product_type,
+            package=package,
+            plan=plan,
+            amount=amount,
+            status="NEEDS_REVIEW",
+            apply_fn=lambda: None,
+        )
+        return {"status": "ok", "needs_review": True, "duplicate": result["duplicate"]}
+
     try:
         user_id, product_type, item_key = _parse_order_id(order_id)
     except ValueError:
-        raise HTTPException(status_code=400, detail="invalid_orderId format")
+        return _needs_review("unparseable_orderId")
 
     package = item_key if product_type == "credit" else None
     plan = item_key if product_type == "subscription" else None
-    amount = data.get("totalAmount", 0)
+    review_ctx = {
+        "user_id": user_id,
+        "product_type": product_type,
+        "package": package,
+        "plan": plan,
+    }
 
-    def _apply() -> None:
-        if product_type == "credit":
-            pkg = CREDIT_PACKAGES.get(item_key)
-            if not pkg:
-                raise HTTPException(status_code=400, detail=f"unknown package: {item_key}")
+    def _amount_matches(expected: int) -> bool:
+        # 서명은 발신자만 증명한다 — 금액은 별도로 대조해야 한다 (docs/LESSONS.md L017).
+        try:
+            return int(amount) == int(expected)
+        except (TypeError, ValueError):
+            return False
+
+    if product_type == "credit":
+        pkg = CREDIT_PACKAGES.get(item_key)
+        if not pkg:
+            return _needs_review(f"unknown_package:{item_key}", **review_ctx)
+        if not _amount_matches(pkg["price"]):
+            return _needs_review(
+                f"amount_mismatch expected={pkg['price']}", **review_ctx
+            )
+
+        def _apply() -> None:
             charge(user_id, pkg["credits"], note=f"결제 완료 - {pkg['name']} 패키지")
-        elif product_type == "subscription":
-            try:
-                change_plan(user_id, item_key)
-            except ValueError as e:
-                raise HTTPException(status_code=400, detail=str(e))
-        else:
-            raise HTTPException(status_code=400, detail=f"unknown product_type: {product_type}")
+
+    elif product_type == "subscription":
+        price = PLAN_PRICES.get(item_key)
+        if price is None:
+            return _needs_review(f"unknown_plan:{item_key}", **review_ctx)
+        if not _amount_matches(price):
+            return _needs_review(f"amount_mismatch expected={price}", **review_ctx)
+
+        def _apply() -> None:
+            change_plan(user_id, item_key)
+
+    else:
+        return _needs_review(f"unknown_product_type:{product_type}", **review_ctx)
 
     try:
-        result = fulfill_payment_once(
+        return fulfill_payment_once(
             order_id=order_id,
             user_id=user_id,
             product_type=product_type,
@@ -196,9 +255,9 @@ async def webhook(request: Request):
             amount=amount,
             apply_fn=_apply,
         )
-    except HTTPException:
-        raise
-    return result
+    except ValueError as e:
+        # change_plan/charge가 거부한 경우 — 부수효과는 적용되지 않았다.
+        return _needs_review(f"apply_rejected:{e}", **review_ctx)
 
 
 @router.get("/history")

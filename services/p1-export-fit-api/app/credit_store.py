@@ -20,9 +20,12 @@ def _load() -> dict:
 
 
 def _save(data: dict) -> None:
+    # 원자적 교체 — 찢어진 쓰기는 _load에서 빈 잔액으로 취급된다 (docs/LESSONS.md L016).
     os.makedirs(os.path.dirname(CREDITS_PATH), exist_ok=True)
-    with open(CREDITS_PATH, "w", encoding="utf-8") as f:
+    tmp_path = f"{CREDITS_PATH}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+    os.replace(tmp_path, CREDITS_PATH)
 
 
 def _ensure_user(data: dict, user_id: str) -> dict:

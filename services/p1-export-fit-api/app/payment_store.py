@@ -6,7 +6,8 @@ import threading
 from datetime import datetime, timezone
 
 PAYMENTS_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "payments.json")
-_lock = threading.Lock()
+# RLock: fulfill_payment_once가 잠금을 쥔 채 apply_fn을 호출하므로 재진입 가능해야 한다.
+_lock = threading.RLock()
 
 CREDIT_PACKAGES = {
     "small":  {"credits": 10,  "price": 20000,  "name": "소형"},
@@ -39,35 +40,13 @@ def _load() -> list:
 
 
 def _save(data: list) -> None:
+    # 원자적 교체: 찢어진 쓰기로 원장이 손상되면 _load가 빈 목록으로 취급해
+    # 이미 이행된 order_id가 전부 재이행 가능해진다.
     os.makedirs(os.path.dirname(PAYMENTS_PATH), exist_ok=True)
-    with open(PAYMENTS_PATH, "w", encoding="utf-8") as f:
+    tmp_path = f"{PAYMENTS_PATH}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-
-
-def record_payment(
-    user_id: str,
-    product_type: str,
-    package: str = None,
-    plan: str = None,
-    amount: int = 0,
-    status: str = "DONE",
-    order_id: str | None = None,
-) -> dict:
-    with _lock:
-        data = _load()
-        record = {
-            "user_id": user_id,
-            "product_type": product_type,
-            "package": package,
-            "plan": plan,
-            "amount": amount,
-            "status": status,
-            "order_id": order_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        data.append(record)
-        _save(data)
-        return record
+    os.replace(tmp_path, PAYMENTS_PATH)
 
 
 def fulfill_payment_once(
@@ -78,20 +57,21 @@ def fulfill_payment_once(
     package: str | None,
     plan: str | None,
     amount: int,
+    status: str = "DONE",
     apply_fn,
 ) -> dict:
     """Apply credit/plan side effect at most once per order_id.
 
     Holds the payments lock across check → apply → record so concurrent
-    Toss webhook retries cannot double-charge.
+    Toss webhook retries cannot double-charge. 상태와 무관하게 동일 order_id가
+    이미 기록돼 있으면 중복이다 — NEEDS_REVIEW로 기록된 주문이 재전송으로
+    DONE 이행되면 안 된다.
     """
     if not order_id:
         raise ValueError("order_id_required")
     with _lock:
         data = _load()
-        if any(
-            r.get("order_id") == order_id and r.get("status") == "DONE" for r in data
-        ):
+        if any(r.get("order_id") == order_id for r in data):
             return {"status": "ok", "duplicate": True}
         apply_fn()
         data.append(
@@ -101,7 +81,7 @@ def fulfill_payment_once(
                 "package": package,
                 "plan": plan,
                 "amount": amount,
-                "status": "DONE",
+                "status": status,
                 "order_id": order_id,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
