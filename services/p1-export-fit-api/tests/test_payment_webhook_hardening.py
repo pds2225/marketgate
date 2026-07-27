@@ -50,6 +50,30 @@ def _post(order_id: str, amount: int, http=None, **extra):
     return _post_body(json.dumps(payload).encode(), http=http)
 
 
+def _post_wrapped(
+    order_id: str,
+    amount: int,
+    event_type: str = "PAYMENT_STATUS_CHANGED",
+    **extra,
+):
+    """공식 문서 형태: {eventType, createdAt, data:{Payment}}."""
+    payment = {
+        "paymentKey": "pk_test_" + uuid.uuid4().hex[:12],
+        "orderId": order_id,
+        "status": "DONE",
+        "totalAmount": amount,
+    }
+    payment.update(extra)
+    body = json.dumps(
+        {
+            "eventType": event_type,
+            "createdAt": "2026-07-28T00:00:00+09:00",
+            "data": payment,
+        }
+    ).encode()
+    return _post_body(body)
+
+
 @pytest.fixture
 def stores(tmp_path, monkeypatch):
     """Isolate credit / payment / subscription state per test."""
@@ -342,6 +366,45 @@ def test_invalid_json_with_valid_signature_is_recorded(stores):
     # 같은 본문 재전송은 같은 키 → 행이 늘지 않는다.
     assert _post_body(body).json()["duplicate"] is True
     assert len(_ledger(stores)) == 1
+
+
+def test_wrapped_toss_payload_fulfills_once(stores):
+    """공식 문서 형태의 래핑 페이로드가 실제로 이행돼야 한다.
+
+    루트에서 status/orderId를 읽던 시절에는 실 웹훅이 전량 {"status":"ignored"}로
+    빠져 원장 기록조차 남지 않았다 (docs/LESSONS.md L018).
+    """
+    user_id = str(uuid.uuid4())
+    order_id = f"{user_id}.credit.small.{uuid.uuid4().hex[:12]}"
+    before = credit_store.get_balance(user_id)
+
+    r1 = _post_wrapped(order_id, 20000)
+    assert r1.status_code == 200
+    assert r1.json() == {"status": "ok", "duplicate": False}
+    assert credit_store.get_balance(user_id) == before + 10
+
+    r2 = _post_wrapped(order_id, 20000)
+    assert r2.json() == {"status": "ok", "duplicate": True}
+    assert credit_store.get_balance(user_id) == before + 10
+
+    ledger = _ledger(stores)
+    assert len(ledger) == 1
+    assert ledger[0]["order_id"] == order_id
+    assert ledger[0]["status"] == "DONE"
+
+
+def test_wrapped_non_payment_event_is_ignored(stores):
+    """CANCEL_STATUS_CHANGED 등은 오늘 범위 밖 — 원장을 건드리지 않는다."""
+    user_id = str(uuid.uuid4())
+    order_id = f"{user_id}.credit.small.{uuid.uuid4().hex[:12]}"
+    before = credit_store.get_balance(user_id)
+
+    r = _post_wrapped(order_id, 20000, event_type="CANCEL_STATUS_CHANGED")
+
+    assert r.status_code == 200
+    assert r.json() == {"status": "ignored", "event_type": "CANCEL_STATUS_CHANGED"}
+    assert credit_store.get_balance(user_id) == before
+    assert _ledger(stores) == []
 
 
 def test_render_yaml_pins_a_single_worker():

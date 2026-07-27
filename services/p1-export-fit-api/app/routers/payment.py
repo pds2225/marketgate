@@ -203,6 +203,16 @@ async def webhook(request: Request):
             reason=f"invalid_json:{e}",
         )
 
+    # Toss PAYMENT_STATUS_CHANGED 본문은 {eventType, createdAt, data:{Payment}} 래핑이다.
+    # 루트에서 status/orderId를 읽으면 실제 웹훅이 전량 무시된다 (docs/LESSONS.md L018).
+    # 래퍼가 없으면 본문 자체를 Payment 객체로 본다(레거시·합성 발신자 호환).
+    event_type = data.get("eventType")
+    if event_type and isinstance(data.get("data"), dict):
+        if event_type != "PAYMENT_STATUS_CHANGED":
+            logger.info(f"[payment] webhook ignored event_type={event_type!r}")
+            return {"status": "ignored", "event_type": event_type}
+        data = data["data"]
+
     status = data.get("status")
     if status != "DONE":
         return {"status": "ignored"}
