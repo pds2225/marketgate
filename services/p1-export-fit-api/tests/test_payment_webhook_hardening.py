@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 
 from main import app
 from app import credit_store, payment_store, subscription_store
+from app.routers import payment as payment_router
 
 
 client = TestClient(app)
@@ -89,6 +90,11 @@ def stores(tmp_path, monkeypatch):
         subscription_store, "SUBSCRIPTIONS_PATH", str(subscriptions_file)
     )
     monkeypatch.setenv("TOSS_WEBHOOK_SECRET", "test-secret")
+    # 이 테스트들은 실계정 없이 합성 user_id로 웹훅을 쏜다 — 미등록 사용자
+    # 가드(unknown_user)는 별도 테스트에서 검증하므로 여기서는 존재한다고 본다.
+    monkeypatch.setattr(
+        payment_router, "find_user_by_id", lambda uid: {"user_id": uid}
+    )
     return payments_file
 
 
@@ -405,6 +411,32 @@ def test_wrapped_non_payment_event_is_ignored(stores):
     assert r.json() == {"status": "ignored", "event_type": "CANCEL_STATUS_CHANGED"}
     assert credit_store.get_balance(user_id) == before
     assert _ledger(stores) == []
+
+
+def test_unknown_user_is_not_fulfilled(stores, monkeypatch):
+    """존재하지 않는 계정으로는 이행하지 않는다 — 지갑을 새로 만들지 않는다."""
+    monkeypatch.setattr(payment_router, "find_user_by_id", lambda uid: None)
+    user_id = str(uuid.uuid4())
+    order_id = f"{user_id}.credit.small.{uuid.uuid4().hex[:12]}"
+
+    r = _post(order_id, 20000)
+
+    assert r.status_code == 200
+    assert r.json()["needs_review"] is True
+    ledger = _ledger(stores)
+    assert len(ledger) == 1
+    assert ledger[0]["status"] == "NEEDS_REVIEW"
+    assert ledger[0]["user_id"] == user_id
+
+    # 지갑이 생성되지 않았어야 한다 (파일에 사용자 키가 없다).
+    credits = json.loads(
+        Path(credit_store.CREDITS_PATH).read_text(encoding="utf-8")
+    )
+    assert user_id not in credits
+
+    # 재전송은 중복으로 흡수된다.
+    assert _post(order_id, 20000).json()["duplicate"] is True
+    assert len(_ledger(stores)) == 1
 
 
 def test_render_yaml_pins_a_single_worker():

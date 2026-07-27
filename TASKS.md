@@ -40,8 +40,8 @@
 
 ### ✅ Phase 4 — E2E 검증
 
-- [x] **[M10] E2E 스모크 테스트 작성** — services/p1-export-fit-api/tests/test_e2e_smoke.py 신규 작성. (1) GET /health 200, (2) GET /v1/buyers?hs_code=330499&country=USA items>=1 + has_contact True 항목 존재, (3) POST /v1/inquiry {buyer_name, contact_email, hs_code, sender_company, sender_name} → draft_en 비어있지 않음. 완료 기준: 3개 테스트 PASS
-- [x] **[M11] CORS 설정 검증** — services/p1-export-fit-api/main.py CORS origins에 http://localhost:5173 포함 확인 및 누락 시 추가. 완료 기준: test_cors_origins_include_frontend PASS
+- [x] **[M10] E2E 스모크 테스트 작성** — services/p1-export-fit-api/tests/test_e2e_smoke.py. (1) GET /health 200, (2) conftest 목 인증을 걷어낸 진짜 경로: register → login → Bearer 토큰, 무인증 호출은 401/403, (3) POST /v1/predict {hs_code 330499} → results 비어있지 않음 + buyers.items 중 contact_email 보유 1건 이상, (4) POST /v1/inquiries → draft_en 비어있지 않음 → /v1/inquiries/{id}/submit → review_required. 완료 기준: test_e2e_smoke.py 전체 PASS (2026-07-28 실물 테스트로 대체 검증)
+- [x] **[M11] CORS 설정 검증** — services/p1-export-fit-api/main.py CORS origins에 http://localhost:5173 및 https://marketgate.vercel.app 포함. 설정 문자열이 아니라 실제 응답 헤더로 확인하고, 미허용 출처는 반사되지 않음을 함께 검증. 완료 기준: tests/test_e2e_smoke.py::test_cors_origins_include_frontend PASS (2026-07-28 실물 테스트로 대체 검증)
 - [x] **[M12] 전체 pytest 회귀 통과** — services/p1-export-fit-api/ 전체 pytest 0 failed. 완료 기준: pytest --tb=short -q exit code 0
 
 ---

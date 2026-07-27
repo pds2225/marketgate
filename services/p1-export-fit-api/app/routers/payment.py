@@ -9,6 +9,7 @@ from typing import Any, Dict, Tuple
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
 from app.auth_deps import get_current_user
+from app.auth_store import find_user_by_id
 from app.credit_store import charge
 from app.payment_store import (
     CREDIT_PACKAGES, PLAN_PRICES, fulfill_payment_once, get_payment_history,
@@ -248,6 +249,11 @@ async def webhook(request: Request):
         "package": package,
         "plan": plan,
     }
+
+    # 존재하지 않는 user_id로 이행하면 지갑이 새로 생겨 아무도 쓰지 않는 잔액이
+    # 쌓이거나, 조작된 orderId로 임의 계정이 만들어진다. 이행 전에 실계정을 확인한다.
+    if not find_user_by_id(user_id):
+        return _needs_review("unknown_user", **review_ctx)
 
     def _amount_matches(expected: int) -> bool:
         # 서명은 발신자만 증명한다 — 금액은 별도로 대조해야 한다 (docs/LESSONS.md L017).

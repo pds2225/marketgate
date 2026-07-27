@@ -24,6 +24,13 @@ def _sign(body: bytes, secret: str = "test-secret") -> str:
     return hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
 
 
+def _stub_known_user(monkeypatch) -> None:
+    """합성 user_id를 실계정으로 취급한다 (미등록 사용자 가드는 별도 테스트)."""
+    monkeypatch.setattr(
+        payment_router, "find_user_by_id", lambda uid: {"user_id": uid}
+    )
+
+
 def test_webhook_retry_does_not_double_charge(tmp_path, monkeypatch):
     credits_file = tmp_path / "credits.json"
     payments_file = tmp_path / "payments.json"
@@ -32,6 +39,7 @@ def test_webhook_retry_does_not_double_charge(tmp_path, monkeypatch):
     monkeypatch.setattr(credit_store, "CREDITS_PATH", str(credits_file))
     monkeypatch.setattr(payment_store, "PAYMENTS_PATH", str(payments_file))
     monkeypatch.setenv("TOSS_WEBHOOK_SECRET", "test-secret")
+    _stub_known_user(monkeypatch)
 
     user_id = str(uuid.uuid4())
     order_id = f"{user_id}.credit.small.{uuid.uuid4().hex[:12]}"
@@ -97,6 +105,7 @@ def test_legacy_order_id_webhook_still_fulfills_once(tmp_path, monkeypatch):
     monkeypatch.setattr(credit_store, "CREDITS_PATH", str(credits_file))
     monkeypatch.setattr(payment_store, "PAYMENTS_PATH", str(payments_file))
     monkeypatch.setenv("TOSS_WEBHOOK_SECRET", "test-secret")
+    _stub_known_user(monkeypatch)
 
     user_id = "550e8400-e29b-41d4-a716-446655440000"
     order_id = f"{user_id}-credit-small"

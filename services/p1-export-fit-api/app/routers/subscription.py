@@ -2,7 +2,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 
-from app.auth_deps import get_current_user
+from app.auth_deps import get_current_user, require_admin
 from app.subscription_store import PLANS, change_plan, get_subscription
 
 router = APIRouter(prefix="/v1/subscription", tags=["subscription"])
@@ -16,7 +16,7 @@ def subscription_me(user: dict = Depends(get_current_user)):
 @router.post("/change")
 def subscription_change(
     payload: Dict[str, Any] = Body(...),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_admin),
 ):
     plan = str(payload.get("plan", ""))
     if plan not in PLANS:
