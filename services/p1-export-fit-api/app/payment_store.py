@@ -26,6 +26,19 @@ PLAN_PRICES = {
 
 
 def verify_webhook_signature(payload_bytes: bytes, signature: str) -> bool:
+    """서명 검증 — 스킴 미확정 상태로 의도적 보류 (docs/LESSONS.md L018).
+
+    현재 구현: 원문 바디에 대한 HMAC-SHA256 hex, 헤더 "TossPayments-Signature".
+    공식 문서 조사(독립 2회)로는 실제 스킴이 다를 가능성이 크다 —
+    "{payload}:{transmission-time}"에 대한 HMAC를 base64로 "v1:" 접두와 함께
+    "tosspayments-webhook-signature" 헤더로 보내며, PAYMENT_STATUS_CHANGED에는
+    서명 헤더 자체가 없을 수도 있다. 실전송 로그 없이 확정할 수 없어 그대로 둔다.
+
+    따라서 현재 검증은 실제 Toss 웹훅을 401로 거부할 가능성이 높다. 라이브 전환
+    조건: 토스 개발자센터 전송 로그에서 실제 헤더·서명 형식을 확인하고 이 함수를
+    맞춘 뒤에만 키를 설정한다. 그때까지 키 미설정 = 전량 거부(fail-closed)가
+    맞는 상태다 — 추측으로 고쳐 통과시키는 것보다 낫다.
+    """
     # fail-closed: 시크릿 미설정 시 어떤 웹훅도 신뢰하지 않는다
     secret = os.environ.get("TOSS_WEBHOOK_SECRET", "")
     if not secret or not signature:

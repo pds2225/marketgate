@@ -413,6 +413,49 @@ def test_wrapped_non_payment_event_is_ignored(stores):
     assert _ledger(stores) == []
 
 
+def test_wrapped_payload_still_validates_amount(stores):
+    """래핑 페이로드에서도 하드닝 로직에 도달해야 한다 — 봉투만 벗기고 끝이 아니다."""
+    user_id = str(uuid.uuid4())
+    order_id = f"{user_id}.credit.large.{uuid.uuid4().hex[:12]}"
+    before = credit_store.get_balance(user_id)
+
+    r = _post_wrapped(order_id, 20000)  # large는 160000
+
+    assert r.status_code == 200
+    assert r.json()["needs_review"] is True
+    assert credit_store.get_balance(user_id) == before
+    ledger = _ledger(stores)
+    assert len(ledger) == 1
+    assert ledger[0]["status"] == "NEEDS_REVIEW"
+    assert ledger[0]["order_id"] == order_id
+
+
+def test_missing_signature_header_is_rejected(stores):
+    """서명 스킴 확정 전까지 fail-closed가 유지돼야 한다 (docs/LESSONS.md L018)."""
+    body = json.dumps(
+        {"status": "DONE", "orderId": "x.credit.small.y", "totalAmount": 20000}
+    ).encode()
+
+    unsigned = client.post(
+        "/v1/payment/webhook",
+        content=body,
+        headers={"Content-Type": "application/json"},
+    )
+    assert unsigned.status_code == 401
+    assert unsigned.json()["detail"] == "invalid_signature"
+
+    wrong = client.post(
+        "/v1/payment/webhook",
+        content=body,
+        headers={
+            "TossPayments-Signature": "deadbeef",
+            "Content-Type": "application/json",
+        },
+    )
+    assert wrong.status_code == 401
+    assert _ledger(stores) == [], "거부된 웹훅은 원장에 남지 않는다"
+
+
 def test_unknown_user_is_not_fulfilled(stores, monkeypatch):
     """존재하지 않는 계정으로는 이행하지 않는다 — 지갑을 새로 만들지 않는다."""
     monkeypatch.setattr(payment_router, "find_user_by_id", lambda uid: None)
