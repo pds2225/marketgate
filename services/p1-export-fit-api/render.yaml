@@ -14,5 +14,11 @@ services:
       # order_id DB unique index 도입 전까지 워커 1 유지.
       - key: UVICORN_WORKERS
         value: "1"
+      - key: APP_ENV
+        value: production
+      # 값은 Render 대시보드에서만 설정한다 (리포지토리에 커밋 금지).
+      # 미설정 상태로 배포하면 기동 시 하드 실패한다.
+      - key: JWT_SECRET
+        sync: false
     healthCheckPath: /health
     autoDeploy: true
