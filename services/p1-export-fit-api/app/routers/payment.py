@@ -186,26 +186,15 @@ def checkout(
     }
 
 
-@router.post("/webhook")
-async def webhook(request: Request):
-    body = await request.body()
-    sig = request.headers.get("TossPayments-Signature", "")
-    if not verify_webhook_signature(body, sig):
-        raise HTTPException(status_code=401, detail="invalid_signature")
+def _handle_webhook_payload(data: Dict[str, Any]) -> Dict[str, Any]:
+    """서명 검증 이후의 웹훅 처리 전부 — 동기(블로킹) 함수다.
 
-    try:
-        data = json.loads(body)
-        if not isinstance(data, dict):
-            raise ValueError(f"payload is not an object: {type(data).__name__}")
-    except ValueError as e:  # JSONDecodeError·UnicodeDecodeError 모두 ValueError
-        # 서명이 이미 Toss 발신을 증명했다 — 400은 재전송 예산만 태우고
-        # 원장에는 아무 흔적도 남기지 않는다. 본문 해시를 키로 기록한다.
-        return await run_in_threadpool(
-            _record_needs_review,
-            order_id=f"invalid-json:{hashlib.sha256(body).hexdigest()[:16]}",
-            reason=f"invalid_json:{e}",
-        )
-
+    엔드포인트에서 run_in_threadpool로 **한 번만** 감싼다. 원장 접근을 호출
+    지점마다 감싸면 분기가 늘 때마다 누락되기 쉽고, 실제로 NEEDS_REVIEW 경로가
+    9곳이라 놓치기 딱 좋다. RLock + 파일 전체 읽기/쓰기를 이벤트 루프에서 돌리면
+    동시 요청과 /health(Render 헬스체크)까지 멈추고 Toss의 10초 응답 예산도
+    잠식한다.
+    """
     # Toss PAYMENT_STATUS_CHANGED 본문은 {eventType, createdAt, data:{Payment}} 래핑이다.
     # 루트에서 status/orderId를 읽으면 실제 웹훅이 전량 무시된다 (docs/LESSONS.md L018).
     # 래퍼가 없으면 본문 자체를 Payment 객체로 본다(레거시·합성 발신자 호환).
@@ -233,22 +222,15 @@ async def webhook(request: Request):
         # 조용히 하나로 합쳐져 유실되는 것보다 낫다.
         review_order_id = f"missing-orderId:{uuid.uuid4().hex}"
 
-    # 원장 접근은 전부 스레드풀로 — RLock + 파일 전체 읽기/쓰기를 이벤트 루프에서
-    # 돌리면 동시 요청과 /health(Render 헬스체크)까지 함께 멈추고, Toss의 10초
-    # 응답 예산도 잠식한다.
-    async def _needs_review(reason: str, **fields: Any) -> Dict[str, Any]:
-        return await run_in_threadpool(
-            _record_needs_review,
-            order_id=review_order_id,
-            reason=reason,
-            amount=amount,
-            **fields,
+    def _needs_review(reason: str, **fields: Any) -> Dict[str, Any]:
+        return _record_needs_review(
+            order_id=review_order_id, reason=reason, amount=amount, **fields
         )
 
     try:
         user_id, product_type, item_key = _parse_order_id(order_id)
     except ValueError:
-        return await _needs_review("unparseable_orderId")
+        return _needs_review("unparseable_orderId")
 
     package = item_key if product_type == "credit" else None
     plan = item_key if product_type == "subscription" else None
@@ -261,8 +243,8 @@ async def webhook(request: Request):
 
     # 존재하지 않는 user_id로 이행하면 지갑이 새로 생겨 아무도 쓰지 않는 잔액이
     # 쌓이거나, 조작된 orderId로 임의 계정이 만들어진다. 이행 전에 실계정을 확인한다.
-    if not await run_in_threadpool(find_user_by_id, user_id):
-        return await _needs_review("unknown_user", **review_ctx)
+    if not find_user_by_id(user_id):
+        return _needs_review("unknown_user", **review_ctx)
 
     def _amount_matches(expected: int) -> bool:
         # 서명은 발신자만 증명한다 — 금액은 별도로 대조해야 한다 (docs/LESSONS.md L017).
@@ -274,9 +256,9 @@ async def webhook(request: Request):
     if product_type == "credit":
         pkg = CREDIT_PACKAGES.get(item_key)
         if not pkg:
-            return await _needs_review(f"unknown_package:{item_key}", **review_ctx)
+            return _needs_review(f"unknown_package:{item_key}", **review_ctx)
         if not _amount_matches(pkg["price"]):
-            return await _needs_review(
+            return _needs_review(
                 f"amount_mismatch expected={pkg['price']}", **review_ctx
             )
 
@@ -286,19 +268,15 @@ async def webhook(request: Request):
     elif product_type == "subscription":
         price = PLAN_PRICES.get(item_key)
         if price is None:
-            return await _needs_review(f"unknown_plan:{item_key}", **review_ctx)
+            return _needs_review(f"unknown_plan:{item_key}", **review_ctx)
         if not _amount_matches(price):
-            return await _needs_review(
-                f"amount_mismatch expected={price}", **review_ctx
-            )
+            return _needs_review(f"amount_mismatch expected={price}", **review_ctx)
 
         def _apply() -> None:
             change_plan(user_id, item_key)
 
     else:
-        return await _needs_review(
-            f"unknown_product_type:{product_type}", **review_ctx
-        )
+        return _needs_review(f"unknown_product_type:{product_type}", **review_ctx)
 
     # apply 콜백이 거부한 경우만 NEEDS_REVIEW로 흡수한다. 원장 손상도
     # ValueError로 올라오는데(JSONDecodeError), 그건 200으로 삼키면 안 되고
@@ -313,8 +291,7 @@ async def webhook(request: Request):
             raise
 
     try:
-        return await run_in_threadpool(
-            fulfill_payment_once,
+        return fulfill_payment_once(
             order_id=order_id,
             user_id=user_id,
             product_type=product_type,
@@ -326,9 +303,30 @@ async def webhook(request: Request):
     except ValueError:
         if not apply_rejected:
             raise
-        return await _needs_review(
-            f"apply_rejected:{apply_rejected[0]}", **review_ctx
+        return _needs_review(f"apply_rejected:{apply_rejected[0]}", **review_ctx)
+
+
+@router.post("/webhook")
+async def webhook(request: Request):
+    body = await request.body()
+    sig = request.headers.get("TossPayments-Signature", "")
+    if not verify_webhook_signature(body, sig):
+        raise HTTPException(status_code=401, detail="invalid_signature")
+
+    try:
+        data = json.loads(body)
+        if not isinstance(data, dict):
+            raise ValueError(f"payload is not an object: {type(data).__name__}")
+    except ValueError as e:  # JSONDecodeError·UnicodeDecodeError 모두 ValueError
+        # 서명이 이미 Toss 발신을 증명했다 — 400은 재전송 예산만 태우고
+        # 원장에는 아무 흔적도 남기지 않는다. 본문 해시를 키로 기록한다.
+        return await run_in_threadpool(
+            _record_needs_review,
+            order_id=f"invalid-json:{hashlib.sha256(body).hexdigest()[:16]}",
+            reason=f"invalid_json:{e}",
         )
+
+    return await run_in_threadpool(_handle_webhook_payload, data)
 
 
 @router.get("/history")
