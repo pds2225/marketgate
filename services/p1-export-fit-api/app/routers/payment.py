@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -53,6 +54,40 @@ def _parse_order_id(order_id: str) -> Tuple[str, str, str]:
     if len(parts) < 3:
         raise ValueError("invalid_orderId format")
     return parts[0], parts[1], parts[2]
+
+
+def _record_needs_review(
+    *,
+    order_id: str,
+    reason: str,
+    amount: Any = 0,
+    user_id: str = "unknown",
+    product_type: str = "unknown",
+    package: str | None = None,
+    plan: str | None = None,
+) -> Dict[str, Any]:
+    """재시도로 고칠 수 없는 상태 — 원장에 남기고 200을 준다.
+
+    비-2xx를 주면 Toss가 재전송 예산을 소진한 뒤 결제를 영구 폐기해
+    돈은 빠졌는데 기록이 0인 상태가 된다 (docs/LESSONS.md L015).
+    """
+    logger.warning(
+        f"[payment] NEEDS_REVIEW order_id={order_id!r} amount={amount!r} reason={reason}"
+    )
+    result = fulfill_payment_once(
+        order_id=order_id,
+        user_id=user_id,
+        product_type=product_type,
+        package=package,
+        plan=plan,
+        amount=amount,
+        status="NEEDS_REVIEW",
+        apply_fn=lambda: None,
+    )
+    payload = {"status": "ok", "needs_review": True, "duplicate": result["duplicate"]}
+    if result.get("blocked_by"):
+        payload["blocked_by"] = result["blocked_by"]
+    return payload
 
 
 @router.get("/provider")
@@ -158,8 +193,15 @@ async def webhook(request: Request):
 
     try:
         data = json.loads(body)
-    except Exception:
-        raise HTTPException(status_code=400, detail="invalid_json")
+        if not isinstance(data, dict):
+            raise ValueError(f"payload is not an object: {type(data).__name__}")
+    except ValueError as e:  # JSONDecodeError·UnicodeDecodeError 모두 ValueError
+        # 서명이 이미 Toss 발신을 증명했다 — 400은 재전송 예산만 태우고
+        # 원장에는 아무 흔적도 남기지 않는다. 본문 해시를 키로 기록한다.
+        return _record_needs_review(
+            order_id=f"invalid-json:{hashlib.sha256(body).hexdigest()[:16]}",
+            reason=f"invalid_json:{e}",
+        )
 
     status = data.get("status")
     if status != "DONE":
@@ -167,37 +209,21 @@ async def webhook(request: Request):
 
     order_id = str(data.get("orderId", ""))
     amount = data.get("totalAmount", 0)
+    payment_key = str(data.get("paymentKey", "") or "")
+    if order_id:
+        review_order_id = order_id
+    elif payment_key:
+        review_order_id = f"missing-orderId:{payment_key}"
+    else:
+        # 멱등 키가 하나도 없다 — 배달마다 별도 행으로 남긴다. 어차피 중복
+        # 판별이 불가능하므로, 검토 큐에 중복 행이 생기는 편이 결제가
+        # 조용히 하나로 합쳐져 유실되는 것보다 낫다.
+        review_order_id = f"missing-orderId:{uuid.uuid4().hex}"
 
-    def _needs_review(
-        reason: str,
-        *,
-        user_id: str = "unknown",
-        product_type: str = "unknown",
-        package: str | None = None,
-        plan: str | None = None,
-    ) -> Dict[str, Any]:
-        """재시도로 고칠 수 없는 상태 — 원장에 남기고 200을 준다.
-
-        비-2xx를 주면 Toss가 재전송 예산을 소진한 뒤 결제를 영구 폐기해
-        돈은 빠졌는데 기록이 0인 상태가 된다 (docs/LESSONS.md L015).
-        """
-        # orderId가 비면 멱등 키가 없다 — paymentKey로 대체해 최소한 기록은 남긴다.
-        review_order_id = order_id or f"missing-orderId:{data.get('paymentKey', '')}"
-        logger.warning(
-            f"[payment] NEEDS_REVIEW order_id={review_order_id!r} "
-            f"amount={amount!r} reason={reason}"
+    def _needs_review(reason: str, **fields: Any) -> Dict[str, Any]:
+        return _record_needs_review(
+            order_id=review_order_id, reason=reason, amount=amount, **fields
         )
-        result = fulfill_payment_once(
-            order_id=review_order_id,
-            user_id=user_id,
-            product_type=product_type,
-            package=package,
-            plan=plan,
-            amount=amount,
-            status="NEEDS_REVIEW",
-            apply_fn=lambda: None,
-        )
-        return {"status": "ok", "needs_review": True, "duplicate": result["duplicate"]}
 
     try:
         user_id, product_type, item_key = _parse_order_id(order_id)
@@ -245,6 +271,18 @@ async def webhook(request: Request):
     else:
         return _needs_review(f"unknown_product_type:{product_type}", **review_ctx)
 
+    # apply 콜백이 거부한 경우만 NEEDS_REVIEW로 흡수한다. 원장 손상도
+    # ValueError로 올라오는데(JSONDecodeError), 그건 200으로 삼키면 안 되고
+    # 5xx로 실패해야 Toss가 재전송한다 (docs/LESSONS.md L016).
+    apply_rejected: list[str] = []
+
+    def _guarded_apply() -> None:
+        try:
+            _apply()
+        except ValueError as e:
+            apply_rejected.append(str(e))
+            raise
+
     try:
         return fulfill_payment_once(
             order_id=order_id,
@@ -253,11 +291,12 @@ async def webhook(request: Request):
             package=package,
             plan=plan,
             amount=amount,
-            apply_fn=_apply,
+            apply_fn=_guarded_apply,
         )
-    except ValueError as e:
-        # change_plan/charge가 거부한 경우 — 부수효과는 적용되지 않았다.
-        return _needs_review(f"apply_rejected:{e}", **review_ctx)
+    except ValueError:
+        if not apply_rejected:
+            raise
+        return _needs_review(f"apply_rejected:{apply_rejected[0]}", **review_ctx)
 
 
 @router.get("/history")

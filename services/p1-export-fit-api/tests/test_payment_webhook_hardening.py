@@ -14,8 +14,10 @@ import hmac
 import json
 import threading
 import uuid
+from pathlib import Path
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 
 from main import app
@@ -23,17 +25,16 @@ from app import credit_store, payment_store, subscription_store
 
 
 client = TestClient(app)
+# 서버 예외를 응답으로 받으려면 별도 클라이언트가 필요하다 (기본값은 재발생).
+error_client = TestClient(app, raise_server_exceptions=False)
 
 
 def _sign(body: bytes, secret: str = "test-secret") -> str:
     return hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
 
 
-def _post(order_id: str, amount: int):
-    body = json.dumps(
-        {"status": "DONE", "orderId": order_id, "totalAmount": amount}
-    ).encode()
-    return client.post(
+def _post_body(body: bytes, http=None):
+    return (http or client).post(
         "/v1/payment/webhook",
         content=body,
         headers={
@@ -41,6 +42,12 @@ def _post(order_id: str, amount: int):
             "Content-Type": "application/json",
         },
     )
+
+
+def _post(order_id: str, amount: int, http=None, **extra):
+    payload = {"status": "DONE", "orderId": order_id, "totalAmount": amount}
+    payload.update(extra)
+    return _post_body(json.dumps(payload).encode(), http=http)
 
 
 @pytest.fixture
@@ -185,7 +192,12 @@ def test_unparseable_order_id_is_recorded_not_rejected(stores):
 
 
 def test_ledger_lock_is_reentrant(stores):
-    """apply_fn runs while the ledger lock is held — re-entry must not deadlock."""
+    """apply_fn runs while the ledger lock is held — re-entry must not deadlock.
+
+    A regression here must FAIL this test, not wedge the run: the probe thread
+    would block forever holding the module lock, so it is a daemon and the lock
+    is swapped out on the way if it never came back.
+    """
     done = threading.Event()
     seen: list = []
 
@@ -204,10 +216,17 @@ def test_ledger_lock_is_reentrant(stores):
         )
         done.set()
 
-    worker = threading.Thread(target=_run, daemon=True)
-    worker.start()
-    assert done.wait(timeout=5), "fulfill_payment_once deadlocked on a re-entrant read"
-    assert seen == [[]]
+    threading.Thread(target=_run, daemon=True).start()
+    try:
+        assert done.wait(timeout=5), (
+            "fulfill_payment_once deadlocked on a re-entrant read"
+        )
+        assert seen == [[]]
+    finally:
+        if not done.is_set():
+            # 교착된 프로브가 잠금을 영구 점유한다 — 새 잠금으로 갈아끼워
+            # 뒤따르는 테스트까지 멈추지 않게 한다.
+            payment_store._lock = threading.RLock()
 
 
 def test_subscription_amount_mismatch_leaves_plan_unchanged(stores):
@@ -219,3 +238,125 @@ def test_subscription_amount_mismatch_leaves_plan_unchanged(stores):
     assert r.json()["needs_review"] is True
     assert subscription_store.get_subscription(user_id)["plan"] == "Basic"
     assert _ledger(stores)[0]["status"] == "NEEDS_REVIEW"
+
+
+def test_corrected_retry_recovers_a_needs_review_payment(stores):
+    """NEEDS_REVIEW는 종결이 아니다 — 금액이 정정된 재전송은 이행돼야 한다.
+
+    그러지 않으면 값이 틀렸다가 고쳐진 정상 결제가 영원히 미이행으로 남는다.
+    """
+    user_id = str(uuid.uuid4())
+    order_id = f"{user_id}.credit.large.{uuid.uuid4().hex[:12]}"
+    before = credit_store.get_balance(user_id)
+
+    bad = _post(order_id, 20000)  # large는 160000
+    assert bad.json()["needs_review"] is True
+    assert credit_store.get_balance(user_id) == before
+
+    good = _post(order_id, 160000)
+    assert good.status_code == 200
+    assert good.json() == {"status": "ok", "duplicate": False, "recovered": True}
+    assert credit_store.get_balance(user_id) == before + 100
+
+    ledger = _ledger(stores)
+    assert len(ledger) == 1, "복구는 새 행을 만들지 않고 기존 행을 승격한다"
+    assert ledger[0]["status"] == "DONE"
+    assert ledger[0]["amount"] == 160000
+
+    # 복구 후에는 DONE — 재전송은 다시 중복으로 흡수된다.
+    again = _post(order_id, 160000)
+    assert again.json() == {"status": "ok", "duplicate": True}
+    assert credit_store.get_balance(user_id) == before + 100
+    assert len(_ledger(stores)) == 1
+
+
+def test_still_invalid_retry_is_blocked_not_fulfilled(stores):
+    """여전히 검증에 실패하는 재전송은 blocked_by로 표시된다 (ops 신호)."""
+    user_id = str(uuid.uuid4())
+    order_id = f"{user_id}.credit.enormous.{uuid.uuid4().hex[:12]}"
+    before = credit_store.get_balance(user_id)
+
+    assert _post(order_id, 20000).json()["needs_review"] is True
+    retry = _post(order_id, 20000)
+
+    assert retry.status_code == 200
+    assert retry.json() == {
+        "status": "ok",
+        "needs_review": True,
+        "duplicate": True,
+        "blocked_by": "NEEDS_REVIEW",
+    }
+    assert credit_store.get_balance(user_id) == before
+    assert len(_ledger(stores)) == 1
+
+
+def test_corrupt_ledger_fails_closed(stores):
+    """손상된 원장은 빈 원장이 아니다 — 5xx로 실패하고 이행하지 않는다.
+
+    빈 목록으로 취급하면 이미 이행된 order_id가 전부 재이행 가능해진다.
+    5xx면 Toss가 재전송하므로 운영자가 파일을 복구한 뒤 정상 처리된다.
+    """
+    stores.write_text("{ this is not valid json", encoding="utf-8")
+    user_id = str(uuid.uuid4())
+    order_id = f"{user_id}.credit.small.{uuid.uuid4().hex[:12]}"
+    before = credit_store.get_balance(user_id)
+
+    r = _post(order_id, 20000, http=error_client)
+
+    assert r.status_code >= 500, "손상된 원장에서 200을 주면 안 된다"
+    assert credit_store.get_balance(user_id) == before
+    assert stores.read_text(encoding="utf-8") == "{ this is not valid json"
+
+
+def test_deliveries_without_any_id_get_distinct_rows(stores):
+    """orderId도 paymentKey도 없으면 배달마다 별도 행 — 합쳐지면 결제가 유실된다."""
+    body = json.dumps({"status": "DONE", "totalAmount": 20000}).encode()
+
+    r1 = _post_body(body)
+    r2 = _post_body(body)
+
+    assert r1.status_code == 200 and r2.status_code == 200
+    assert r1.json()["needs_review"] is True
+    assert r2.json()["needs_review"] is True
+
+    ledger = _ledger(stores)
+    assert len(ledger) == 2, "멱등 키가 없는 두 결제가 한 행으로 합쳐졌다"
+    assert len({row["order_id"] for row in ledger}) == 2
+    assert all(row["status"] == "NEEDS_REVIEW" for row in ledger)
+
+
+def test_invalid_json_with_valid_signature_is_recorded(stores):
+    """서명이 이미 Toss 발신을 증명했다 — 400은 재전송 예산만 태운다."""
+    body = b"{not json at all"
+
+    r = _post_body(body)
+
+    assert r.status_code == 200
+    assert r.json()["needs_review"] is True
+    ledger = _ledger(stores)
+    assert len(ledger) == 1
+    expected_key = f"invalid-json:{hashlib.sha256(body).hexdigest()[:16]}"
+    assert ledger[0]["order_id"] == expected_key
+    assert ledger[0]["status"] == "NEEDS_REVIEW"
+
+    # 같은 본문 재전송은 같은 키 → 행이 늘지 않는다.
+    assert _post_body(body).json()["duplicate"] is True
+    assert len(_ledger(stores)) == 1
+
+
+def test_render_yaml_pins_a_single_worker():
+    """인프로세스 잠금이 유일한 멱등 게이트다 — 워커를 늘리면 무효화된다.
+
+    근거: docs/LESSONS.md L014 (2프로세스 실험 5/5회 양쪽 모두 적립).
+    order_id DB unique index 도입 전까지 이 핀을 풀면 안 된다.
+    """
+    render_yaml = Path(__file__).resolve().parents[1] / "render.yaml"
+    config = yaml.safe_load(render_yaml.read_text(encoding="utf-8"))
+    env_vars = {
+        entry["key"]: entry.get("value")
+        for entry in config["services"][0]["envVars"]
+    }
+    assert env_vars.get("UVICORN_WORKERS") == "1", (
+        "UVICORN_WORKERS must stay '1' until order_id has a DB unique index "
+        "(docs/LESSONS.md L014)"
+    )
