@@ -134,6 +134,7 @@ def test_jwt_secret_env_wins(monkeypatch):
 def test_jwt_secret_dev_fallback(monkeypatch):
     monkeypatch.delenv("JWT_SECRET", raising=False)
     monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.delenv("RENDER", raising=False)
     assert _resolve_jwt_secret() == "dev-secret-change-in-prod"
 
 
