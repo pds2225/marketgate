@@ -971,7 +971,10 @@ def normalize_opportunity_record(
         product_name=product_name_text,
         reference_date=reference_date,
     )
-    record.pop("has_contact", None)
+    # has_contact는 merge 단계의 actionable 플래그(국가+제목)를 보존한다.
+    # signal_usable(유효기간)과 별개로, 숏리스트 노출/정렬에 쓴다.
+    raw_has_contact = str(record.get("has_contact", "")).strip().lower() in {"1", "true", "yes"}
+    record["has_contact"] = raw_has_contact
     record["signal_type"] = signal_type
     record["signal_usable"] = signal_usable
     record["product_name_norm"] = product_name_text

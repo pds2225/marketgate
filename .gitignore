@@ -54,3 +54,7 @@ auto_prompt_*.md
 .idea/
 .DS_Store
 Thumbs.db
+
+# Local Google service-account / tracker keys (never commit)
+drive-activity-tracker-*.json
+*-9071f36cb953.json
