@@ -47,6 +47,8 @@ export default async function handler(req, res) {
   const headers = {};
   const incomingCt = req.headers["content-type"];
   if (incomingCt) headers["content-type"] = incomingCt;
+  const incomingAuth = req.headers["authorization"];
+  if (incomingAuth) headers["authorization"] = incomingAuth;
 
   let body;
   if (req.method && !["GET", "HEAD"].includes(req.method)) {
