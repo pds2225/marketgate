@@ -14,7 +14,7 @@ from app.services.opportunity_browse import list_opportunities
 from app.services.p2_status import get_p2_dropin_status
 from app.utils import now_seoul_iso, new_request_id
 from app.credit_store import charge, get_balance, deduct, get_history
-from app.auth_deps import get_current_user, require_plan
+from app.auth_deps import get_current_user, require_admin, require_plan
 from app.routers import auth as auth_router
 from app.routers import simulation as simulation_router
 from app.routers import subscription as subscription_router
@@ -172,7 +172,7 @@ def credits_balance(user: dict = Depends(get_current_user)):
 @app.post("/v1/credits/charge")
 def credits_charge(
     payload: Dict[str, Any] = Body(...),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_admin),
 ):
     try:
         amount = int(payload.get("amount"))

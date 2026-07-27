@@ -10,7 +10,9 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
+      # 결제 멱등 잠금이 인프로세스라 멀티워커에서는 무효 (docs/LESSONS.md L014).
+      # order_id DB unique index 도입 전까지 워커 1 유지.
       - key: UVICORN_WORKERS
-        value: "4"
+        value: "1"
     healthCheckPath: /health
     autoDeploy: true

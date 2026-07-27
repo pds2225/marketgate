@@ -1,5 +1,6 @@
 import json
 import os
+import tempfile
 import threading
 from datetime import datetime, timezone
 
@@ -9,20 +10,38 @@ _lock = threading.Lock()
 
 
 def _load() -> dict:
+    """잔액 읽기. 파일 없음은 부트스트랩, 손상은 실패 처리한다.
+
+    손상을 빈 잔액으로 취급하면 전 사용자 잔액이 조용히 초기화된다
+    (docs/LESSONS.md L016).
+    """
     try:
         with open(CREDITS_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
-        if not isinstance(data, dict):
-            raise ValueError("invalid format")
-        return data
-    except (FileNotFoundError, json.JSONDecodeError, ValueError):
+    except FileNotFoundError:
         return {}
+    if not isinstance(data, dict):
+        raise ValueError(f"credits ledger is not an object: {type(data).__name__}")
+    return data
 
 
 def _save(data: dict) -> None:
-    os.makedirs(os.path.dirname(CREDITS_PATH), exist_ok=True)
-    with open(CREDITS_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    # 원자적 + 내구성 있는 교체 (docs/LESSONS.md L016).
+    directory = os.path.dirname(CREDITS_PATH)
+    os.makedirs(directory, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=directory, prefix=".credits-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, CREDITS_PATH)
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def _ensure_user(data: dict, user_id: str) -> dict:
