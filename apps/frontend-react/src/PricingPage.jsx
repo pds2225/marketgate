@@ -121,7 +121,7 @@ export default function PricingPage({ onBack }) {
         setError(
           !isTossPaymentEnabled()
             ? '결제 시스템 준비 중입니다. 오픈 전까지는 무료 제공 크레딧으로 이용하실 수 있습니다.'
-            : (result.data?.message || '결제 페이지를 열지 못했습니다. TOSS_CLIENT_KEY를 확인하세요.')
+            : (result.data?.message || '결제 페이지를 열지 못했습니다. 잠시 후 다시 시도해 주세요.')
         )
         setLoading(null)
         return
