@@ -90,7 +90,7 @@ export default function CreditTopUpSheet({ open, onClose, onToppedUp }) {
           {' · '}언락 {creditConfig.unlockCost}C/건
           {' · '}
           <span style={{ color: useToss ? '#059669' : '#b45309' }}>
-            {useToss ? '토스 PG 결제' : 'sim 충전 (토스는 paymentConfig.mode=toss)'}
+            {useToss ? '토스 PG 결제' : '크레딧 충전 (결제 시스템 오픈 준비 중)'}
           </span>
         </p>
         {error ? (

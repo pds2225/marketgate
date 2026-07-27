@@ -911,7 +911,7 @@ async function requestAnalysis(hsCode, topN, year) {
     } catch (error) {
       const msg = String(error.message || "");
       if (msg.includes("fetch") || msg.includes("network")) {
-        p1Issue = "P1 API 서버에 연결할 수 없습니다. 터미널에서 'uvicorn main:app --reload'를 실행해 주세요.";
+        p1Issue = "서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.";
       } else {
         p1Issue = `P1 API 오류: ${msg}`;
       }
@@ -1093,6 +1093,7 @@ export default function AnalysisPage({ onBack, preset }) {
   const [copyStatus, setCopyStatus] = useState("");
   const [queueRecord, setQueueRecord] = useState(null);
   const [queueSubmitted, setQueueSubmitted] = useState(false);
+  const [draftPlanBlocked, setDraftPlanBlocked] = useState(false);
 
   const deferredSelectedId = useDeferredValue(selectedId);
   const selectedRecommendation =
@@ -1172,6 +1173,7 @@ export default function AnalysisPage({ onBack, preset }) {
     setInquiryResult(null);
     setInquiryError("");
     setCopyStatus("");
+    setDraftPlanBlocked(false);
     setShowInquiryModal(true);
   };
 
@@ -1183,6 +1185,7 @@ export default function AnalysisPage({ onBack, preset }) {
     setCopyStatus("");
     setQueueRecord(null);
     setQueueSubmitted(false);
+    setDraftPlanBlocked(false);
   };
 
   const handleCopyDraft = async (text, label) => {
@@ -1234,11 +1237,13 @@ export default function AnalysisPage({ onBack, preset }) {
       }
       if (!res.ok) {
         const detail = data?.detail || data?.message || "";
+        if (res.status === 403 || /requires_.*_plan/i.test(String(detail))) {
+          setDraftPlanBlocked(true);
+          return;
+        }
         let message;
         if (res.status === 401) {
           message = "로그인이 필요합니다. 다시 로그인한 뒤 시도해 주세요.";
-        } else if (res.status === 403 || /requires_.*_plan/i.test(String(detail))) {
-          message = "인콰이어리 초안 생성은 Advanced 요금제에서 제공됩니다. 요금제를 업그레이드한 뒤 이용해 주세요.";
         } else {
           message = detail || `인콰이어리 생성에 실패했습니다 (${res.status}).`;
         }
@@ -1721,15 +1726,44 @@ export default function AnalysisPage({ onBack, preset }) {
                         </div>
                       ) : null}
 
+                      {draftPlanBlocked ? (
+                        <div className="analysis-inline-alert" style={{ marginBottom: 12 }}>
+                          <CircleAlert size={16} />
+                          <span>AI 초안 작성은 Advanced 플랜 기능입니다. 발송 검토 요청은 바로 이용하실 수 있습니다.</span>
+                        </div>
+                      ) : null}
+
                       <button
                         className="ui-button ui-button--solid"
                         onClick={handleInquirySubmit}
-                        disabled={inquiryLoading}
+                        disabled={inquiryLoading || draftPlanBlocked}
                         style={{ width: "100%" }}
                       >
                         {inquiryLoading ? <LoaderCircle size={18} className="analysis-spin" /> : <Mail size={18} />}
                         {inquiryLoading ? "생성 중..." : "인콰이어리 초안 생성"}
                       </button>
+
+                      {!queueSubmitted ? (
+                        <button
+                          className="ui-button ui-button--ghost"
+                          onClick={handleQueueSubmit}
+                          disabled={inquiryLoading || !inquiryBuyer?.contact_email}
+                          title={!inquiryBuyer?.contact_email ? "이메일 필요" : "관리자 검토 큐에 제출"}
+                          style={{ width: "100%", marginTop: 8 }}
+                        >
+                          {inquiryLoading ? "제출 중…" : "발송 검토 요청"}
+                        </button>
+                      ) : (
+                        <p style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: "#86efac" }}>
+                          검토 대기 ({queueRecord?.status || "review_required"})
+                        </p>
+                      )}
+
+                      {copyStatus ? (
+                        <p role="status" style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: "#94a3b8" }}>
+                          {copyStatus}
+                        </p>
+                      ) : null}
                     </>
                   ) : (
                     <>
