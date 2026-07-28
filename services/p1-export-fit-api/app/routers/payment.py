@@ -394,13 +394,22 @@ def confirm(payload: ConfirmRequest, user: dict = Depends(get_current_user)):
     if payload.amount != expected:
         raise HTTPException(status_code=400, detail="amount_mismatch")
 
+    # 이미 이행된 주문이면 토스를 부르지 않는다. 실제 토스는 두 번째 승인 요청에
+    # ALREADY_PROCESSED_PAYMENT(4xx)를 주는데, 그걸 402로 올리면 크레딧이 정상
+    # 적립됐는데도 프론트가 결제 실패 화면을 띄운다.
+    if any(
+        row.get("order_id") == payload.orderId and row.get("status") == "DONE"
+        for row in get_payment_history()
+    ):
+        return {"status": "ok", "duplicate": True}
+
     secret = (_TOSS_SECRET_KEY or "").strip()
     if not secret:
         # fail-closed: 키가 없으면 승인 자체가 불가능하다 (sim 흐름이 여기로 온다).
         raise HTTPException(status_code=503, detail="toss_not_configured")
 
     # 승인 금액은 주문서 정가로 보낸다 — 클라이언트가 보낸 값이 아니다.
-    request = urllib.request.Request(
+    toss_request = urllib.request.Request(
         _TOSS_CONFIRM_URL,
         data=json.dumps(
             {
@@ -419,7 +428,7 @@ def confirm(payload: ConfirmRequest, user: dict = Depends(get_current_user)):
 
     try:
         with urllib.request.urlopen(
-            request, timeout=_CONFIRM_TIMEOUT_SECONDS
+            toss_request, timeout=_CONFIRM_TIMEOUT_SECONDS
         ) as response:
             confirmed = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
@@ -442,6 +451,20 @@ def confirm(payload: ConfirmRequest, user: dict = Depends(get_current_user)):
             detail={
                 "code": "NOT_DONE",
                 "message": f"unexpected payment status: {confirmed.get('status')!r}",
+            },
+        )
+
+    # 승인된 금액이 주문서 정가와 다르면 이행하지 않는다. 여기까지 왔다면 정가로
+    # 요청했으므로 정상적으로는 일치한다 — 어긋난다면 우리가 아는 주문이 아니다.
+    if confirmed.get("totalAmount") != expected:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": "AMOUNT_MISMATCH",
+                "message": (
+                    f"confirmed totalAmount {confirmed.get('totalAmount')!r} "
+                    f"!= expected {expected}"
+                ),
             },
         )
 

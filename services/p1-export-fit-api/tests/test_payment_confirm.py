@@ -8,11 +8,13 @@
 """
 from __future__ import annotations
 
+import ast
 import base64
 import hashlib
 import hmac
 import io
 import json
+import pathlib
 import urllib.error
 import uuid
 
@@ -68,22 +70,35 @@ class _FakeResponse:
 
 
 def _mock_toss(monkeypatch, *, payload=None, error=None):
-    """urlopen을 가로채고, 실제로 나간 요청을 기록해 돌려준다."""
+    """urlopen을 가로채고, 실제로 나간 요청을 기록해 돌려준다.
+
+    기본 응답은 실제 토스처럼 요청 금액을 그대로 되돌려준다 — 승인 응답의
+    totalAmount 검증이 정상 경로에서 통과하도록.
+    """
     calls: list[dict] = []
 
     def _fake_urlopen(request, timeout=None):
+        sent = json.loads(request.data.decode("utf-8"))
         calls.append(
             {
                 "url": request.full_url,
                 "method": request.get_method(),
                 "headers": {k.lower(): v for k, v in request.headers.items()},
-                "body": json.loads(request.data.decode("utf-8")),
+                "body": sent,
                 "timeout": timeout,
             }
         )
         if error is not None:
             raise error
-        return _FakeResponse(payload or {"status": "DONE"})
+        return _FakeResponse(
+            payload
+            or {
+                "status": "DONE",
+                "orderId": sent["orderId"],
+                "paymentKey": sent["paymentKey"],
+                "totalAmount": sent["amount"],
+            }
+        )
 
     monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
     return calls
@@ -152,14 +167,89 @@ def test_confirm_credits_once_and_sends_expected_amount(stores, monkeypatch):
     assert sent["headers"]["content-type"] == "application/json"
 
 
-def test_confirm_sends_order_price_not_client_amount(stores, monkeypatch):
-    """클라이언트가 정가를 보내더라도 서버는 자기 계산값을 보낸다."""
-    calls = _mock_toss(monkeypatch)
-    order_id = _order_id("credit", "large")
+# ── 금액 출처 고정 (구조 검사) ──────────────────────────────────
+# 런타임 테스트로는 이 성질을 잡을 수 없다: 금액 불일치 가드가 400으로 먼저
+# 막기 때문에 네트워크 호출 시점에는 payload.amount == expected가 항상 참이고,
+# 둘을 바꿔치기해도 어떤 테스트도 실패하지 않는다(실측 확인). 그래서 "카탈로그에서
+# 유도한 값을 쓴다"는 성질 자체를 AST로 고정한다.
 
-    assert _confirm(order_id, 160000).status_code == 200
-    assert calls[0]["body"]["amount"] == 160000
-    assert credit_store.get_balance(USER_ID) == 100 + 100
+
+def _confirm_ast():
+    src = pathlib.Path(payment_router.__file__).read_text(encoding="utf-8")
+    tree = ast.parse(src)
+    funcs = {
+        n.name: n
+        for n in ast.walk(tree)
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    return funcs
+
+
+def _catalog_names(confirm) -> list[str]:
+    """_expected_amount(...) 결과가 바인딩되는 이름들."""
+    return [
+        target.id
+        for node in ast.walk(confirm)
+        if isinstance(node, ast.Assign)
+        and isinstance(node.value, ast.Call)
+        and getattr(node.value.func, "id", None) == "_expected_amount"
+        for target in node.targets
+        if isinstance(target, ast.Name)
+    ]
+
+
+def test_confirm_is_sync_and_only_webhook_is_async():
+    """sync def여야 FastAPI가 스레드풀에서 돌린다 — 네트워크 I/O가 루프를 막지 않는다."""
+    funcs = _confirm_ast()
+    assert not isinstance(funcs["confirm"], ast.AsyncFunctionDef)
+    async_names = sorted(
+        name for name, fn in funcs.items() if isinstance(fn, ast.AsyncFunctionDef)
+    )
+    assert async_names == ["webhook"], f"unexpected async functions: {async_names}"
+
+
+def test_amount_sent_to_toss_is_catalog_derived():
+    """승인 요청의 amount는 카탈로그 조회값이어야 한다 — 클라이언트 입력 금지."""
+    funcs = _confirm_ast()
+    confirm = funcs["confirm"]
+    catalog = _catalog_names(confirm)
+    assert catalog, "_expected_amount() 결과가 이름에 바인딩돼야 한다"
+
+    sent = []
+    for node in ast.walk(confirm):
+        if not isinstance(node, ast.Dict):
+            continue
+        keys = [k.value for k in node.keys if isinstance(k, ast.Constant)]
+        if "paymentKey" not in keys or "amount" not in keys:
+            continue
+        for key, value in zip(node.keys, node.values):
+            if isinstance(key, ast.Constant) and key.value == "amount":
+                sent.append(ast.unparse(value))
+
+    assert sent, "승인 요청 본문(dict with paymentKey+amount)을 찾지 못했다"
+    assert all(expr in catalog for expr in sent), (
+        f"client value reaches Toss: amount={sent}, catalog names={catalog}"
+    )
+
+
+def test_ledger_amount_is_catalog_derived():
+    """원장에 남는 금액도 카탈로그 값이어야 한다."""
+    funcs = _confirm_ast()
+    confirm = funcs["confirm"]
+    catalog = _catalog_names(confirm)
+
+    recorded = [
+        ast.unparse(kw.value)
+        for node in ast.walk(confirm)
+        if isinstance(node, ast.Call)
+        and getattr(node.func, "id", None) == "fulfill_payment_once"
+        for kw in node.keywords
+        if kw.arg == "amount"
+    ]
+    assert recorded, "confirm이 fulfill_payment_once(amount=...)를 호출해야 한다"
+    assert all(expr in catalog for expr in recorded), (
+        f"client value reaches the ledger: amount={recorded}, catalog={catalog}"
+    )
 
 
 def test_confirm_subscription_changes_plan_once(stores, monkeypatch):
@@ -300,6 +390,45 @@ def test_network_failure_returns_502_and_records_nothing(stores, monkeypatch):
 
     assert r.status_code == 502
     assert r.json()["detail"] == "toss_unreachable"
+    assert credit_store.get_balance(USER_ID) == before
+    assert _ledger(stores) == []
+
+
+def test_confirm_retry_does_not_call_toss_again(stores, monkeypatch):
+    """재승인은 원장에서 걸러야 한다.
+
+    실제 토스는 2번째 승인에 ALREADY_PROCESSED_PAYMENT(4xx)를 준다. 그걸 402로
+    올리면 크레딧은 정상 적립됐는데 프론트는 결제 실패 화면을 띄운다.
+    """
+    calls = _mock_toss(monkeypatch)
+    order_id = _order_id("credit", "small")
+    before = credit_store.get_balance(USER_ID)
+
+    first = _confirm(order_id, 20000)
+    assert first.json() == {"status": "ok", "duplicate": False}
+
+    second = _confirm(order_id, 20000)
+
+    assert second.status_code == 200
+    assert second.json() == {"status": "ok", "duplicate": True}
+    assert len(calls) == 1, f"재승인이 토스를 다시 호출했다: {len(calls)}회"
+    assert credit_store.get_balance(USER_ID) == before + 10
+    assert len(_ledger(stores)) == 1
+
+
+def test_confirmed_amount_mismatch_is_not_fulfilled(stores, monkeypatch):
+    """토스가 돌려준 승인 금액이 정가와 다르면 이행하지 않는다."""
+    _mock_toss(
+        monkeypatch,
+        payload={"status": "DONE", "totalAmount": 1000},  # 정가는 20000
+    )
+    order_id = _order_id("credit", "small")
+    before = credit_store.get_balance(USER_ID)
+
+    r = _confirm(order_id, 20000)
+
+    assert r.status_code == 402
+    assert r.json()["detail"]["code"] == "AMOUNT_MISMATCH"
     assert credit_store.get_balance(USER_ID) == before
     assert _ledger(stores) == []
 
