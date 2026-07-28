@@ -1,12 +1,16 @@
+import base64
 import hashlib
 import json
 import logging
 import os
 import uuid
+import urllib.error
 import urllib.parse
+import urllib.request
 from typing import Any, Dict, Tuple
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from app.auth_deps import get_current_user
@@ -26,6 +30,9 @@ router = APIRouter(prefix="/v1/payment", tags=["payment"])
 _TOSS_CLIENT_KEY = os.environ.get("TOSS_CLIENT_KEY", "")
 _TOSS_SECRET_KEY = os.environ.get("TOSS_SECRET_KEY", "")  # 결제 승인(confirm) 후속용
 _BASE_URL = os.environ.get("BASE_URL", "http://localhost:5173")
+
+_TOSS_CONFIRM_URL = "https://api.tosspayments.com/v1/payments/confirm"
+_CONFIRM_TIMEOUT_SECONDS = 10
 
 
 def _toss_ready() -> bool:
@@ -327,6 +334,139 @@ async def webhook(request: Request):
         )
 
     return await run_in_threadpool(_handle_webhook_payload, data)
+
+
+class ConfirmRequest(BaseModel):
+    paymentKey: str
+    orderId: str
+    amount: int
+
+
+def _expected_amount(product_type: str, item_key: str) -> int:
+    """주문서 상품의 정가. 클라이언트가 보낸 금액은 근거가 아니다 (L017)."""
+    if product_type == "credit":
+        pkg = CREDIT_PACKAGES.get(item_key)
+        if not pkg:
+            raise HTTPException(status_code=400, detail=f"unknown package: {item_key}")
+        return pkg["price"]
+    if product_type == "subscription":
+        price = PLAN_PRICES.get(item_key)
+        if price is None:
+            raise HTTPException(status_code=400, detail=f"unknown plan: {item_key}")
+        return price
+    raise HTTPException(
+        status_code=400, detail=f"unknown product_type: {product_type}"
+    )
+
+
+def _toss_error_detail(error: urllib.error.HTTPError) -> Dict[str, Any]:
+    try:
+        parsed = json.loads(error.read().decode("utf-8"))
+    except Exception:
+        parsed = {}
+    return {
+        "code": parsed.get("code") or f"HTTP_{error.code}",
+        "message": parsed.get("message") or "toss confirm failed",
+    }
+
+
+@router.post("/confirm")
+def confirm(payload: ConfirmRequest, user: dict = Depends(get_current_user)):
+    """결제 승인 — 이걸 호출해야 실제로 매입된다.
+
+    승인하지 않으면 카드사 인증만 끝난 상태로 남아 약 10분 뒤 EXPIRE된다
+    (돈은 고객 한도에서 잡혔다가 풀린다). 클라이언트가 successUrl로 돌아온 뒤
+    서버가 호출해야 한다.
+
+    sync `def`다 — FastAPI가 스레드풀에서 실행하므로 네트워크·원장 I/O가
+    이벤트 루프를 막지 않는다.
+    """
+    try:
+        order_user_id, product_type, item_key = _parse_order_id(payload.orderId)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid_orderId format")
+
+    # 남의 orderId를 승인해 내 계정에 적립시키는 경로를 막는다.
+    if order_user_id != user["user_id"]:
+        raise HTTPException(status_code=403, detail="not_order_owner")
+
+    expected = _expected_amount(product_type, item_key)
+    if payload.amount != expected:
+        raise HTTPException(status_code=400, detail="amount_mismatch")
+
+    secret = (_TOSS_SECRET_KEY or "").strip()
+    if not secret:
+        # fail-closed: 키가 없으면 승인 자체가 불가능하다 (sim 흐름이 여기로 온다).
+        raise HTTPException(status_code=503, detail="toss_not_configured")
+
+    # 승인 금액은 주문서 정가로 보낸다 — 클라이언트가 보낸 값이 아니다.
+    request = urllib.request.Request(
+        _TOSS_CONFIRM_URL,
+        data=json.dumps(
+            {
+                "paymentKey": payload.paymentKey,
+                "orderId": payload.orderId,
+                "amount": expected,
+            }
+        ).encode("utf-8"),
+        headers={
+            "Authorization": "Basic "
+            + base64.b64encode(f"{secret}:".encode()).decode(),
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(
+            request, timeout=_CONFIRM_TIMEOUT_SECONDS
+        ) as response:
+            confirmed = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        # 토스가 거절 — 재시도로 해결될 수 있으니 원장에는 아무것도 남기지 않는다.
+        detail = _toss_error_detail(e)
+        logger.warning(
+            f"[payment] confirm rejected order_id={payload.orderId!r} detail={detail}"
+        )
+        raise HTTPException(status_code=402, detail=detail)
+    except Exception as e:
+        # 네트워크 오류·타임아웃·응답 파손 — 승인 여부 불명이라 기록하지 않는다.
+        logger.warning(
+            f"[payment] confirm unreachable order_id={payload.orderId!r} error={e!r}"
+        )
+        raise HTTPException(status_code=502, detail="toss_unreachable")
+
+    if confirmed.get("status") != "DONE":
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": "NOT_DONE",
+                "message": f"unexpected payment status: {confirmed.get('status')!r}",
+            },
+        )
+
+    def _apply() -> None:
+        if product_type == "credit":
+            pkg = CREDIT_PACKAGES[item_key]
+            charge(
+                user["user_id"],
+                pkg["credits"],
+                note=f"결제 완료 - {pkg['name']} 패키지",
+            )
+        else:
+            change_plan(user["user_id"], item_key)
+
+    # 웹훅과 같은 order_id를 쓴다 — confirm→webhook, webhook→confirm 어느 순서로
+    # 와도 멱등 게이트가 정확히 한 번만 적용한다.
+    return fulfill_payment_once(
+        order_id=payload.orderId,
+        user_id=user["user_id"],
+        product_type=product_type,
+        package=item_key if product_type == "credit" else None,
+        plan=item_key if product_type == "subscription" else None,
+        amount=expected,
+        apply_fn=_apply,
+    )
 
 
 @router.get("/history")
