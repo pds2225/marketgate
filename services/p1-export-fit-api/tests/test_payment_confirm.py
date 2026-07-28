@@ -69,16 +69,19 @@ class _FakeResponse:
         return False
 
 
-def _mock_toss(monkeypatch, *, payload=None, error=None):
+def _mock_toss(monkeypatch, *, payload=None, error=None, query_payload=None):
     """urlopen을 가로채고, 실제로 나간 요청을 기록해 돌려준다.
 
     기본 응답은 실제 토스처럼 요청 금액을 그대로 되돌려준다 — 승인 응답의
     totalAmount 검증이 정상 경로에서 통과하도록.
+
+    query_payload가 있으면 GET /v1/payments/{paymentKey} 조회에 사용한다.
     """
     calls: list[dict] = []
 
     def _fake_urlopen(request, timeout=None):
-        sent = json.loads(request.data.decode("utf-8"))
+        raw = request.data
+        sent = json.loads(raw.decode("utf-8")) if raw else None
         calls.append(
             {
                 "url": request.full_url,
@@ -88,6 +91,10 @@ def _mock_toss(monkeypatch, *, payload=None, error=None):
                 "timeout": timeout,
             }
         )
+        if request.get_method() == "GET":
+            if query_payload is None:
+                raise AssertionError("unexpected payment query without query_payload")
+            return _FakeResponse(query_payload)
         if error is not None:
             raise error
         return _FakeResponse(
@@ -386,8 +393,8 @@ def test_toss_rejection_passes_through_and_records_nothing(stores, monkeypatch):
         fp=io.BytesIO(
             json.dumps(
                 {
-                    "code": "ALREADY_PROCESSED_PAYMENT",
-                    "message": "이미 처리된 결제 입니다.",
+                    "code": "REJECT_CARD_COMPANY",
+                    "message": "카드사 승인이 거절되었습니다.",
                 }
             ).encode()
         ),
@@ -400,10 +407,131 @@ def test_toss_rejection_passes_through_and_records_nothing(stores, monkeypatch):
 
     assert r.status_code == 402
     detail = r.json()["detail"]
-    assert detail["code"] == "ALREADY_PROCESSED_PAYMENT"
-    assert detail["message"] == "이미 처리된 결제 입니다."
+    assert detail["code"] == "REJECT_CARD_COMPANY"
+    assert detail["message"] == "카드사 승인이 거절되었습니다."
     assert credit_store.get_balance(USER_ID) == before
     assert _ledger(stores) == [], "재시도 가능한 실패는 원장에 남기지 않는다"
+
+
+def test_already_processed_queries_and_fulfills(stores, monkeypatch):
+    """토스 승인은 됐는데 원장 기록이 없는 재시도 — 조회 후 이행한다.
+
+    트리거: 첫 confirm이 토스 DONE 직후 크래시/타임아웃 → 원장 미기록.
+    재시도가 ALREADY_PROCESSED를 402로만 끝내면 돈만 빠지고 크레딧이 없다.
+    웹훅 서명도 fail-closed라 조회 API가 유일한 복구 경로다.
+    """
+    order_id = _order_id("credit", "small")
+    payment_key = "pk_already_1"
+    error = urllib.error.HTTPError(
+        payment_router._TOSS_CONFIRM_URL,
+        400,
+        "Bad Request",
+        hdrs=None,
+        fp=io.BytesIO(
+            json.dumps(
+                {
+                    "code": "ALREADY_PROCESSED_PAYMENT",
+                    "message": "이미 처리된 결제 입니다.",
+                }
+            ).encode()
+        ),
+    )
+    calls = _mock_toss(
+        monkeypatch,
+        error=error,
+        query_payload={
+            "status": "DONE",
+            "orderId": order_id,
+            "paymentKey": payment_key,
+            "totalAmount": 20000,
+        },
+    )
+    before = credit_store.get_balance(USER_ID)
+
+    r = _confirm(order_id, 20000, payment_key=payment_key)
+
+    assert r.status_code == 200, r.text
+    assert r.json() == {"status": "ok", "duplicate": False}
+    assert credit_store.get_balance(USER_ID) == before + 10
+    assert len(_ledger(stores)) == 1
+    assert [c["method"] for c in calls] == ["POST", "GET"]
+    assert calls[1]["url"].endswith(f"/v1/payments/{payment_key}")
+
+
+def test_already_processed_order_mismatch_is_not_fulfilled(stores, monkeypatch):
+    """남의 이미 승인된 paymentKey로 내 orderId를 적립시키려는 경로를 막는다."""
+    order_id = _order_id("credit", "small")
+    error = urllib.error.HTTPError(
+        payment_router._TOSS_CONFIRM_URL,
+        400,
+        "Bad Request",
+        hdrs=None,
+        fp=io.BytesIO(
+            json.dumps(
+                {
+                    "code": "ALREADY_PROCESSED_PAYMENT",
+                    "message": "이미 처리된 결제 입니다.",
+                }
+            ).encode()
+        ),
+    )
+    _mock_toss(
+        monkeypatch,
+        error=error,
+        query_payload={
+            "status": "DONE",
+            "orderId": "attacker.credit.small.ffffffff",
+            "paymentKey": "pk_stolen",
+            "totalAmount": 20000,
+        },
+    )
+    before = credit_store.get_balance(USER_ID)
+
+    r = _confirm(order_id, 20000, payment_key="pk_stolen")
+
+    assert r.status_code == 402
+    assert r.json()["detail"]["code"] == "ORDER_MISMATCH"
+    assert credit_store.get_balance(USER_ID) == before
+    assert _ledger(stores) == []
+
+
+def test_already_processed_query_failure_returns_502(stores, monkeypatch):
+    """조회도 실패하면 프론트가 실패로 단정하지 않도록 502를 준다."""
+    error = urllib.error.HTTPError(
+        payment_router._TOSS_CONFIRM_URL,
+        400,
+        "Bad Request",
+        hdrs=None,
+        fp=io.BytesIO(
+            json.dumps(
+                {
+                    "code": "ALREADY_PROCESSED_PAYMENT",
+                    "message": "이미 처리된 결제 입니다.",
+                }
+            ).encode()
+        ),
+    )
+    calls: list[dict] = []
+
+    def _fake_urlopen(request, timeout=None):
+        raw = request.data
+        sent = json.loads(raw.decode("utf-8")) if raw else None
+        calls.append({"method": request.get_method(), "body": sent})
+        if request.get_method() == "GET":
+            raise urllib.error.URLError(TimeoutError("timed out"))
+        raise error
+
+    monkeypatch.setattr(urllib.request, "urlopen", _fake_urlopen)
+    order_id = _order_id("credit", "small")
+    before = credit_store.get_balance(USER_ID)
+
+    r = _confirm(order_id, 20000)
+
+    assert r.status_code == 502
+    assert r.json()["detail"] == "toss_unreachable"
+    assert credit_store.get_balance(USER_ID) == before
+    assert _ledger(stores) == []
+    assert [c["method"] for c in calls] == ["POST", "GET"]
 
 
 def test_network_failure_returns_502_and_records_nothing(stores, monkeypatch):
@@ -443,11 +571,16 @@ def test_confirm_retry_does_not_call_toss_again(stores, monkeypatch):
 
 def test_confirmed_amount_mismatch_is_not_fulfilled(stores, monkeypatch):
     """토스가 돌려준 승인 금액이 정가와 다르면 이행하지 않는다."""
+    order_id = _order_id("credit", "small")
     _mock_toss(
         monkeypatch,
-        payload={"status": "DONE", "totalAmount": 1000},  # 정가는 20000
+        payload={
+            "status": "DONE",
+            "orderId": order_id,
+            "paymentKey": "pk_test_1",
+            "totalAmount": 1000,  # 정가는 20000
+        },
     )
-    order_id = _order_id("credit", "small")
     before = credit_store.get_balance(USER_ID)
 
     r = _confirm(order_id, 20000)
@@ -459,8 +592,16 @@ def test_confirmed_amount_mismatch_is_not_fulfilled(stores, monkeypatch):
 
 
 def test_non_done_status_is_not_fulfilled(stores, monkeypatch):
-    _mock_toss(monkeypatch, payload={"status": "CANCELED"})
     order_id = _order_id("credit", "small")
+    _mock_toss(
+        monkeypatch,
+        payload={
+            "status": "CANCELED",
+            "orderId": order_id,
+            "paymentKey": "pk_test_1",
+            "totalAmount": 20000,
+        },
+    )
     before = credit_store.get_balance(USER_ID)
 
     r = _confirm(order_id, 20000)
