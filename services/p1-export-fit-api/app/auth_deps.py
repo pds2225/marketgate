@@ -15,6 +15,12 @@ def _resolve_jwt_secret() -> str:
     secret = os.environ.get("JWT_SECRET", "")
     if secret:
         return secret
+    # Render 런타임은 APP_ENV 설정 여부와 무관하게 fail-closed.
+    if os.environ.get("RENDER"):
+        raise RuntimeError(
+            "JWT_SECRET must be set in the Render dashboard before deploy "
+            "(see docs/LESSONS.md L019-class hole: dev fallback signs forgeable tokens)"
+        )
     if os.environ.get("APP_ENV", "").lower() in ("prod", "production"):
         raise RuntimeError("JWT_SECRET must be set when APP_ENV=production")
     return "dev-secret-change-in-prod"
