@@ -167,6 +167,31 @@ def test_confirm_credits_once_and_sends_expected_amount(stores, monkeypatch):
     assert sent["headers"]["content-type"] == "application/json"
 
 
+def test_confirm_large_package_credits_full_amount(stores, monkeypatch):
+    """가장 비싼 패키지의 성공 경로 — 100크레딧이 실제로 적립되는지.
+
+    구조(AST) 핀은 금액의 출처만 고정한다. 카탈로그 조회가 엉뚱한 패키지를
+    집어도 AST는 통과하므로, 런타임에서 크레딧 수량까지 확인해야 한다.
+    """
+    calls = _mock_toss(monkeypatch)
+    order_id = _order_id("credit", "large")
+    before = credit_store.get_balance(USER_ID)
+
+    r = _confirm(order_id, 160000)
+
+    assert r.status_code == 200, r.text
+    assert r.json() == {"status": "ok", "duplicate": False}
+    assert credit_store.get_balance(USER_ID) == before + 100
+
+    ledger = _ledger(stores)
+    assert len(ledger) == 1
+    assert ledger[0]["status"] == "DONE"
+    assert ledger[0]["order_id"] == order_id
+    assert ledger[0]["package"] == "large"
+    assert ledger[0]["amount"] == 160000
+    assert calls[0]["body"]["amount"] == 160000
+
+
 # ── 금액 출처 고정 (구조 검사) ──────────────────────────────────
 # 런타임 테스트로는 이 성질을 잡을 수 없다: 금액 불일치 가드가 400으로 먼저
 # 막기 때문에 네트워크 호출 시점에는 payload.amount == expected가 항상 참이고,
