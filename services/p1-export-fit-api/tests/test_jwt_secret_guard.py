@@ -6,6 +6,11 @@ Render 런타임(RENDER 마커)에서는 APP_ENV 설정 여부와 무관하게 �
 
 env 는 호출 시점에 읽으므로 모듈 임포트 캐시(JWT_SECRET) 대신
 _resolve_jwt_secret() 을 직접 호출해 검증한다.
+
+CI 주의: RENDER 마커가 설정된 환경에서 테스트를 돌리려면 더미 JWT_SECRET 을 함께
+넣어야 한다 (`RENDER=true JWT_SECRET=ci-dummy pytest` → 전체 통과). 빼먹으면
+개별 테스트가 아니라 pytest 수집 단계가 죽는다 — auth_deps 임포트 시점에
+JWT_SECRET 이 바인딩되므로(app/auth_deps.py) 의도된 fail-closed 동작이다.
 """
 from __future__ import annotations
 
