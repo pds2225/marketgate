@@ -1,0 +1,32 @@
+탭명,기술 MVP 닫기 (A-스프린트)
+기준문서,대화 A-스프린트 / TASKS.md 인콰이어리 E2E 축
+기존시트와의관계,기존 WBS 77건(아키텍처 Phase0 Vault·DDL·Passport)과 별도 트랙. 겹치는 항목은 '기존WBS참조' 열에 표기
+완료선언문,"스테이징에서 로그인 후 실CSV 바이어를 찾고 크레딧이 차감되며 인콰이어리가 큐/발송되고 Toss 테스트결제로 잔액이 오른다. 합성 D&B 수치로 실데이터를 가장하지 않는다."
+
+WBS,Phase,주차,구분,작업 항목,산출물·완료 기준,선행 작업,기존WBS참조(부분겹침),예상공수(일),상태,담당,메모
+A-001,A-MVP,W1,프론트,Landing CTA 연결 — Analysis/ExportFlow/BuyerSearch,랜딩에서 바이어검색·분석·수출플로우 진입 가능. ExportFlow/Analysis 고아 아님,,— (기존시트 없음),0.5,대기,,LandingPage.jsx / App.jsx
+A-002,A-MVP,W1,검증,해피패스 문서 + QA 체크리스트,시나리오 1개 고정: 로그인→HS330499→국가→바이어→인콰이어리. QA 체크리스트 첨부,A-001,—,0.5,대기,,docs/MVP_A_SMOKE.md 또는 본 시트 'QA' 탭
+A-003,A-MVP,W1,프론트,BuyerSearch 합성 시그널 제거·라벨,합성 RFM·D&B·가짜 카운트 숨김 또는 '데모/추정' 배지. 실검색 카드는 API 필드만,,— (기존시트 없음),1.5,대기,,BuyerSearch/index.tsx DataStatsBanner·createDNBData
+A-004,A-MVP,W1,프론트,demo.html 크레딧 언락 정직화,언락이 원장 아님 UI 고지 또는 UX 제거,,— ,0.5,대기,,MarketGateDemo.jsx
+A-005,A-MVP,W1,연동,credits/deduct 프론트 연결,predict 또는 inquiry 1회에 POST /v1/credits/deduct → 잔액 칩 갱신. 부족 시 요금제 유도,,W-033(풀원장 아님·현행 JSON credits),1,대기,,BuyerSearch / AnalysisPage / App refreshBalance
+A-006,A-MVP,W1,연동,Advanced 플랜 게이트 ↔ Pricing 정합,인콰이어리 Advanced 게이트와 Pricing 플랜키 일치. Basic 초안 미리보기 정책 결정·반영,A-005,— ,0.5,대기,,AnalysisPage / PricingPage / subscription
+A-007,A-MVP,W1,보안,Admin ACL,admin 역할 또는 allowlist 없으면 Admin 진입 403/숨김,,W-005(RBAC 축소판),1,대기,,auth store + App.jsx
+A-008,A-MVP,W2,백엔드,inquiry draft → queued|sent,SMTP/SendGrid 실발송 또는 status:queued + 관리자 발송큐. draft-only 종료,A-001,W-030(Send Adapter 축소판)·W-040,2,대기,,inquiry_service.py / POST /v1/inquiry / Analysis 모달
+A-009,A-MVP,W2,백엔드,inquiry 최소 감사 로그,who/when/buyer_id/hs/status JSON append 또는 파일 로그,A-008,W-034(축소판),0.5,대기,,
+A-010,A-MVP,W2,결제,Toss 테스트 checkout E2E,테스트키로 checkout→웹훅(또는 confirm)→잔액/플랜 반영 1회 성공,,W-033 일부·기존 payment.py,1.5,대기,,payment.py / PricingPage / env
+A-011,A-MVP,W2,결제,결제 실패·취소 콜백 UX,실패/취소 시 명확 메시지 + 잔액 미증가,A-010,— ,0.5,대기,,PaymentCallbackPage.jsx
+A-012,A-MVP,W2,인프라,스테이징 1환경,Vercel 프론트 + API 호스트 + CSV/시크릿. demo.html·메인앱 URL 접속,,— (기존시트 운영항과 별개),1,대기,,deploy + env
+A-013,A-MVP,W2,검증,A-경로 E2E 스모크 자동화,health→login→predict→deduct→inquiry(queued) pytest/스크립트 PASS,A-005;A-008,기존 test_e2e_smoke 확장,1,대기,,services/p1-export-fit-api/tests/
+A-014,A-MVP,W2,마감,A-MVP Done 체크 + 한계 고지,A-001~A-013 전부 + 한계 3줄(파일백엔드·관세근사·연락처품질),A-002;A-012;A-013,— ,0.5,대기,,TASKS.md A-MVP Done / 본 시트 상태
+
+게이트_W1종료,,,"로그인 사용자로 A-002 시나리오가 가짜 수치 없이 끝까지 돌고 크레딧이 줄어든다 (A-001~A-007)",,,,,,,
+게이트_W2종료,,,"스테이징 URL에서 외부인이 A-002 + 테스트결제 1회 재현. 인콰이어리는 draft가 아님 (A-008~A-014)",,,,,,,
+
+비교_기존시트요약,항목,내용,,,,,,,,
+,기존 시트 목적,ARCHITECTURE/PRODUCT Phase0 — Vault·17테이블·컴플라이언스·Passport·어드민10화면 (WBS 77),,,,,,,,
+,기존 완료,13건 (W-001 ERD + W-008~W-019 DDL/Broker). 대부분 SQL·문서. API는 아직 JSON/CSV,,,,,,,,
+,기존 대기,64건 (W-002~007 문서·W-020~057 P0 서비스/화면·W-058~077 P1/P2),,,,,,,,
+,A-스프린트 목적,현행 React+FastAPI+CSV 스택으로 파일럿 해피패스 닫기 (10영업일),,,,,,,,
+,겹침,얇게만: A-007↔W-005 / A-008↔W-030·040 / A-009↔W-034 / A-005·010↔W-033,,,,,,,,
+,안 겹침(A에만),A-001 CTA / A-003 가짜UI정리 / A-004 demo정직화 / A-012 스테이징 / A-014 마감,,,,,,,,
+,A에 안 넣음,Passport(W-046)·Vault Postgres이관·D&B·K-SURE·어드민10화면 풀셋,,,,,,,,
