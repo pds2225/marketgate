@@ -5,6 +5,8 @@ import { syncBalanceFromServer } from './lib/creditWallet'
 const VERIFY_ATTEMPTS = 5
 const VERIFY_INTERVAL_MS = 1500
 const RECENT_WINDOW_MS = 15 * 60 * 1000
+// 승인 실패가 확정인 코드만. 그 외는 웹훅/재승인으로 완료될 수 있다.
+const TERMINAL_CONFIRM_CODES = [400, 402, 403]
 
 export default function PaymentCallbackPage({ onBack, onBalanceRefresh }) {
   const [status, setStatus] = useState('loading')
@@ -69,10 +71,12 @@ export default function PaymentCallbackPage({ onBack, onBalanceRefresh }) {
         } catch (err) {
           if (cancelled) return
           const code = err?.response?.status
-          // 4xx는 승인이 확정적으로 실패한 경우(소유자·금액 불일치, 토스 거절).
-          // 503(키 미설정)·5xx·네트워크 오류는 웹훅으로 완료될 수 있으므로
-          // 실패로 단정하지 않고 결제내역 검증으로 넘어간다.
-          if (code >= 400 && code < 500) {
+          // 승인이 확정적으로 실패한 코드만 실패 화면으로 간다.
+          //   400 금액·주문 불일치 / 402 토스 거절 / 403 주문 소유자 아님
+          // 나머지는 결제가 아직 완료될 수 있으므로 결제내역 검증으로 넘어간다:
+          //   401 리다이렉트 왕복 중 토큰 만료, 429 레이트리밋,
+          //   503 키 미설정(sim), 5xx·네트워크 오류 → 웹훅/재승인으로 완료 가능
+          if (TERMINAL_CONFIRM_CODES.includes(code)) {
             setStatus('fail')
             return
           }
