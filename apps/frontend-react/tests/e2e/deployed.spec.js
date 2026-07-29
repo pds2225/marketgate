@@ -19,6 +19,46 @@ function buildRunEmail(testInfo) {
   return `e2e-${seed}@example.com`
 }
 
+async function openAuthScreen(page) {
+  const signupButton = page.getByRole('button', { name: '회원가입' })
+  if (!(await signupButton.isVisible())) {
+    await page.getByRole('button', { name: '내 인콰이어리' }).click()
+  }
+  await expect(signupButton).toBeVisible()
+}
+
+async function returnToLanding(page) {
+  const homeButton = page.getByRole('button', {
+    name: 'MarketGate',
+    exact: true,
+  })
+  if (await homeButton.isVisible()) {
+    await homeButton.click()
+  } else {
+    await page.getByText('MARKETGATE', { exact: true }).click()
+  }
+  await expect(
+    page.getByRole('heading', { name: '무엇을 수출하시나요?' })
+  ).toBeVisible()
+}
+
+async function openMyInquiries(page) {
+  const currentButton = page.getByRole('button', {
+    name: '내 인콰이어리',
+    exact: true,
+  })
+  if (await currentButton.isVisible()) {
+    await currentButton.click()
+  } else {
+    await page
+      .getByRole('button', { name: '인콰이어리', exact: true })
+      .click()
+  }
+  await expect(
+    page.getByRole('heading', { name: '내 인콰이어리' })
+  ).toBeVisible()
+}
+
 test.describe('deployed production-safe smoke', () => {
   test('@smoke renders the app and reaches the configured API', async ({
     page,
@@ -104,6 +144,7 @@ test.describe('deployed staging write journey', () => {
       })
 
       await page.goto('/', { waitUntil: 'domcontentloaded' })
+      await openAuthScreen(page)
       await page.getByRole('button', { name: '회원가입' }).click()
       await page.getByPlaceholder('you@company.com').fill(email)
       await page.locator('input[type="password"]').fill(password)
@@ -111,6 +152,7 @@ test.describe('deployed staging write journey', () => {
       await expect(page.getByRole('button', { name: '로그아웃' })).toBeVisible()
       accountCreated = true
 
+      await returnToLanding(page)
       await page.getByRole('button', { name: '수출 플로우' }).click()
       await expect(
         page.getByRole('heading', { name: '수출 국가 추천' })
@@ -172,22 +214,18 @@ test.describe('deployed staging write journey', () => {
       await expect(page.getByText('관리자 검토 대기 중')).toBeVisible()
 
       await page.reload({ waitUntil: 'domcontentloaded' })
-      await page
-        .getByRole('button', { name: '인콰이어리', exact: true })
-        .click()
-      await expect(page.getByRole('heading', { name: '내 인콰이어리' })).toBeVisible()
+      await openMyInquiries(page)
       const inquiry = page.locator('article').filter({ hasText: buyerName }).first()
       await expect(inquiry).toContainText('검토 대기')
 
       await page.getByRole('button', { name: '로그아웃' }).click()
+      await openAuthScreen(page)
       await expect(page.getByRole('button', { name: '로그인 →' })).toBeVisible()
       await page.getByPlaceholder('you@company.com').fill(email)
       await page.locator('input[type="password"]').fill(password)
       await page.getByRole('button', { name: '로그인 →' }).click()
       await expect(page.getByRole('button', { name: '로그아웃' })).toBeVisible()
-      await page
-        .getByRole('button', { name: '인콰이어리', exact: true })
-        .click()
+      await openMyInquiries(page)
       await expect(
         page.locator('article').filter({ hasText: buyerName }).first()
       ).toContainText('검토 대기')
