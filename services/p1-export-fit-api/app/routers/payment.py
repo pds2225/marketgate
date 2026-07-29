@@ -32,7 +32,9 @@ _TOSS_SECRET_KEY = os.environ.get("TOSS_SECRET_KEY", "")  # 결제 승인(confir
 _BASE_URL = os.environ.get("BASE_URL", "http://localhost:5173")
 
 _TOSS_CONFIRM_URL = "https://api.tosspayments.com/v1/payments/confirm"
+_TOSS_PAYMENT_URL = "https://api.tosspayments.com/v1/payments"
 _CONFIRM_TIMEOUT_SECONDS = 10
+_ALREADY_PROCESSED_CODE = "ALREADY_PROCESSED_PAYMENT"
 
 
 def _toss_ready() -> bool:
@@ -370,6 +372,58 @@ def _toss_error_detail(error: urllib.error.HTTPError) -> Dict[str, Any]:
     }
 
 
+def _toss_auth_header(secret: str) -> str:
+    return "Basic " + base64.b64encode(f"{secret}:".encode()).decode()
+
+
+def _toss_get_payment(payment_key: str, secret: str) -> Dict[str, Any]:
+    """GET /v1/payments/{paymentKey} — 승인 여부 재확인용."""
+    url = f"{_TOSS_PAYMENT_URL}/{urllib.parse.quote(payment_key, safe='')}"
+    request = urllib.request.Request(
+        url,
+        headers={"Authorization": _toss_auth_header(secret)},
+        method="GET",
+    )
+    with urllib.request.urlopen(request, timeout=_CONFIRM_TIMEOUT_SECONDS) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _require_confirmed_payment(
+    confirmed: Dict[str, Any], *, order_id: str, expected: int
+) -> None:
+    if confirmed.get("orderId") != order_id:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": "ORDER_MISMATCH",
+                "message": (
+                    f"confirmed orderId {confirmed.get('orderId')!r} "
+                    f"!= requested {order_id!r}"
+                ),
+            },
+        )
+    if confirmed.get("status") != "DONE":
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": "NOT_DONE",
+                "message": f"unexpected payment status: {confirmed.get('status')!r}",
+            },
+        )
+    # 승인된 금액이 주문서 정가와 다르면 이행하지 않는다.
+    if confirmed.get("totalAmount") != expected:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": "AMOUNT_MISMATCH",
+                "message": (
+                    f"confirmed totalAmount {confirmed.get('totalAmount')!r} "
+                    f"!= expected {expected}"
+                ),
+            },
+        )
+
+
 @router.post("/confirm")
 def confirm(payload: ConfirmRequest, user: dict = Depends(get_current_user)):
     """결제 승인 — 이걸 호출해야 실제로 매입된다.
@@ -419,8 +473,7 @@ def confirm(payload: ConfirmRequest, user: dict = Depends(get_current_user)):
             }
         ).encode("utf-8"),
         headers={
-            "Authorization": "Basic "
-            + base64.b64encode(f"{secret}:".encode()).decode(),
+            "Authorization": _toss_auth_header(secret),
             "Content-Type": "application/json",
         },
         method="POST",
@@ -432,12 +485,28 @@ def confirm(payload: ConfirmRequest, user: dict = Depends(get_current_user)):
         ) as response:
             confirmed = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
-        # 토스가 거절 — 재시도로 해결될 수 있으니 원장에는 아무것도 남기지 않는다.
         detail = _toss_error_detail(e)
-        logger.warning(
-            f"[payment] confirm rejected order_id={payload.orderId!r} detail={detail}"
-        )
-        raise HTTPException(status_code=402, detail=detail)
+        # 이미 승인된 paymentKey다. 원장에 DONE이 없으면(크래시·타임아웃 후 재시도)
+        # 402로 끝내면 돈만 빠지고 크레딧이 안 쌓인다. 웹훅 서명도 fail-closed라
+        # 조회 API로 DONE을 확인한 뒤 이행해야 한다.
+        if detail.get("code") == _ALREADY_PROCESSED_CODE:
+            logger.warning(
+                f"[payment] confirm already processed — querying "
+                f"order_id={payload.orderId!r} payment_key={payload.paymentKey!r}"
+            )
+            try:
+                confirmed = _toss_get_payment(payload.paymentKey, secret)
+            except Exception as query_err:
+                logger.warning(
+                    f"[payment] payment query unreachable "
+                    f"order_id={payload.orderId!r} error={query_err!r}"
+                )
+                raise HTTPException(status_code=502, detail="toss_unreachable")
+        else:
+            logger.warning(
+                f"[payment] confirm rejected order_id={payload.orderId!r} detail={detail}"
+            )
+            raise HTTPException(status_code=402, detail=detail)
     except Exception as e:
         # 네트워크 오류·타임아웃·응답 파손 — 승인 여부 불명이라 기록하지 않는다.
         logger.warning(
@@ -445,28 +514,9 @@ def confirm(payload: ConfirmRequest, user: dict = Depends(get_current_user)):
         )
         raise HTTPException(status_code=502, detail="toss_unreachable")
 
-    if confirmed.get("status") != "DONE":
-        raise HTTPException(
-            status_code=402,
-            detail={
-                "code": "NOT_DONE",
-                "message": f"unexpected payment status: {confirmed.get('status')!r}",
-            },
-        )
-
-    # 승인된 금액이 주문서 정가와 다르면 이행하지 않는다. 여기까지 왔다면 정가로
-    # 요청했으므로 정상적으로는 일치한다 — 어긋난다면 우리가 아는 주문이 아니다.
-    if confirmed.get("totalAmount") != expected:
-        raise HTTPException(
-            status_code=402,
-            detail={
-                "code": "AMOUNT_MISMATCH",
-                "message": (
-                    f"confirmed totalAmount {confirmed.get('totalAmount')!r} "
-                    f"!= expected {expected}"
-                ),
-            },
-        )
+    _require_confirmed_payment(
+        confirmed, order_id=payload.orderId, expected=expected
+    )
 
     def _apply() -> None:
         if product_type == "credit":
