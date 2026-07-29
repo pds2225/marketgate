@@ -71,6 +71,31 @@ const factorNames = {
   distance_km: "거리",
 };
 
+const readinessDimensionLabels = {
+  market: "시장 적합도",
+  buyer: "바이어 신호",
+  margin: "수익성",
+  compliance: "수출 규제",
+  focus_areas: "우선 보완",
+};
+
+const readinessValueLabels = {
+  high: "높음",
+  medium: "보통",
+  low: "낮음",
+  strong: "강함",
+  weak: "약함",
+  none: "없음",
+  ready: "준비됨",
+  pass: "통과",
+  warn: "주의",
+  fail: "미충족",
+  clear: "문제 없음",
+  restricted: "제한 있음",
+  unknown: "확인 필요",
+  not_checked: "확인 필요",
+};
+
 const currencyFormatter = new Intl.NumberFormat("ko-KR", {
   style: "currency",
   currency: "USD",
@@ -317,6 +342,18 @@ async function requestAnalysis(hsCode, topN, year) {
     if (p1Issue) throw new Error(`${p1Issue} / 예전 엔진 오류: ${legacyError.message}`);
     throw legacyError;
   }
+}
+
+async function requestReadiness(analysis, recommendation) {
+  const buyersItems = Array.isArray(analysis?.buyers?.items) ? analysis.buyers.items : [];
+  const response = await api.post("/v1/readiness", {
+    country_fit_score: Number.isFinite(recommendation?.score) ? recommendation.score : null,
+    compliance: null,
+    buyers_items: buyersItems,
+    margin_grade: null,
+    top_buyer_name: buyersItems[0]?.buyer_name || null,
+  });
+  return response.data;
 }
 
 /* ── DispatchRequestModal — 인콰이어리 발송 요청 (draft → review_required) ── */
@@ -794,6 +831,9 @@ export default function ExportFlowPage({ onBack }) {
   const [selectedRecId, setSelectedRecId] = useState(null);
   const [selectedBuyer, setSelectedBuyer] = useState(null);
   const [simulationParams, setSimulationParams] = useState(null);
+  const [readinessResult, setReadinessResult] = useState(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
+  const [readinessError, setReadinessError] = useState("");
 
   const [showBuyerReport, setShowBuyerReport] = useState(false);
   const [reportBuyer, setReportBuyer] = useState(null);
@@ -812,6 +852,8 @@ export default function ExportFlowPage({ onBack }) {
     }
     setLoading(true);
     setAnalysisError("");
+    setReadinessResult(null);
+    setReadinessError("");
     try {
       const analysis = await requestAnalysis(hsCode, topN, year);
       startTransition(() => {
@@ -825,6 +867,31 @@ export default function ExportFlowPage({ onBack }) {
       setAnalysisError(requestError.message || "분석 요청에 실패했습니다.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSelectRecommendation = (recommendationId) => {
+    setSelectedRecId(recommendationId);
+    setReadinessResult(null);
+    setReadinessError("");
+  };
+
+  const handleCheckReadiness = async () => {
+    if (!analysisResult || !selectedRecommendation) return;
+    setReadinessLoading(true);
+    setReadinessError("");
+    try {
+      const readiness = await requestReadiness(analysisResult, selectedRecommendation);
+      setReadinessResult(readiness);
+    } catch (requestError) {
+      setReadinessResult(null);
+      setReadinessError(
+        requestError.response?.data?.detail ||
+          requestError.message ||
+          "수출 준비도 확인에 실패했습니다."
+      );
+    } finally {
+      setReadinessLoading(false);
     }
   };
 
@@ -972,7 +1039,7 @@ export default function ExportFlowPage({ onBack }) {
                       <div
                         key={item.id}
                         className={`analysis-card ${selectedRecommendation?.id === item.id ? "is-selected" : ""}`}
-                        onClick={() => setSelectedRecId(item.id)}
+                        onClick={() => handleSelectRecommendation(item.id)}
                         style={{ cursor: "pointer" }}
                       >
                         <div className="analysis-card-rank">{item.rank}</div>
@@ -1009,10 +1076,65 @@ export default function ExportFlowPage({ onBack }) {
 
                   {selectedRecommendation && (
                     <div style={{ marginTop: 14, padding: 16, borderRadius: 14, background: "rgba(15,23,42,0.4)", border: "1px solid rgba(148,163,184,0.2)" }}>
-                      <strong style={{ fontSize: 15 }}>선택: {selectedRecommendation.country.flag} {selectedRecommendation.country.name}</strong>
-                      <p style={{ marginTop: 6, fontSize: 13, color: "#94a3b8" }}>이 국가를 기준으로 바이어를 검색합니다.</p>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                        <div>
+                          <strong style={{ fontSize: 15 }}>선택: {selectedRecommendation.country.flag} {selectedRecommendation.country.name}</strong>
+                          <p style={{ marginTop: 6, fontSize: 13, color: "#94a3b8" }}>이 국가와 현재 바이어 신호를 기준으로 수출 준비도를 확인합니다.</p>
+                        </div>
+                        <button
+                          className="ui-button ui-button--ghost"
+                          onClick={handleCheckReadiness}
+                          disabled={readinessLoading}
+                        >
+                          {readinessLoading ? <LoaderCircle size={16} className="analysis-spin" /> : <CheckCircle2 size={16} />}
+                          {readinessLoading ? "확인 중..." : "수출 준비도 확인"}
+                        </button>
+                      </div>
                     </div>
                   )}
+
+                  {readinessError ? (
+                    <div className="analysis-inline-alert" style={{ marginTop: 14 }}>
+                      <CircleAlert size={16} />
+                      <span>{readinessError}</span>
+                    </div>
+                  ) : null}
+
+                  {readinessResult ? (
+                    <div className="analysis-card" style={{ marginTop: 14 }}>
+                      <div className="analysis-card-body">
+                        <div className="analysis-card-title">
+                          <div>
+                            <strong>수출 준비도</strong>
+                            <span>{selectedRecommendation.country.name} 기준</span>
+                          </div>
+                          <span className="analysis-card-badge">
+                            {readinessValueLabels[readinessResult.verdict] || readinessResult.verdict}
+                          </span>
+                        </div>
+                        <p>
+                          {readinessResult.reason === "scored"
+                            ? "현재 확인 가능한 시장·바이어·수익성·규제 데이터로 계산했습니다."
+                            : readinessResult.reason}
+                        </p>
+                        <div className="analysis-detail-grid" style={{ marginTop: 12 }}>
+                          {Object.entries(readinessResult.dimensions || {}).map(([key, value]) => (
+                            <div className="analysis-detail-row" key={key}>
+                              <span>{readinessDimensionLabels[key] || key}</span>
+                              <strong>{readinessValueLabels[value] || value}</strong>
+                            </div>
+                          ))}
+                        </div>
+                        <p style={{ marginTop: 10, fontSize: 12, color: "#94a3b8" }}>
+                          현재 준비도는 국가·바이어 신호 기준이며, 수익성은 3단계에서 별도로 검증합니다.
+                        </p>
+                      </div>
+                      <div className="analysis-card-score">
+                        <strong>{readinessResult.readiness_score}</strong>
+                        <span>점</span>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               )}
 
