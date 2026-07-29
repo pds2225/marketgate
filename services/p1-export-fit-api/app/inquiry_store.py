@@ -118,6 +118,22 @@ def list_inquiries(user_id: str | None = None, status: str | None = None) -> lis
     return items
 
 
+def delete_user_inquiries(user_id: str) -> int:
+    """Remove only inquiries owned by one isolated E2E user."""
+    with _lock:
+        data = _load()
+        inquiry_ids = [
+            inquiry_id
+            for inquiry_id, item in data.items()
+            if item.get("user_id") == user_id
+        ]
+        for inquiry_id in inquiry_ids:
+            del data[inquiry_id]
+        if inquiry_ids:
+            _save(data)
+        return len(inquiry_ids)
+
+
 def transition(
     inquiry_id: str,
     new_status: str,
