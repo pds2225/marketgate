@@ -11,7 +11,10 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:unit": "node --test tests/profitability.test.mjs tests/buyerViewModel.test.mjs tests/creditWallet.test.mjs"
+    "test:unit": "node --test tests/profitability.test.mjs tests/buyerViewModel.test.mjs tests/creditWallet.test.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:smoke": "playwright test --grep @smoke",
+    "test:e2e:journey": "playwright test --grep @journey"
   },
   "dependencies": {
     "@radix-ui/react-progress": "^1.1.8",
@@ -33,6 +36,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.62.0",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",

@@ -80,6 +80,17 @@ def get_history(user_id: str = "default") -> list:
     return data[user_id]["history"]
 
 
+def delete_user(user_id: str) -> bool:
+    """Remove an isolated user's ledger during E2E cleanup."""
+    with _lock:
+        data = _load()
+        if user_id not in data:
+            return False
+        del data[user_id]
+        _save(data)
+        return True
+
+
 def deduct(user_id: str = "default", amount: int = 0, action: str = "", note: str = "") -> int:
     if amount <= 0:
         raise ValueError("amount must be > 0")

@@ -78,6 +78,18 @@ def update_user(user_id: str, updates: dict) -> None:
             _save_users(data)
 
 
+def delete_user(user_id: str, email: str) -> bool:
+    """Delete exactly one verified user; callers enforce environment policy."""
+    with _users_lock:
+        data = _load_users()
+        user = data.get(user_id)
+        if user is None or user.get("email") != email:
+            return False
+        del data[user_id]
+        _save_users(data)
+        return True
+
+
 def add_to_blacklist(jti: str) -> None:
     if not jti:
         return

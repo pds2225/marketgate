@@ -71,6 +71,17 @@ def get_subscription(user_id: str) -> dict:
         return sub
 
 
+def delete_user(user_id: str) -> bool:
+    """Remove an isolated user's subscription during E2E cleanup."""
+    with _lock:
+        data = _load()
+        if user_id not in data:
+            return False
+        del data[user_id]
+        _save(data)
+        return True
+
+
 def change_plan(user_id: str, plan: str) -> dict:
     if plan not in PLANS:
         raise ValueError(f"invalid plan: {plan}")

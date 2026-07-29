@@ -5,6 +5,8 @@ dist/
 .vite/
 .vite-temp/
 coverage/
+apps/frontend-react/playwright-report/
+apps/frontend-react/test-results/
 
 # Python
 venv/

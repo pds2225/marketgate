@@ -1,0 +1,186 @@
+name: Deployed E2E
+
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: Deployment type to verify
+        required: true
+        type: choice
+        options:
+          - preview
+          - production
+      base_url:
+        description: Exact deployed frontend URL
+        required: true
+        type: string
+      api_base_url:
+        description: Isolated Render E2E API URL (preview write journey only)
+        required: false
+        type: string
+      run_write_journey:
+        description: Run registration, analysis, inquiry, and cleanup
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deployed-e2e-${{ github.event.deployment.sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Preview deployed E2E
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       inputs.target_environment == 'preview') ||
+      (github.event_name == 'deployment_status' &&
+       github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Preview' &&
+       vars.DEPLOYED_E2E_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: Preview
+    defaults:
+      run:
+        working-directory: apps/frontend-react
+    env:
+      E2E_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.base_url || github.event.deployment_status.environment_url }}
+      E2E_API_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.api_base_url || vars.E2E_API_BASE_URL }}
+      E2E_WRITE_ENABLED: >-
+        ${{
+          (github.event_name == 'workflow_dispatch' && inputs.run_write_journey) ||
+          (github.event_name == 'deployment_status' &&
+           vars.DEPLOYED_E2E_WRITE_ENABLED == 'true')
+        }}
+      E2E_ADMIN_TOKEN: ${{ secrets.E2E_ADMIN_TOKEN }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+    steps:
+      - name: Check out deployed commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'deployment_status' && github.event.deployment.sha || github.ref }}
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/frontend-react/package-lock.json
+
+      - name: Validate fail-closed E2E configuration
+        run: |
+          node --input-type=module - <<'NODE'
+          const required = ['E2E_BASE_URL', 'VERCEL_AUTOMATION_BYPASS_SECRET']
+          if (process.env.E2E_WRITE_ENABLED === 'true') {
+            required.push('E2E_API_BASE_URL', 'E2E_ADMIN_TOKEN')
+          }
+          const missing = required.filter((name) => !process.env[name]?.trim())
+          if (missing.length) {
+            throw new Error(`Missing deployed E2E configuration: ${missing.join(', ')}`)
+          }
+          if (
+            process.env.E2E_WRITE_ENABLED === 'true' &&
+            new URL(process.env.E2E_BASE_URL).hostname === 'marketgate.vercel.app'
+          ) {
+            throw new Error('Write E2E must never target the production frontend')
+          }
+          NODE
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Wait for protected deployment
+        run: |
+          node --input-type=module - <<'NODE'
+          const headers = {
+            'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
+            'x-vercel-set-bypass-cookie': 'true',
+          }
+          const url = new URL('/api/v1/health', process.env.E2E_BASE_URL)
+          for (let attempt = 1; attempt <= 12; attempt += 1) {
+            try {
+              const response = await fetch(url, {
+                headers,
+                signal: AbortSignal.timeout(15_000),
+              })
+              if (response.ok) process.exit(0)
+            } catch {}
+            if (attempt < 12) await new Promise((resolve) => setTimeout(resolve, 5000))
+          }
+          throw new Error('Preview did not become healthy after 12 attempts')
+          NODE
+
+      - name: Run deployed preview checks
+        run: |
+          if [ "$E2E_WRITE_ENABLED" = "true" ]; then
+            npm run test:e2e:journey
+          else
+            npm run test:e2e:smoke
+          fi
+
+      - name: Upload safe smoke diagnostics
+        if: failure() && env.E2E_WRITE_ENABLED != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployed-e2e-smoke-${{ github.run_id }}
+          path: |
+            apps/frontend-react/playwright-report
+            apps/frontend-react/test-results
+          retention-days: 7
+
+  production-smoke:
+    name: Production read-only smoke
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       inputs.target_environment == 'production') ||
+      (github.event_name == 'deployment_status' &&
+       github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Production')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: Production
+    defaults:
+      run:
+        working-directory: apps/frontend-react
+    env:
+      E2E_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.base_url || 'https://marketgate.vercel.app' }}
+      E2E_WRITE_ENABLED: "false"
+    steps:
+      - name: Check out deployed commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'deployment_status' && github.event.deployment.sha || github.ref }}
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/frontend-react/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run production-safe smoke
+        run: npm run test:e2e:smoke
+
+      - name: Upload smoke diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-smoke-${{ github.run_id }}
+          path: |
+            apps/frontend-react/playwright-report
+            apps/frontend-react/test-results
+          retention-days: 7

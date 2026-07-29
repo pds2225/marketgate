@@ -1,3 +1,4 @@
+import os
 from typing import Any, Dict, List
 
 from fastapi import Body, Depends, FastAPI, HTTPException, Query
@@ -31,6 +32,10 @@ app.include_router(payment_router.router)
 app.include_router(readiness_router.router)
 app.include_router(action_plan_router.router)
 app.include_router(inquiries_router.router)
+if os.getenv("APP_ENV", "").strip().lower() == "e2e":
+    from app.routers import e2e as e2e_router
+
+    app.include_router(e2e_router.router)
 
 app.add_middleware(
     CORSMiddleware,
