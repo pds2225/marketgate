@@ -11,7 +11,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:unit": "node --test tests/profitability.test.mjs tests/buyerViewModel.test.mjs tests/creditWallet.test.mjs",
+    "test:unit": "node --test tests/profitability.test.mjs tests/buyerViewModel.test.mjs tests/creditWallet.test.mjs tests/authRefreshQueue.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test --grep @smoke",
     "test:e2e:journey": "playwright test --grep @journey"
