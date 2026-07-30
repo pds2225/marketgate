@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { createAuthRefreshQueue } from './authRefreshQueue.js'
 
 const API_BASE =
   import.meta.env?.VITE_API_URL ||
@@ -14,30 +15,35 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-let _refreshing = false
+const refreshQueue = createAuthRefreshQueue({
+  refreshAccessToken: async () => {
+    const refresh = localStorage.getItem('refresh_token')
+    if (!refresh) throw new Error('no_refresh')
+    const { data } = await axios.post(`${API_BASE}/v1/auth/refresh`, {
+      refresh_token: refresh,
+    })
+    localStorage.setItem('access_token', data.access_token)
+    return data.access_token
+  },
+  onRefreshFailed: () => {
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+    window.dispatchEvent(new Event('auth:logout'))
+  },
+})
 
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config
-    if (error.response?.status === 401 && !original._retry && !_refreshing) {
+    if (error.response?.status === 401 && original && !original._retry) {
       original._retry = true
-      _refreshing = true
       try {
-        const refresh = localStorage.getItem('refresh_token')
-        if (!refresh) throw new Error('no_refresh')
-        const { data } = await axios.post(`${API_BASE}/v1/auth/refresh`, {
-          refresh_token: refresh,
-        })
-        localStorage.setItem('access_token', data.access_token)
-        original.headers.Authorization = `Bearer ${data.access_token}`
-        _refreshing = false
+        const accessToken = await refreshQueue.runSingleFlight()
+        original.headers = original.headers || {}
+        original.headers.Authorization = `Bearer ${accessToken}`
         return api(original)
       } catch {
-        _refreshing = false
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
-        window.dispatchEvent(new Event('auth:logout'))
         return Promise.reject(error)
       }
     }
