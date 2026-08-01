@@ -100,9 +100,13 @@ jobs:
       - name: Wait for protected deployment
         run: |
           node --input-type=module - <<'NODE'
+          // No x-vercel-set-bypass-cookie here, unlike playwright.config.js. That header makes
+          // Vercel answer with a cookie-setting redirect back to the same URL; a browser context
+          // stores the cookie and moves on, but fetch() has no cookie jar and can never satisfy
+          // it, so the request just bounces until the redirect limit. The bypass header alone
+          // authorizes a single request, which is all a healthcheck needs.
           const headers = {
             'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
-            'x-vercel-set-bypass-cookie': 'true',
           }
           const url = new URL('/api/v1/health', process.env.E2E_BASE_URL)
           // redirect: 'manual' keeps Vercel's SSO bounce visible. Following it turns a
