@@ -58,7 +58,12 @@ function App() {
   }
 
   const logout = async () => {
-    try { await api.post('/v1/auth/logout') } catch {}
+    // Send refresh_token so the server can revoke it (L024). Access-only
+    // blacklist leaves a usable refresh that can mint a new session.
+    const refreshToken = localStorage.getItem('refresh_token')
+    try {
+      await api.post('/v1/auth/logout', refreshToken ? { refresh_token: refreshToken } : {})
+    } catch {}
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
     setSessionExpired(false)

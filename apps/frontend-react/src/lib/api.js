@@ -19,11 +19,26 @@ const refreshQueue = createAuthRefreshQueue({
   refreshAccessToken: async () => {
     const refresh = localStorage.getItem('refresh_token')
     if (!refresh) throw new Error('no_refresh')
-    const { data } = await axios.post(`${API_BASE}/v1/auth/refresh`, {
-      refresh_token: refresh,
-    })
-    localStorage.setItem('access_token', data.access_token)
-    return data.access_token
+    try {
+      const { data } = await axios.post(`${API_BASE}/v1/auth/refresh`, {
+        refresh_token: refresh,
+      })
+      localStorage.setItem('access_token', data.access_token)
+      // Server rotates refresh (L024). Without this, the next 401 burns a
+      // blacklisted refresh_token and forces logout.
+      if (data.refresh_token) {
+        localStorage.setItem('refresh_token', data.refresh_token)
+      }
+      return data.access_token
+    } catch (error) {
+      // Another tab may have already rotated; reuse its tokens if present.
+      const latestRefresh = localStorage.getItem('refresh_token')
+      const latestAccess = localStorage.getItem('access_token')
+      if (latestRefresh && latestRefresh !== refresh && latestAccess) {
+        return latestAccess
+      }
+      throw error
+    }
   },
   onRefreshFailed: () => {
     localStorage.removeItem('access_token')
