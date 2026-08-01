@@ -71,7 +71,17 @@ function App() {
   useEffect(() => {
     // api.js 인터셉터가 토큰 재발급 실패 시 발생시키는 이벤트.
     // 사용자가 직접 로그아웃한 게 아니라 세션이 만료돼 강제로 끊긴 경우다.
-    const onLogout = () => { setSessionExpired(true); setAuthed(false); setIsAdmin(false); navigate('landing') }
+    // 결제 콜백 URL은 지우지 않는다 — paymentKey/orderId/amount가 사라지면
+    // 재로그인 후에도 confirm을 호출할 수 없다 (docs/LESSONS.md L023).
+    const onLogout = () => {
+      setSessionExpired(true)
+      setAuthed(false)
+      setIsAdmin(false)
+      const onPaymentCallback =
+        typeof window !== 'undefined' &&
+        window.location.pathname.replace(/\/+$/, '') === '/payment/callback'
+      if (!onPaymentCallback) navigate('landing')
+    }
     window.addEventListener('auth:logout', onLogout)
     return () => window.removeEventListener('auth:logout', onLogout)
   }, [])
