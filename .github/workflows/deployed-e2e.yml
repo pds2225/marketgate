@@ -107,10 +107,19 @@ jobs:
           const url = new URL('/api/v1/health', process.env.E2E_BASE_URL)
           // redirect: 'manual' keeps Vercel's SSO bounce visible. Following it turns a
           // rejected bypass secret into an opaque "not healthy" timeout.
+          // Match on where the redirect points, not its status code: the bounce has been
+          // observed as both 302 and 307 depending on where the request originates.
           const bypassRejected = (response) => {
-            if (response.status === 401) return true
+            if (response.status === 401 || response.status === 403) return true
+            if (response.status < 300 || response.status >= 400) return false
             const location = response.headers.get('location') || ''
-            return response.status >= 300 && response.status < 400 && location.includes('/sso-api')
+            if (!location) return false
+            // A warming app never redirects off its own origin; only protection does.
+            try {
+              return new URL(location, url).origin !== url.origin
+            } catch {
+              return false
+            }
           }
           let last = 'no response'
           for (let attempt = 1; attempt <= 12; attempt += 1) {
@@ -121,7 +130,8 @@ jobs:
                 signal: AbortSignal.timeout(15_000),
               })
               if (response.ok) process.exit(0)
-              last = `HTTP ${response.status}`
+              const location = response.headers.get('location')
+              last = `HTTP ${response.status}${location ? ` -> ${location}` : ''}`
               if (bypassRejected(response)) {
                 throw new Error(
                   `Deployment protection rejected the automation bypass (${last}).\n` +
