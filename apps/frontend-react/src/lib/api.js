@@ -1,11 +1,16 @@
 import axios from 'axios'
 import { createAuthRefreshQueue } from './authRefreshQueue.js'
 
-const API_BASE =
+const CONFIGURED_API_BASE =
   import.meta.env?.VITE_API_URL ||
   import.meta.env?.VITE_API_BASE_URL ||
-  import.meta.env?.VITE_VALUEUP_API_BASE_URL ||
-  (import.meta.env?.DEV ? 'http://localhost:8000' : '/api')
+  import.meta.env?.VITE_VALUEUP_API_BASE_URL
+
+// Vercel deployments must stay same-origin so Preview protection and the
+// server-side /api proxy apply consistently. Direct API URLs are local-dev only.
+const API_BASE = import.meta.env?.DEV
+  ? CONFIGURED_API_BASE || 'http://localhost:8000'
+  : '/api'
 
 const api = axios.create({ baseURL: API_BASE })
 
