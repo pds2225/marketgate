@@ -21,10 +21,22 @@ function buildRunEmail(testInfo) {
 
 async function openAuthScreen(page) {
   const signupButton = page.getByRole('button', { name: '회원가입' })
-  if (!(await signupButton.isVisible())) {
-    await page.getByRole('button', { name: '내 인콰이어리' }).click()
+  if (await signupButton.isVisible()) {
+    return
   }
-  await expect(signupButton).toBeVisible()
+
+  const loginButton = page.getByRole('button', { name: '로그인', exact: true })
+  const inquiryButton = page.getByRole('button', {
+    name: '내 인콰이어리',
+    exact: true,
+  })
+  if (await inquiryButton.isVisible()) {
+    await inquiryButton.click()
+  } else if (await loginButton.isVisible()) {
+    await loginButton.click()
+  }
+
+  await expect(signupButton).toBeVisible({ timeout: 30_000 })
 }
 
 async function returnToLanding(page) {
@@ -251,6 +263,9 @@ test.describe('deployed staging write journey', () => {
       await expect(inquiry).toContainText('검토 대기')
 
       await page.getByRole('button', { name: '로그아웃' }).click()
+      await expect(page.getByRole('button', { name: '로그아웃' })).toBeHidden({
+        timeout: 30_000,
+      })
       await openAuthScreen(page)
       await expect(page.getByRole('button', { name: '로그인 →' })).toBeVisible()
       await page.getByPlaceholder('you@company.com').fill(email)
