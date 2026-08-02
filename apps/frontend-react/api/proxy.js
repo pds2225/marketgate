@@ -76,7 +76,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const text = await upstream.text();
+  const responseBody = Buffer.from(await upstream.arrayBuffer());
   res.status(upstream.status);
   const blockedResponseHeaders = new Set([
     "connection",
@@ -92,10 +92,11 @@ export default async function handler(req, res) {
   ]);
   upstream.headers.forEach((value, key) => {
     const k = key.toLowerCase();
-    // fetch() may decompress the upstream body. Let Vercel recalculate its
-    // framing, and never forward hop-by-hop headers to a different connection.
+    // fetch() may decompress the upstream body. Reframe the completed buffer
+    // below, and never forward hop-by-hop headers to a different connection.
     if (blockedResponseHeaders.has(k)) return;
     res.setHeader(key, value);
   });
-  res.send(text);
+  res.setHeader("content-length", String(responseBody.byteLength));
+  res.end(responseBody);
 }
