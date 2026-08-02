@@ -1,7 +1,5 @@
 # TASKS.md — MarketGate MVP (인콰이어리 E2E)
 
-**상태: ✅ MVP 개발 완료 (2026-08-02 선언)**
-**완료 근거:** 백엔드 전체 pytest **214 passed / 0 failed** (`services/p1-export-fit-api`, .venv Python 3.12, 2026-08-02 실행) + 프론트엔드 `npm run build` 성공 (`apps/frontend-react`) + Active 항목 A-001·M04~M12 전부 완료 체크
 **목표:** 사용자가 HS코드 입력 → 바이어 조회 → 인콰이어리 발송까지 오류 없이 실행 가능한 MVP
 **테스트 경로:** `services/p1-export-fit-api/`
 **실행 명령:** `cd services/p1-export-fit-api && python -m pytest --tb=short -q`
@@ -16,7 +14,7 @@
 - **완료 WBS 14건:** `W-001`, `W-008`~`W-020`
 - **완료 산출물:** 17테이블 DDL·ERD·데이터 사전, Vault Access Broker, Vault 키 레지스트리·회전 경계, PostgreSQL 16 회귀 CI
 - **검증 결과:** Phase 0 스키마 5/5, Vault Broker 7/7, PostgreSQL 16.14에서 `0001→0003`·`pgcrypto`·키 회전·롤백·권한 경계 통과 ([Actions run](https://github.com/pds2225/marketgate/actions/runs/30149928926))
-- **다음 개발 순서(2026-08-02 결정 변경):** 법적·컴플라이언스 관련 개발(`W-003`, `W-021`~`W-024` 등)은 **모든 서비스 기능이 완성된 후로 전면 보류**한다. 그 전까지는 서비스 기능(매칭·슬롯·캠페인·화면 등) 개발을 우선한다.
+- **다음 개발 순서:** `W-003` 컴플라이언스 정책표 → `W-021` Source Rights Registry → `W-022` Legal Basis Ledger → `W-023` Suppression Registry → `W-024` Compliance Decision Engine
 - **운영 배포 조건:** 실제 KMS·Secrets 어댑터가 키 값을 DB 외부에서 주입하도록 연결하고 운영 키·권한을 분리
 - **재검증 보류:** SQL 보안 독립 리뷰 1회
 
