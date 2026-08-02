@@ -134,6 +134,7 @@ test.describe('deployed staging write journey', () => {
       new URL(apiBase).origin,
     ])
     const registerDiagnostics = []
+    const analysisDiagnostics = []
 
     await page.route('**/v1/auth/register', async (route) => {
       const requestUrl = new URL(route.request().url())
@@ -165,6 +166,9 @@ test.describe('deployed staging write journey', () => {
           `requestfailed ${failedUrl.origin}${failedUrl.pathname}: ${failedRequest.failure()?.errorText || 'unknown'}`
         )
       }
+    })
+    page.on('pageerror', (error) => {
+      analysisDiagnostics.push(`pageerror ${error.message}`)
     })
 
     try {
@@ -202,10 +206,45 @@ test.describe('deployed staging write journey', () => {
         page.getByRole('heading', { name: '수출 국가 추천' })
       ).toBeVisible()
       await page.getByPlaceholder('예: 330499').fill('330499')
+      const predictResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname.endsWith('/v1/predict'),
+        { timeout: 60_000 }
+      )
       await page.getByRole('button', { name: '추천 국가 계산' }).click()
+      const predictResponse = await predictResponsePromise
+      const predictPayload = await predictResponse.json()
+      const resultCount = Array.isArray(predictPayload?.data?.results)
+        ? predictPayload.data.results.length
+        : -1
+      analysisDiagnostics.push(
+        `predict ${predictResponse.status()} results=${resultCount}`
+      )
+      expect(
+        predictResponse.status(),
+        `analysis response failed: ${analysisDiagnostics.join(' | ')}`
+      ).toBe(200)
+      expect(
+        resultCount,
+        `analysis returned no recommendations: ${analysisDiagnostics.join(' | ')}`
+      ).toBeGreaterThan(0)
 
       const nextButton = page.getByRole('button', { name: '바이어 선정으로' })
-      await expect(nextButton).toBeEnabled({ timeout: 120_000 })
+      try {
+        await expect(nextButton).toBeEnabled({ timeout: 15_000 })
+      } catch (error) {
+        const visibleAlerts = await page
+          .locator('.analysis-inline-alert:visible')
+          .allTextContents()
+        analysisDiagnostics.push(
+          `alerts=${visibleAlerts.join(' / ') || 'none'}`
+        )
+        throw new Error(
+          `analysis did not update the journey UI: ${analysisDiagnostics.join(' | ')}`,
+          { cause: error }
+        )
+      }
       await nextButton.click()
       await expect(
         page.getByRole('heading', { name: '저품질·저적합 바이어 필터링' })
