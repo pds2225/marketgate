@@ -20,7 +20,9 @@ export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
-  retries: process.env.CI ? 1 : 0,
+  // The write journey already performs explicit cleanup and can take minutes on
+  // the free-tier backend. Surface its first failure instead of repeating writes.
+  retries: writeJourney ? 0 : process.env.CI ? 1 : 0,
   workers: 1,
   timeout: 180_000,
   expect: {
