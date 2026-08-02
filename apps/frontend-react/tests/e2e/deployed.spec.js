@@ -116,6 +116,7 @@ test.describe('deployed staging write journey', () => {
     page,
     request,
   }, testInfo) => {
+    test.setTimeout(420_000)
     const apiBase = String(process.env.E2E_API_BASE_URL || '').replace(/\/+$/, '')
     const adminToken = String(process.env.E2E_ADMIN_TOKEN || '')
     if (!apiBase) throw new Error('E2E_API_BASE_URL is required for write E2E')
@@ -225,7 +226,10 @@ test.describe('deployed staging write journey', () => {
           year: 2023,
           filters: { min_trade_value_usd: 0 },
         },
-        timeout: 45_000,
+        // This call also warms the free Render instance before the browser
+        // exercises the same path through Vercel. Keep the measurement longer
+        // than Render's cold-start CPU window so the log reports real latency.
+        timeout: 180_000,
       })
       const directPredictPayload = await directPredict.json()
       const directResultCount = Array.isArray(
