@@ -1086,7 +1086,7 @@ export default function AnalysisPage({ onBack, preset }) {
 
   const [inquiryBuyer, setInquiryBuyer] = useState(null);
   const [showInquiryModal, setShowInquiryModal] = useState(false);
-  const [inquiryForm, setInquiryForm] = useState({ sender_company: "", sender_name: "", message: "" });
+  const [inquiryForm, setInquiryForm] = useState({ sender_company: "", sender_name: "", sender_email: "", message: "" });
   const [inquiryLoading, setInquiryLoading] = useState(false);
   const [inquiryResult, setInquiryResult] = useState(null);
   const [inquiryError, setInquiryError] = useState("");
@@ -1169,7 +1169,7 @@ export default function AnalysisPage({ onBack, preset }) {
 
   const handleOpenInquiry = (buyer) => {
     setInquiryBuyer(buyer);
-    setInquiryForm({ sender_company: "", sender_name: "", message: "" });
+    setInquiryForm({ sender_company: "", sender_name: "", sender_email: "", message: "" });
     setInquiryResult(null);
     setInquiryError("");
     setCopyStatus("");
@@ -1226,6 +1226,7 @@ export default function AnalysisPage({ onBack, preset }) {
           hs_code: inquiryBuyer.hs_code_norm || hsCode || "",
           sender_company: inquiryForm.sender_company,
           sender_name: inquiryForm.sender_name,
+          sender_email: inquiryForm.sender_email,
           message: inquiryForm.message,
         }),
       });
@@ -1278,6 +1279,7 @@ export default function AnalysisPage({ onBack, preset }) {
           hs_code: inquiryBuyer.hs_code_norm || hsCode || "",
           sender_company: inquiryForm.sender_company.trim(),
           sender_name: inquiryForm.sender_name.trim(),
+          sender_email: inquiryForm.sender_email.trim(),
           message: inquiryForm.message.trim(),
           country: inquiryBuyer.source_target_country_name || inquiryBuyer.country_norm || "",
           match_relevance: inquiryBuyer.match_relevance,
@@ -1706,6 +1708,15 @@ export default function AnalysisPage({ onBack, preset }) {
                           value={inquiryForm.sender_name}
                           onChange={(e) => setInquiryForm((prev) => ({ ...prev, sender_name: e.target.value }))}
                           placeholder="예: 김철수"
+                        />
+                      </label>
+                      <label className="analysis-field" style={{ marginBottom: 12 }}>
+                        <span>회신 받을 이메일 (선택, 초안 본문에 표시)</span>
+                        <input
+                          type="email"
+                          value={inquiryForm.sender_email}
+                          onChange={(e) => setInquiryForm((prev) => ({ ...prev, sender_email: e.target.value }))}
+                          placeholder="예: sales@sample.co.kr"
                         />
                       </label>
                       <label className="analysis-field" style={{ marginBottom: 12 }}>
