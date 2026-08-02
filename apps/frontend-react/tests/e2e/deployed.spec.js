@@ -129,6 +129,43 @@ test.describe('deployed staging write journey', () => {
     let buyerName = ''
     let journeyError = null
     const stagingApi = await requestFactory.newContext({ baseURL: apiBase })
+    const allowedWriteOrigins = new Set([
+      new URL(process.env.E2E_BASE_URL).origin,
+      new URL(apiBase).origin,
+    ])
+    const registerDiagnostics = []
+
+    await page.route('**/v1/auth/register', async (route) => {
+      const requestUrl = new URL(route.request().url())
+      const safeUrl = `${requestUrl.origin}${requestUrl.pathname}`
+      if (!allowedWriteOrigins.has(requestUrl.origin)) {
+        registerDiagnostics.push(`blocked POST ${safeUrl}`)
+        await route.abort('blockedbyclient')
+        return
+      }
+      registerDiagnostics.push(`request POST ${safeUrl}`)
+      await route.continue()
+    })
+    page.on('response', (response) => {
+      if (
+        response.request().method() === 'POST' &&
+        response.url().includes('/v1/auth/register')
+      ) {
+        const responseUrl = new URL(response.url())
+        registerDiagnostics.push(
+          `response ${response.status()} ${responseUrl.origin}${responseUrl.pathname}`
+        )
+        if (response.ok()) accountCreated = true
+      }
+    })
+    page.on('requestfailed', (failedRequest) => {
+      if (failedRequest.url().includes('/v1/auth/register')) {
+        const failedUrl = new URL(failedRequest.url())
+        registerDiagnostics.push(
+          `requestfailed ${failedUrl.origin}${failedUrl.pathname}: ${failedRequest.failure()?.errorText || 'unknown'}`
+        )
+      }
+    })
 
     try {
       const directIdentity = await stagingApi.get('/v1/e2e/identity')
@@ -149,7 +186,14 @@ test.describe('deployed staging write journey', () => {
       await page.getByPlaceholder('you@company.com').fill(email)
       await page.locator('input[type="password"]').fill(password)
       await page.getByRole('button', { name: '계정 생성 →' }).click()
-      await expect(page.getByRole('button', { name: '로그아웃' })).toBeVisible()
+      try {
+        await expect(page.getByRole('button', { name: '로그아웃' })).toBeVisible()
+      } catch (error) {
+        throw new Error(
+          `registration did not establish a session; network: ${registerDiagnostics.join(' | ') || 'no register request observed'}`,
+          { cause: error }
+        )
+      }
       accountCreated = true
 
       await returnToLanding(page)
