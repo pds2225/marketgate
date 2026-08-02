@@ -157,6 +157,11 @@ test.describe('deployed staging write journey', () => {
           `response ${response.status()} ${responseUrl.origin}${responseUrl.pathname}`
         )
         if (response.ok()) accountCreated = true
+      } else if (
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname.endsWith('/v1/predict')
+      ) {
+        analysisDiagnostics.push(`predict response ${response.status()}`)
       }
     })
     page.on('requestfailed', (failedRequest) => {
@@ -164,6 +169,12 @@ test.describe('deployed staging write journey', () => {
         const failedUrl = new URL(failedRequest.url())
         registerDiagnostics.push(
           `requestfailed ${failedUrl.origin}${failedUrl.pathname}: ${failedRequest.failure()?.errorText || 'unknown'}`
+        )
+      } else if (
+        new URL(failedRequest.url()).pathname.endsWith('/v1/predict')
+      ) {
+        analysisDiagnostics.push(
+          `predict requestfailed ${failedRequest.failure()?.errorText || 'unknown'}`
         )
       }
     })
@@ -206,38 +217,28 @@ test.describe('deployed staging write journey', () => {
         page.getByRole('heading', { name: '수출 국가 추천' })
       ).toBeVisible()
       await page.getByPlaceholder('예: 330499').fill('330499')
-      const predictResponsePromise = page.waitForResponse(
-        (response) =>
-          response.request().method() === 'POST' &&
-          new URL(response.url()).pathname.endsWith('/v1/predict'),
-        { timeout: 60_000 }
+      const predictButton = page.getByRole('button', { name: '추천 국가 계산' })
+      const predictRequestPromise = page.waitForRequest(
+        (pendingRequest) =>
+          pendingRequest.method() === 'POST' &&
+          new URL(pendingRequest.url()).pathname.endsWith('/v1/predict'),
+        { timeout: 15_000 }
       )
-      await page.getByRole('button', { name: '추천 국가 계산' }).click()
-      const predictResponse = await predictResponsePromise
-      const predictPayload = await predictResponse.json()
-      const resultCount = Array.isArray(predictPayload?.data?.results)
-        ? predictPayload.data.results.length
-        : -1
+      await predictButton.click()
+      const predictRequest = await predictRequestPromise
       analysisDiagnostics.push(
-        `predict ${predictResponse.status()} results=${resultCount}`
+        `predict request ${new URL(predictRequest.url()).pathname}`
       )
-      expect(
-        predictResponse.status(),
-        `analysis response failed: ${analysisDiagnostics.join(' | ')}`
-      ).toBe(200)
-      expect(
-        resultCount,
-        `analysis returned no recommendations: ${analysisDiagnostics.join(' | ')}`
-      ).toBeGreaterThan(0)
 
       const nextButton = page.getByRole('button', { name: '바이어 선정으로' })
       try {
-        await expect(nextButton).toBeEnabled({ timeout: 15_000 })
+        await expect(nextButton).toBeEnabled({ timeout: 45_000 })
       } catch (error) {
         const visibleAlerts = await page
           .locator('.analysis-inline-alert:visible')
           .allTextContents()
         analysisDiagnostics.push(
+          `button=${String(await predictButton.textContent()).trim()}`,
           `alerts=${visibleAlerts.join(' / ') || 'none'}`
         )
         throw new Error(

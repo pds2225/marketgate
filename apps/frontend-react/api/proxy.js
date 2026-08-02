@@ -78,15 +78,23 @@ export default async function handler(req, res) {
 
   const text = await upstream.text();
   res.status(upstream.status);
+  const blockedResponseHeaders = new Set([
+    "connection",
+    "content-encoding",
+    "content-length",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+  ]);
   upstream.headers.forEach((value, key) => {
     const k = key.toLowerCase();
     // fetch() may decompress the upstream body. Let Vercel recalculate its
-    // length when sending `text`, otherwise large JSON responses can hang.
-    if (
-      k === "content-encoding" ||
-      k === "content-length" ||
-      k === "transfer-encoding"
-    ) return;
+    // framing, and never forward hop-by-hop headers to a different connection.
+    if (blockedResponseHeaders.has(k)) return;
     res.setHeader(key, value);
   });
   res.send(text);
