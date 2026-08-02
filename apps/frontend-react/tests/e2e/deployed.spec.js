@@ -232,14 +232,19 @@ test.describe('deployed staging write journey', () => {
 
       const nextButton = page.getByRole('button', { name: '바이어 선정으로' })
       try {
-        await expect(nextButton).toBeEnabled({ timeout: 45_000 })
+        await expect(nextButton).toBeEnabled({ timeout: 15_000 })
       } catch (error) {
         const visibleAlerts = await page
           .locator('.analysis-inline-alert:visible')
           .allTextContents()
+        const predictButtonText = (await predictButton.count())
+          ? String(await predictButton.first().textContent({ timeout: 1_000 })).trim()
+          : 'missing'
+        const currentUrl = new URL(page.url())
         analysisDiagnostics.push(
-          `button=${String(await predictButton.textContent()).trim()}`,
-          `alerts=${visibleAlerts.join(' / ') || 'none'}`
+          `button=${predictButtonText}`,
+          `alerts=${visibleAlerts.join(' / ') || 'none'}`,
+          `page=${currentUrl.origin}${currentUrl.pathname}`
         )
         throw new Error(
           `analysis did not update the journey UI: ${analysisDiagnostics.join(' | ')}`,
