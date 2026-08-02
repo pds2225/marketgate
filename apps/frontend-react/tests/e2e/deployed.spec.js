@@ -21,8 +21,33 @@ function buildRunEmail(testInfo) {
 
 async function openAuthScreen(page) {
   const signupButton = page.getByRole('button', { name: '회원가입' })
-  if (!(await signupButton.isVisible())) {
-    await page.getByRole('button', { name: '내 인콰이어리' }).click()
+  const inquiryButton = page.getByRole('button', {
+    name: '내 인콰이어리',
+    exact: true,
+  })
+  const loginButton = page.getByRole('button', {
+    name: '로그인',
+    exact: true,
+  })
+
+  let entry = 'none'
+  await expect
+    .poll(
+      async () => {
+        if (await signupButton.isVisible()) entry = 'signup'
+        else if (await inquiryButton.isVisible()) entry = 'inquiries'
+        else if (await loginButton.isVisible()) entry = 'login'
+        else entry = 'none'
+        return entry
+      },
+      { timeout: 20_000 }
+    )
+    .not.toBe('none')
+
+  if (entry === 'inquiries') {
+    await inquiryButton.click()
+  } else if (entry === 'login') {
+    await loginButton.click()
   }
   await expect(signupButton).toBeVisible()
 }
