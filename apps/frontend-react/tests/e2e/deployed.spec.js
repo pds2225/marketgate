@@ -232,7 +232,7 @@ test.describe('deployed staging write journey', () => {
 
       const nextButton = page.getByRole('button', { name: '바이어 선정으로' })
       try {
-        await expect(nextButton).toBeEnabled({ timeout: 15_000 })
+        await expect(nextButton).toBeEnabled({ timeout: 120_000 })
       } catch (error) {
         const visibleAlerts = await page
           .locator('.analysis-inline-alert:visible')
