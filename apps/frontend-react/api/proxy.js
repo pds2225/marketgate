@@ -49,6 +49,9 @@ export default async function handler(req, res) {
   if (incomingCt) headers["content-type"] = incomingCt;
   const incomingAuth = req.headers["authorization"];
   if (incomingAuth) headers["authorization"] = incomingAuth;
+  // Buffering and reframing is deterministic only when the upstream body is
+  // not a long-lived compressed stream (large predict responses hit this path).
+  headers["accept-encoding"] = "identity";
 
   let body;
   if (req.method && !["GET", "HEAD"].includes(req.method)) {
