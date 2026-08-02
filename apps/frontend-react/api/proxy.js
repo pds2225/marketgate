@@ -80,7 +80,13 @@ export default async function handler(req, res) {
   res.status(upstream.status);
   upstream.headers.forEach((value, key) => {
     const k = key.toLowerCase();
-    if (k === "content-encoding" || k === "transfer-encoding") return;
+    // fetch() may decompress the upstream body. Let Vercel recalculate its
+    // length when sending `text`, otherwise large JSON responses can hang.
+    if (
+      k === "content-encoding" ||
+      k === "content-length" ||
+      k === "transfer-encoding"
+    ) return;
     res.setHeader(key, value);
   });
   res.send(text);
