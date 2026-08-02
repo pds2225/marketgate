@@ -13,7 +13,6 @@ const writeJourney = process.env.E2E_WRITE_ENABLED === 'true'
 const extraHTTPHeaders = bypassSecret
   ? {
       'x-vercel-protection-bypass': bypassSecret,
-      'x-vercel-set-bypass-cookie': 'true',
     }
   : {}
 
