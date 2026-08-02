@@ -371,8 +371,11 @@ test.describe('deployed staging write journey', () => {
       await expect(inquiry).toContainText('검토 대기')
 
       await page.getByRole('button', { name: '로그아웃' }).click()
-      await openAuthScreen(page)
-      await expect(page.getByRole('button', { name: '로그인 →' })).toBeVisible()
+      // Logout changes views asynchronously. Waiting for the login form avoids
+      // clicking inquiry controls that can remain visible during the transition.
+      await expect(page.getByRole('button', { name: '로그인 →' })).toBeVisible({
+        timeout: 30_000,
+      })
       await page.getByPlaceholder('you@company.com').fill(email)
       await page.locator('input[type="password"]').fill(password)
       await page.getByRole('button', { name: '로그인 →' }).click()
