@@ -84,6 +84,34 @@ async function openMyInquiries(page) {
   ).toBeVisible()
 }
 
+/** Pin browser API traffic to the isolated E2E backend (prod UI + e2e API). */
+async function pinBrowserApiToIsolated(page, apiBase) {
+  const base = String(apiBase || '').replace(/\/+$/, '')
+  if (!base) throw new Error('E2E_API_BASE_URL is required to pin browser API')
+
+  await page.route('**/*', async (route) => {
+    const req = route.request()
+    const url = new URL(req.url())
+    const path = url.pathname
+    const isSameOriginApi = path.startsWith('/api/v1/')
+    const isDirectV1 =
+      path.startsWith('/v1/') && url.origin.replace(/\/+$/, '') !== base
+    if (!isSameOriginApi && !isDirectV1) {
+      await route.continue()
+      return
+    }
+
+    const upstreamPath = `${path.replace(/^\/api/, '')}${url.search}`
+    const headers = { ...req.headers() }
+    delete headers.host
+
+    await route.continue({
+      url: `${base}${upstreamPath}`,
+      headers,
+    })
+  })
+}
+
 test.describe('deployed production-safe smoke', () => {
   test('@smoke renders the app and reaches the configured API', async ({
     page,
@@ -139,7 +167,6 @@ test.describe('deployed staging write journey', () => {
 
   test('@journey register → analyze → inquiry → re-login → cleanup', async ({
     page,
-    request,
   }, testInfo) => {
     test.setTimeout(420_000)
     const apiBase = String(process.env.E2E_API_BASE_URL || '').replace(/\/+$/, '')
@@ -162,6 +189,10 @@ test.describe('deployed staging write journey', () => {
     const registerDiagnostics = []
     const analysisDiagnostics = []
 
+    // Prod frontend proxies to the real API; pin browser /api (and stray
+    // absolute /v1) calls to the isolated Render E2E backend instead.
+    await pinBrowserApiToIsolated(page, apiBase)
+
     await page.route('**/v1/auth/register', async (route) => {
       const requestUrl = new URL(route.request().url())
       const safeUrl = `${requestUrl.origin}${requestUrl.pathname}`
@@ -171,7 +202,8 @@ test.describe('deployed staging write journey', () => {
         return
       }
       registerDiagnostics.push(`request POST ${safeUrl}`)
-      await route.continue()
+      // Fall through so pinBrowserApiToIsolated rewrites to the isolated API.
+      await route.fallback()
     })
     page.on('response', (response) => {
       if (
@@ -215,13 +247,14 @@ test.describe('deployed staging write journey', () => {
         environment: 'e2e',
       })
 
-      const proxiedIdentity = await request.get('/api/v1/e2e/identity')
-      expect(proxiedIdentity.status()).toBe(200)
-      await expect(proxiedIdentity.json()).resolves.toEqual({
-        environment: 'e2e',
-      })
-
       await page.goto('/', { waitUntil: 'domcontentloaded' })
+      const pinnedIdentity = await page.evaluate(async () => {
+        const response = await fetch('/api/v1/e2e/identity')
+        return { status: response.status, body: await response.json() }
+      })
+      expect(pinnedIdentity.status).toBe(200)
+      expect(pinnedIdentity.body).toEqual({ environment: 'e2e' })
+
       await openAuthScreen(page)
       await page.getByRole('button', { name: '회원가입' }).click()
       await page.getByPlaceholder('you@company.com').fill(email)
