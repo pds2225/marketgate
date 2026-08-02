@@ -211,6 +211,40 @@ test.describe('deployed staging write journey', () => {
       }
       accountCreated = true
 
+      const accessToken = await page.evaluate(() =>
+        localStorage.getItem('access_token')
+      )
+      expect(accessToken, 'registration did not store an access token').toBeTruthy()
+      const directPredictStartedAt = Date.now()
+      const directPredict = await stagingApi.post('/v1/predict', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        data: {
+          hs_code: '330499',
+          exporter_country_iso3: 'KOR',
+          top_n: 5,
+          year: 2023,
+          filters: { min_trade_value_usd: 0 },
+        },
+        timeout: 45_000,
+      })
+      const directPredictPayload = await directPredict.json()
+      const directResultCount = Array.isArray(
+        directPredictPayload?.data?.results
+      )
+        ? directPredictPayload.data.results.length
+        : -1
+      analysisDiagnostics.push(
+        `direct predict ${directPredict.status()} results=${directResultCount} duration=${Date.now() - directPredictStartedAt}ms`
+      )
+      expect(
+        directPredict.status(),
+        `direct E2E API predict failed: ${analysisDiagnostics.join(' | ')}`
+      ).toBe(200)
+      expect(
+        directResultCount,
+        `direct E2E API returned no recommendations: ${analysisDiagnostics.join(' | ')}`
+      ).toBeGreaterThan(0)
+
       await returnToLanding(page)
       await page.getByRole('button', { name: '수출 플로우' }).click()
       await expect(
