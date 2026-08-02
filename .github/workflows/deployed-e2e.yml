@@ -280,14 +280,31 @@ jobs:
             throw new Error('Write E2E API must be the isolated Render backend, not the frontend')
           }
           const identityUrl = new URL('/v1/e2e/identity', process.env.E2E_API_BASE_URL)
-          const identity = await fetch(identityUrl, { signal: AbortSignal.timeout(30_000) })
-          if (!identity.ok) {
-            throw new Error(`Isolated E2E identity check failed: HTTP ${identity.status}`)
+          let body = null
+          let lastError = null
+          for (let attempt = 1; attempt <= 10; attempt += 1) {
+            try {
+              const identity = await fetch(identityUrl, {
+                signal: AbortSignal.timeout(20_000),
+              })
+              if (!identity.ok) {
+                lastError = `HTTP ${identity.status}`
+              } else {
+                body = await identity.json()
+                if (body?.environment === 'e2e') break
+                lastError = `unexpected body ${JSON.stringify(body)}`
+                body = null
+              }
+            } catch (error) {
+              lastError = String(error && error.message ? error.message : error)
+            }
+            if (attempt < 10) {
+              await new Promise((resolve) => setTimeout(resolve, 5000))
+            }
           }
-          const body = await identity.json()
-          if (body?.environment !== 'e2e') {
+          if (!body || body.environment !== 'e2e') {
             throw new Error(
-              `Refusing production write: API environment is ${JSON.stringify(body)}`
+              `Isolated E2E identity check failed after retries: ${lastError}`
             )
           }
           NODE
