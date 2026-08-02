@@ -72,6 +72,15 @@ def test_infer_hs_code_with_score_supports_korean_and_english_keywords() -> None
     assert result["matched_keywords"]
 
 
+def test_infer_hs_code_cache_returns_fresh_keyword_lists() -> None:
+    first = infer_hs_code_with_score("skincare serum")
+    first["matched_keywords"].append("mutated")
+
+    second = infer_hs_code_with_score("skincare serum")
+
+    assert "mutated" not in second["matched_keywords"]
+
+
 def test_enrich_text_signal_fields_builds_keywords_from_title_when_keywords_empty() -> None:
     enriched = enrich_text_signal_fields(
         {

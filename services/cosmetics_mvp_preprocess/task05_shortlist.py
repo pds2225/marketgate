@@ -7,6 +7,7 @@ import re
 import unicodedata
 from enum import Enum
 from datetime import date, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -214,16 +215,21 @@ NON_ALNUM_RE = re.compile(r"[^0-9A-Za-z가-힣]+")
 WHITESPACE_RE = re.compile(r"\s+")
 
 
+@lru_cache(maxsize=32_768)
+def _normalize_text_cached(raw_text: str) -> str:
+    text = unicodedata.normalize("NFKC", raw_text)
+    text = text.replace("\u3000", " ")
+    text = text.replace("\r", " ").replace("\n", " ").replace("\t", " ")
+    text = WHITESPACE_RE.sub(" ", text)
+    return text.strip()
+
+
 def normalize_text(value: Any) -> str:
     if value is None:
         return ""
     if isinstance(value, float) and value != value:
         return ""
-    text = unicodedata.normalize("NFKC", str(value))
-    text = text.replace("\u3000", " ")
-    text = text.replace("\r", " ").replace("\n", " ").replace("\t", " ")
-    text = WHITESPACE_RE.sub(" ", text)
-    return text.strip()
+    return _normalize_text_cached(str(value))
 
 
 def normalize_country(value: Any) -> str:
@@ -292,22 +298,17 @@ def _build_inference_segments(*values: Any) -> list[str]:
     return segments
 
 
-def infer_hs_code_with_score(*values: Any) -> dict[str, Any]:
-    combined = " ".join(normalize_text(value).casefold() for value in values if normalize_text(value))
+@lru_cache(maxsize=16_384)
+def _infer_hs_code_with_score_cached(
+    normalized_values: tuple[str, ...],
+) -> tuple[str, float, tuple[str, ...]]:
+    combined = " ".join(value.casefold() for value in normalized_values if value)
     if not combined:
-        return {
-            "hs_code": "",
-            "match_score": 0.0,
-            "matched_keywords": [],
-        }
-    searchable_segments = _build_inference_segments(*values)
+        return "", 0.0, ()
+    searchable_segments = _build_inference_segments(*normalized_values)
     blocked_keywords = _collect_keyword_matches(searchable_segments, BLOCKED_NON_COSMETICS_KEYWORD_FORMS)
     if blocked_keywords:
-        return {
-            "hs_code": "",
-            "match_score": 0.0,
-            "matched_keywords": [],
-        }
+        return "", 0.0, ()
     best_match = {
         "hs_code": "",
         "match_score": 0.0,
@@ -331,7 +332,29 @@ def infer_hs_code_with_score(*values: Any) -> dict[str, Any]:
         }
         if candidate["match_score"] > best_match["match_score"]:
             best_match = candidate
-    return best_match
+    return (
+        str(best_match["hs_code"]),
+        float(best_match["match_score"]),
+        tuple(str(keyword) for keyword in best_match["matched_keywords"]),
+    )
+
+
+def infer_hs_code_with_score(*values: Any) -> dict[str, Any]:
+    """Infer an HS code without repeating the same text analysis per buyer.
+
+    Scoring evaluates each buyer through several independent gates. Those gates
+    ask for the same deterministic inference multiple times, so cache an
+    immutable representation and return a fresh public result on every call.
+    """
+    normalized_values = tuple(normalize_text(value) for value in values)
+    hs_code, match_score, matched_keywords = _infer_hs_code_with_score_cached(
+        normalized_values
+    )
+    return {
+        "hs_code": hs_code,
+        "match_score": match_score,
+        "matched_keywords": list(matched_keywords),
+    }
 
 
 def _split_keywords(value: Any) -> list[str]:
@@ -346,16 +369,21 @@ def _split_keywords(value: Any) -> list[str]:
     return parts
 
 
-def normalize_keywords(value: Any) -> str:
+@lru_cache(maxsize=16_384)
+def _normalize_keywords_cached(text: str) -> str:
     seen: set[str] = set()
     normalized: list[str] = []
-    for token in _split_keywords(value):
+    for token in _split_keywords(text):
         norm = WHITESPACE_RE.sub(" ", token).casefold()
         if not norm or norm in seen:
             continue
         seen.add(norm)
         normalized.append(norm)
     return " | ".join(normalized)
+
+
+def normalize_keywords(value: Any) -> str:
+    return _normalize_keywords_cached(normalize_text(value))
 
 
 def _keyword_variants(value: Any) -> set[str]:
