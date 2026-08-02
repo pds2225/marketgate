@@ -100,22 +100,58 @@ jobs:
       - name: Wait for protected deployment
         run: |
           node --input-type=module - <<'NODE'
+          // No x-vercel-set-bypass-cookie here, unlike playwright.config.js. That header makes
+          // Vercel answer with a cookie-setting redirect back to the same URL; a browser context
+          // stores the cookie and moves on, but fetch() has no cookie jar and can never satisfy
+          // it, so the request just bounces until the redirect limit. The bypass header alone
+          // authorizes a single request, which is all a healthcheck needs.
           const headers = {
             'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
-            'x-vercel-set-bypass-cookie': 'true',
           }
           const url = new URL('/api/v1/health', process.env.E2E_BASE_URL)
+          // redirect: 'manual' keeps Vercel's SSO bounce visible. Following it turns a
+          // rejected bypass secret into an opaque "not healthy" timeout.
+          // Match on where the redirect points, not its status code: the bounce has been
+          // observed as both 302 and 307 depending on where the request originates.
+          const bypassRejected = (response) => {
+            if (response.status === 401 || response.status === 403) return true
+            if (response.status < 300 || response.status >= 400) return false
+            const location = response.headers.get('location') || ''
+            if (!location) return false
+            // A warming app never redirects off its own origin; only protection does.
+            try {
+              return new URL(location, url).origin !== url.origin
+            } catch {
+              return false
+            }
+          }
+          let last = 'no response'
           for (let attempt = 1; attempt <= 12; attempt += 1) {
             try {
               const response = await fetch(url, {
                 headers,
+                redirect: 'manual',
                 signal: AbortSignal.timeout(15_000),
               })
               if (response.ok) process.exit(0)
-            } catch {}
+              const location = response.headers.get('location')
+              last = `HTTP ${response.status}${location ? ` -> ${location}` : ''}`
+              if (bypassRejected(response)) {
+                throw new Error(
+                  `Deployment protection rejected the automation bypass (${last}).\n` +
+                    'This is a configuration error, not a cold start — retrying cannot fix it.\n' +
+                    'Vercel > Project Settings > Deployment Protection > Protection Bypass for Automation:\n' +
+                    'enable it, copy the secret, then set the GitHub secret VERCEL_AUTOMATION_BYPASS_SECRET to that value.'
+                )
+              }
+            } catch (error) {
+              if (error instanceof Error && error.message.startsWith('Deployment protection')) throw error
+              last = error instanceof Error ? error.message : String(error)
+            }
+            console.log(`[health] attempt ${attempt}/12 -> ${last}`)
             if (attempt < 12) await new Promise((resolve) => setTimeout(resolve, 5000))
           }
-          throw new Error('Preview did not become healthy after 12 attempts')
+          throw new Error(`Preview did not become healthy after 12 attempts (last: ${last})`)
           NODE
 
       - name: Run deployed preview checks
