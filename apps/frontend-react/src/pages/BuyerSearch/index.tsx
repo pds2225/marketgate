@@ -411,24 +411,24 @@ const OpportunityFact: React.FC<{ label: string; value?: string | null }> = ({ l
 );
 
 const OpportunitySignalsBanner: React.FC<{ signals: OpportunitySignal[] }> = ({ signals }) => (
-  <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-5">
+  <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-5">
     <div className="flex items-center justify-between gap-2 mb-2">
-      <h2 className="text-sm font-semibold text-amber-950">구매 신호</h2>
-      <span className="text-[11px] font-medium text-amber-800">{signals.length}건</span>
+      <h2 className="text-sm font-semibold text-slate-900">구매 신호</h2>
+      <span className="text-[11px] font-medium text-blue-800">{signals.length}건</span>
     </div>
-    <p className="text-[11px] text-amber-900/80 mb-3 leading-relaxed">
+    <p className="text-[11px] text-slate-700/80 mb-3 leading-relaxed">
       buyKOREA 인콰이어리 등 <strong>수요 신호</strong>입니다. 연락 가능한 바이어 명단이 아니며, 원본에 있는 필드만 표시합니다.
     </p>
     {signals.length === 0 ? (
-      <p className="text-xs text-amber-900/70">연결된 구매 신호 없음 — 자료 내 확인 불가 또는 현재 조건에 매칭된 신호 없음</p>
+      <p className="text-xs text-slate-700/70">연결된 구매 신호 없음 — 자료 내 확인 불가 또는 현재 조건에 매칭된 신호 없음</p>
     ) : (
       <ul className="space-y-2">
         {signals.map((signal, index) => {
           const keywords = formatKeywords(signal.keywords);
           return (
-            <li key={`${signal.title}-${index}`} className="bg-white/80 border border-amber-100 rounded-lg px-3 py-2.5">
+            <li key={`${signal.title}-${index}`} className="bg-white/80 border border-blue-100 rounded-lg px-3 py-2.5">
               <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px]">{signalTypeLabel(signal.signalType)}</Badge>
+                <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-[10px]">{signalTypeLabel(signal.signalType)}</Badge>
                 <span className="text-[11px] text-slate-600">{signal.countryName || signal.countryIso3 || '국가 미상'}</span>
                 {signal.scoringApplied ? (
                   <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px]">점수 반영됨</Badge>
