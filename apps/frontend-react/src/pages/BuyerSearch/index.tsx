@@ -113,8 +113,8 @@ function buildBuyerReportText(buyer: Buyer): string {
 const CATEGORIES: CategoryData[] = [
   { label: 'K-뷰티', hsCode: '330499', hsLabel: '스킨케어', icon: <Sparkles className="h-4 w-4" />, countries: [], buyers: [] },
   { label: '건강식품', hsCode: '210690', hsLabel: '건강기능식품', icon: <Stethoscope className="h-4 w-4" />, countries: [], buyers: [] },
-  { label: 'K-패션', hsCode: '6203', hsLabel: '여성 의류', icon: <Shirt className="h-4 w-4" />, countries: [], buyers: [] },
-  { label: '반도체', hsCode: '8541', hsLabel: '반도체 소자', icon: <Cpu className="h-4 w-4" />, countries: [], buyers: [] },
+  { label: 'K-패션', hsCode: '620343', hsLabel: '여성 의류', icon: <Shirt className="h-4 w-4" />, countries: [], buyers: [] },
+  { label: '반도체', hsCode: '854140', hsLabel: '반도체 소자', icon: <Cpu className="h-4 w-4" />, countries: [], buyers: [] },
 ];
 
 /* ── Reusable small components ── */
@@ -848,7 +848,14 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
 
       const buyersData = res.data?.data?.buyers;
       if (!buyersData || buyersData.status !== 'ok' || !buyersData.items?.length) {
-        const emptyErr: any = new Error('현재 조건에 맞는 바이어를 찾지 못했습니다.');
+        // 서버는 왜 비었는지를 diagnostics.coverage_message 로 알려준다. 이걸 버리고
+        // "바이어를 찾지 못했습니다"만 보여주면 정반대 함의가 전달된다 —
+        // 무역 데이터 미보유인데 사용자는 "이 품목은 수요가 없구나"로 읽는다.
+        const coverage = res.data?.data?.diagnostics?.coverage_message;
+        const emptyErr: any = new Error(
+          (typeof coverage === 'string' && coverage.trim()) ||
+            '현재 조건에 맞는 바이어를 찾지 못했습니다.'
+        );
         emptyErr.errorKind = 'empty';
         throw emptyErr;
       }
@@ -882,13 +889,23 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
       if (kind === 'input') {
         msg = err.message;
       } else if (kind === 'empty') {
-        msg = '현재 조건에 맞는 바이어를 찾지 못했습니다.';
+        // 위에서 서버의 coverage_message 를 담아 던졌으므로 그대로 쓴다.
+        msg = err.message || '현재 조건에 맞는 바이어를 찾지 못했습니다.';
       } else if (err.code === 'ECONNABORTED' || /timeout/i.test(err.message || '')) {
         msg = '분석 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.';
       } else if (status && status >= 500) {
         msg = '바이어 분석 서버에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.';
       } else if (status) {
-        msg = err.response?.data?.detail || '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+        // FastAPI 검증 실패(422)의 detail 은 문자열이 아니라 객체 배열이다.
+        // 그대로 넣으면 화면에 아무것도 렌더되지 않아 "눌렀는데 반응이 없는" 상태가 된다.
+        const detail = err.response?.data?.detail;
+        const detailText =
+          typeof detail === 'string'
+            ? detail
+            : Array.isArray(detail)
+              ? detail.map((d: any) => d?.msg).filter(Boolean).join(' / ')
+              : '';
+        msg = detailText || '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
       } else {
         // No response at all → backend down / network error.
         msg = '서버에 연결하지 못했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.';
@@ -1007,8 +1024,14 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
                 <span className="font-bold">MarketGate</span>
               </button>
             )}
-            <span className="text-xs font-bold text-slate-400 tracking-wider">HS {selectedBuyer?.hsCode || categoryData?.hsCode || inputHsCode || '—'}</span>
-            <span className="text-xs text-slate-500">({selectedBuyer?.hsLabel || categoryData?.hsLabel || '스킨케어'})</span>
+            {/* inputHsCode 는 사용자가 친 검색어라 "반도체" 같은 키워드가 들어온다.
+                HS 자리에 그대로 넣으면 키워드가 코드인 것처럼 보인다.
+                라벨도 '스킨케어' 로 하드코딩돼 있어, 다른 품목을 검색했는데
+                스킨케어라고 표시되는 문제가 있었다. 둘 다 모르면 표시하지 않는다. */}
+            <span className="text-xs font-bold text-slate-400 tracking-wider">HS {selectedBuyer?.hsCode || categoryData?.hsCode || '—'}</span>
+            {(selectedBuyer?.hsLabel || categoryData?.hsLabel) && (
+              <span className="text-xs text-slate-500">({selectedBuyer?.hsLabel || categoryData?.hsLabel})</span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {onOpenFormMode && (
