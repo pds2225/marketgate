@@ -18,9 +18,21 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
   }, [])
 
   useEffect(() => {
-    api.get('/v1/demo/summary')
-      .then(r => setDataStats({ total: r.data?.total, countryCount: r.data?.countryCount }))
-      .catch(() => setDataStats(null))
+    // 유휴 상태의 백엔드는 첫 요청에 40초 이상 걸린다(실측). 상한이 없으면 응답이
+    // 끊겨도 '—' 가 영구히 남으므로, 상한을 두고 응답 없는 실패만 1회 재시도한다.
+    let alive = true
+    const fetchSummary = () => api.get('/v1/demo/summary', { timeout: 90_000 })
+    fetchSummary()
+      .catch((err) => (err?.response ? Promise.reject(err) : fetchSummary()))
+      .then((r) => {
+        if (alive) setDataStats({ total: r.data?.total, countryCount: r.data?.countryCount })
+      })
+      .catch(() => {
+        if (alive) setDataStats(null)
+      })
+    return () => {
+      alive = false
+    }
   }, [])
 
   const submit = async (e) => {
