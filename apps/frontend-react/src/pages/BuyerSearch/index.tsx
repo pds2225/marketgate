@@ -754,8 +754,37 @@ interface BuyerSearchPageProps {
   onOpenFormMode?: (preset: { hsCode: string }) => void;
 }
 
-// 콜드 스타트 여유를 둔 상한. 초과하면 무한 로딩 대신 재시도 가능한 오류 화면을 보여준다.
-const SEARCH_TIMEOUT_MS = 60_000;
+// 백엔드(Render)가 유휴 상태에서 깨어나는 데 실측 40초 이상 걸린다. 여기에 predict 자체
+// 소요(실측 5~9초)를 더해 상한을 잡는다. 초과 시 무한 로딩 대신 재시도 가능한 오류 화면.
+const SEARCH_TIMEOUT_MS = 90_000;
+// 콜드 스타트 구간에서 "멈춘 것 아님"을 알려주는 시점.
+const SLOW_NOTICE_MS = 8_000;
+
+/** 응답 자체가 없는 실패(콜드 스타트 중 끊김·타임아웃)인지. 4xx/5xx 는 재시도 대상이 아니다. */
+function isTransportFailure(err: any) {
+  if (err?.response) return false;
+  return err?.code === 'ECONNABORTED' || err?.code === 'ERR_NETWORK' || !!err?.request;
+}
+
+/**
+ * predict 호출. 유휴 상태의 백엔드가 깨어나는 첫 요청은 연결이 끊기거나 상한을 넘길 수 있어
+ * 응답 없는 실패에 한해 1회만 재시도한다. 4xx/5xx 는 그대로 던져 원인별 안내를 유지한다.
+ */
+async function requestPredict(hsCode: string) {
+  const payload = {
+    hs_code: hsCode,
+    exporter_country_iso3: 'KOR',
+    top_n: 5,
+    year: 2023,
+    filters: { min_trade_value_usd: 0 },
+  };
+  try {
+    return await api.post('/v1/predict', payload, { timeout: SEARCH_TIMEOUT_MS });
+  } catch (err) {
+    if (!isTransportFailure(err)) throw err;
+    return await api.post('/v1/predict', payload, { timeout: SEARCH_TIMEOUT_MS });
+  }
+}
 
 export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearchPageProps) {
   const [currentCategory, setCurrentCategory] = useState<string>('');
@@ -773,6 +802,8 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
   // 랜딩에서 sessionStorage(mg_search_query)로 넘긴 검색어 — 마운트 시 1회 소비·자동 검색
   const [seedQuery, setSeedQuery] = useState('');
   const [opportunitySignals, setOpportunitySignals] = useState<OpportunitySignal[]>([]);
+  // 콜드 스타트로 응답이 늦어질 때만 켜지는 부가 안내.
+  const [slowNotice, setSlowNotice] = useState(false);
 
   const categoryData = useMemo(() => dynamicCategory || CATEGORIES.find((c) => c.label === currentCategory), [dynamicCategory, currentCategory]);
   // 바이어별 수입실적 데이터가 원본에 없어 MOQ 기반 바이어 필터링은 제공하지 않는다.
@@ -784,8 +815,10 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
     setInputHsCode(text);
     setLastQuery(text);
     setLoading(true);
+    setSlowNotice(false);
     setSearchError(null);
     setSearchErrorKind(null);
+    const slowTimer = window.setTimeout(() => setSlowNotice(true), SLOW_NOTICE_MS);
 
     try {
       let hsCode = text.trim();
@@ -805,17 +838,7 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
 
       // 공용 api 클라이언트에는 timeout 이 없어 요청이 멈추면 로딩 오버레이가 영구히 남는다.
       // 이 화면에서만 상한을 두고, 초과 시 아래 catch 에서 재시도 가능한 오류로 처리한다.
-      const res = await api.post(
-        '/v1/predict',
-        {
-          hs_code: hsCode,
-          exporter_country_iso3: 'KOR',
-          top_n: 5,
-          year: 2023,
-          filters: { min_trade_value_usd: 0 },
-        },
-        { timeout: SEARCH_TIMEOUT_MS },
-      );
+      const res = await requestPredict(hsCode);
 
       const buyersData = res.data?.data?.buyers;
       if (!buyersData || buyersData.status !== 'ok' || !buyersData.items?.length) {
@@ -875,9 +898,17 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
       setSearchErrorKind(kind);
       toast.error(msg);
     } finally {
+      window.clearTimeout(slowTimer);
+      setSlowNotice(false);
       setLoading(false);
     }
   };
+
+  // 유휴 상태의 백엔드는 첫 요청에서 40초 이상 걸린다. 화면 진입 즉시 health 를 한 번 두드려
+  // 사용자가 검색어를 입력하는 동안 미리 깨워 둔다(실패는 무시 — 검색 자체에 영향 없음).
+  useEffect(() => {
+    api.get('/v1/health', { timeout: SEARCH_TIMEOUT_MS }).catch(() => {});
+  }, []);
 
   // 랜딩 히어로/칩에서 넘긴 mg_search_query 를 1회 읽어 자동 검색한다.
   useEffect(() => {
@@ -984,7 +1015,14 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
         <SearchBar onSearch={handleSearch} activeCategory={currentCategory} loading={loading} initialQuery={seedQuery} />
       </header>
       <div className="flex-1 overflow-hidden relative">
-        {loading && <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center"><Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-3" /><p className="text-sm text-slate-600">바이어 데이터를 분석 중입니다...</p><p className="text-xs text-slate-400 mt-1">KOTRA 포함 글로벌 데이터 분석 중</p></div>}
+        {loading && (
+          <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center" data-testid="buyer-search-loading">
+            <Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-3" />
+            <p className="text-sm text-slate-600">바이어 데이터를 분석 중입니다...</p>
+            <p className="text-xs text-slate-400 mt-1">KOTRA 포함 글로벌 데이터 분석 중</p>
+            {slowNotice && <p className="text-xs text-slate-400 mt-2">분석 서버를 깨우는 중입니다 — 첫 검색은 최대 1분까지 걸릴 수 있어요.</p>}
+          </div>
+        )}
         {renderRightPanel()}
       </div>
       <ExportConditionPanel open={showConditionPanel} onClose={() => setShowConditionPanel(false)} conditions={conditions} onChange={setConditions} onApply={handleApplyConditions} onReset={handleResetConditions} />
