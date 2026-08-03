@@ -124,11 +124,15 @@ test.describe('payment callback session recovery', () => {
       expect(urlAfterLogout.searchParams.get('orderId')).toBe(orderId)
       expect(urlAfterLogout.searchParams.get('amount')).toBe('20000')
 
+      // 재로그인 이후의 confirm 만 세려면 기준점이 필요하다.
+      //
+      // 여기서 "재로그인 전에 confirm 이 401 을 받았다"는 단언은 하지 않는다.
+      // 마운트 시 /v1/credits/balance 와 /v1/auth/me 도 함께 나가는데, 이들이
+      // 먼저 401 을 받아 로그아웃을 유발하면 PaymentCallbackPage 가 언마운트되며
+      // confirm 이 아예 나가지 않는다. 어느 요청이 먼저 도착하는지는 서버 지연에
+      // 따라 달라져(로컬은 즉시, CI 는 원격) 단언으로 삼을 성질이 아니다.
+      // 검증하려는 것은 "끊긴 뒤 재로그인하면 승인이 이어지는가"이므로 아래로 충분하다.
       const beforeRelogin = confirmStatuses.length
-      expect(
-        confirmStatuses.slice(0, beforeRelogin),
-        'expired session should have produced 401 on confirm'
-      ).toContain(401)
 
       // 3) 재로그인
       await page.locator('.auth-input').first().fill(email)
