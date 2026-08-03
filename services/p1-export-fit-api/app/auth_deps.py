@@ -62,7 +62,7 @@ def create_refresh_token(user_id: str) -> str:
     )
 
 
-def _decode_token(token: str, expected_type: str) -> dict:
+def _decode_token(token: str, expected_type: str, *, check_blacklist: bool = True) -> dict:
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
     except jwt.ExpiredSignatureError:
@@ -72,7 +72,7 @@ def _decode_token(token: str, expected_type: str) -> dict:
 
     if payload.get("type") != expected_type:
         raise HTTPException(status_code=401, detail="invalid_token")
-    if is_blacklisted(payload.get("jti", "")):
+    if check_blacklist and is_blacklisted(payload.get("jti", "")):
         raise HTTPException(status_code=401, detail="token_revoked")
     return payload
 
@@ -92,6 +92,11 @@ def get_current_user(payload: dict = Depends(get_token_payload)) -> dict:
 
 def decode_refresh(token: str) -> dict:
     return _decode_token(token, "refresh")
+
+
+def decode_refresh_claims(token: str) -> dict:
+    """Validate signature/exp/type only — caller must consume_jti atomically."""
+    return _decode_token(token, "refresh", check_blacklist=False)
 
 
 ADMIN_ACCESS_LOG_PATH = os.path.join(
