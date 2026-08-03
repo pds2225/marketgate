@@ -74,9 +74,12 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
 
+        /* 색상은 랜딩(App.css --landing-*)과 동일한 팔레트를 쓴다.
+           blue #1463f3 / blue-dark #0b4ed1 / navy #07152f / muted #59677d
+           line #dbe3ef / pale #f2f7ff */
         .auth-root {
           min-height: 100vh;
-          background: #0c0a09;
+          background: #ffffff;
           display: grid;
           grid-template-columns: 1fr 420px;
           position: relative;
@@ -95,10 +98,10 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
           flex-direction: column;
           justify-content: space-between;
           padding: 40px 48px;
-          border-right: 1px solid rgba(245,158,11,0.08);
+          border-right: 1px solid #dbe3ef;
           background:
-            radial-gradient(ellipse 70% 50% at 30% 30%, rgba(245,158,11,0.06) 0%, transparent 60%),
-            #0c0a09;
+            radial-gradient(ellipse 70% 50% at 30% 30%, rgba(20,99,243,0.08) 0%, transparent 60%),
+            #f2f7ff;
           overflow: hidden;
         }
         .auth-left::after {
@@ -106,8 +109,8 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
           position: absolute;
           inset: 0;
           background-image:
-            linear-gradient(rgba(245,158,11,0.025) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(245,158,11,0.025) 1px, transparent 1px);
+            linear-gradient(rgba(20,99,243,0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(20,99,243,0.05) 1px, transparent 1px);
           background-size: 48px 48px;
           pointer-events: none;
         }
@@ -119,13 +122,13 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
           font-family: 'Bebas Neue', sans-serif;
           font-size: 1.5rem;
           letter-spacing: 0.12em;
-          color: #f59e0b;
+          color: #1463f3;
         }
         .auth-brand-sub {
           font-family: 'DM Mono', monospace;
           font-size: 0.6rem;
           letter-spacing: 0.15em;
-          color: #44403c;
+          color: #59677d;
           text-transform: uppercase;
           margin-top: 4px;
         }
@@ -137,17 +140,17 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
           font-family: 'Bebas Neue', sans-serif;
           font-size: clamp(3rem, 5vw, 5.5rem);
           line-height: 0.9;
-          color: #fafaf9;
+          color: #07152f;
           margin-bottom: 20px;
         }
         .auth-hero-title em {
-          color: #f59e0b;
+          color: #1463f3;
           font-style: normal;
           display: block;
         }
         .auth-hero-desc {
           font-size: 0.82rem;
-          color: #57534e;
+          color: #59677d;
           font-weight: 300;
           line-height: 1.8;
           max-width: 320px;
@@ -161,21 +164,21 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
         .auth-stat-val {
           font-family: 'DM Mono', monospace;
           font-size: 1.4rem;
-          color: #f59e0b;
+          color: #1463f3;
           font-weight: 500;
         }
         .auth-stat-lbl {
           font-family: 'DM Mono', monospace;
           font-size: 0.6rem;
           letter-spacing: 0.1em;
-          color: #44403c;
+          color: #59677d;
           text-transform: uppercase;
           margin-top: 2px;
         }
 
         /* RIGHT PANEL */
         .auth-right {
-          background: #0f0d0b;
+          background: #ffffff;
           display: flex;
           flex-direction: column;
           justify-content: center;
@@ -186,7 +189,7 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
           display: flex;
           gap: 0;
           margin-bottom: 40px;
-          border-bottom: 1px solid rgba(255,255,255,0.05);
+          border-bottom: 1px solid #dbe3ef;
         }
         .auth-mode-btn {
           background: none;
@@ -198,12 +201,12 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
           letter-spacing: 0.12em;
           text-transform: uppercase;
           cursor: pointer;
-          color: #44403c;
+          color: #59677d;
           border-bottom: 2px solid transparent;
           margin-bottom: -1px;
           transition: color 0.2s, border-color 0.2s;
         }
-        .auth-mode-btn.active { color: #f59e0b; border-bottom-color: #f59e0b; }
+        .auth-mode-btn.active { color: #1463f3; border-bottom-color: #1463f3; }
 
         .auth-form { display: flex; flex-direction: column; gap: 20px; }
 
@@ -213,17 +216,17 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
           font-size: 0.62rem;
           letter-spacing: 0.12em;
           text-transform: uppercase;
-          color: #57534e;
+          color: #59677d;
           transition: color 0.2s;
         }
-        .auth-field:focus-within .auth-label { color: #f59e0b; }
+        .auth-field:focus-within .auth-label { color: #1463f3; }
 
         .auth-input {
           width: 100%;
-          background: #141210;
-          border: 1px solid rgba(255,255,255,0.06);
+          background: #ffffff;
+          border: 1px solid #dbe3ef;
           border-radius: 3px;
-          color: #e7e5e4;
+          color: #07152f;
           padding: 12px 14px;
           font-family: 'DM Mono', monospace;
           font-size: 0.82rem;
@@ -232,16 +235,17 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
           box-sizing: border-box;
         }
         .auth-input:focus {
-          border-color: rgba(245,158,11,0.4);
-          background: #1a1714;
+          border-color: #1463f3;
+          background: #f2f7ff;
         }
+        .auth-input::placeholder { color: #8fa0b8; }
 
         .auth-error {
           font-family: 'DM Mono', monospace;
           font-size: 0.68rem;
-          color: #fca5a5;
-          background: rgba(239,68,68,0.06);
-          border: 1px solid rgba(239,68,68,0.15);
+          color: #b91c1c;
+          background: #fef2f2;
+          border: 1px solid #fecaca;
           padding: 10px 12px;
           border-radius: 3px;
           letter-spacing: 0.04em;
@@ -251,9 +255,9 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
           font-family: 'DM Mono', monospace;
           font-size: 0.68rem;
           line-height: 1.6;
-          color: #fcd34d;
-          background: rgba(245,158,11,0.07);
-          border: 1px solid rgba(245,158,11,0.22);
+          color: #0b4ed1;
+          background: #f2f7ff;
+          border: 1px solid #bfd6ff;
           padding: 12px 14px;
           border-radius: 3px;
           letter-spacing: 0.03em;
@@ -263,10 +267,10 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
         .auth-submit {
           width: 100%;
           padding: 13px;
-          background: #f59e0b;
+          background: #1463f3;
           border: none;
           border-radius: 3px;
-          color: #0c0a09;
+          color: #ffffff;
           cursor: pointer;
           font-family: 'DM Mono', monospace;
           font-size: 0.72rem;
@@ -284,9 +288,9 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
           width: 100%;
           padding: 12px;
           background: transparent;
-          border: 1px solid rgba(255,255,255,0.06);
+          border: 1px solid #dbe3ef;
           border-radius: 3px;
-          color: #44403c;
+          color: #59677d;
           cursor: pointer;
           font-family: 'DM Mono', monospace;
           font-size: 0.68rem;
@@ -295,13 +299,13 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
           transition: border-color 0.2s, color 0.2s;
           margin-top: 4px;
         }
-        .auth-guest:hover { border-color: rgba(255,255,255,0.12); color: #78716c; }
+        .auth-guest:hover { border-color: #1463f3; color: #0b4ed1; }
 
         .auth-divider {
           display: flex;
           align-items: center;
           gap: 12px;
-          color: #292524;
+          color: #8fa0b8;
           font-family: 'DM Mono', monospace;
           font-size: 0.6rem;
           letter-spacing: 0.1em;
@@ -310,7 +314,7 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
           content: '';
           flex: 1;
           height: 1px;
-          background: rgba(255,255,255,0.04);
+          background: #dbe3ef;
         }
 
         .auth-panel {
