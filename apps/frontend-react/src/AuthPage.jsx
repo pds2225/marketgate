@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
 import api from './lib/api'
 
-export default function AuthPage({ onSuccess, sessionExpired = false }) {
+// duringPayment: 결제 콜백에서 세션이 끊긴 경우. 돈이 이미 나간 직후라
+// 일반 만료 문구는 결제가 날아간 것으로 읽힌다. 실제로는 URL 의 paymentKey 가
+// 보존돼 재로그인 후 승인이 이어지므로(App.jsx onLogout), 그 사실을 알린다.
+export default function AuthPage({ onSuccess, sessionExpired = false, duringPayment = false }) {
   const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -364,7 +367,9 @@ export default function AuthPage({ onSuccess, sessionExpired = false }) {
           <div className={`auth-panel ${visible ? 'in' : ''}`}>
             {sessionExpired && (
               <div className="auth-notice" role="status">
-                보안을 위해 로그인 세션이 만료되었습니다. 작업을 이어가려면 다시 로그인해 주세요.
+                {duringPayment
+                  ? '결제를 마치고 돌아오는 사이 로그인 세션이 만료되었습니다. 결제는 취소되지 않았습니다 — 다시 로그인하시면 결제 결과를 이어서 확인합니다.'
+                  : '보안을 위해 로그인 세션이 만료되었습니다. 작업을 이어가려면 다시 로그인해 주세요.'}
               </div>
             )}
             <div className="auth-mode-row">

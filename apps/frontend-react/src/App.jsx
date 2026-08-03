@@ -120,6 +120,7 @@ function App() {
     return (
       <AuthPage
         sessionExpired={sessionExpired}
+        duringPayment={page === 'paymentCallback'}
         onSuccess={() => { setSessionExpired(false); setAuthed(true) }}
       />
     )
