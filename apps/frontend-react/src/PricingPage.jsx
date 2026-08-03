@@ -14,7 +14,7 @@ const PLANS = [
     price: 0,
     priceLabel: '무료',
     tag: '시작하기',
-    color: '#a8a29e',
+    color: '#59677d',
     features: [
       { text: '수출국 탐색', ok: true },
       { text: 'BEP·수익성 계산', ok: true },
@@ -30,7 +30,7 @@ const PLANS = [
     price: 29000,
     priceLabel: '29,000',
     tag: '인기',
-    color: '#f59e0b',
+    color: '#1463f3',
     features: [
       { text: '수출국 탐색', ok: true },
       { text: 'BEP·수익성 계산', ok: true },
@@ -46,7 +46,7 @@ const PLANS = [
     price: 79000,
     priceLabel: '79,000',
     tag: '전체 기능',
-    color: '#e2e8f0',
+    color: '#07152f',
     features: [
       { text: '수출국 탐색', ok: true },
       { text: 'BEP·수익성 계산', ok: true },
@@ -140,8 +140,8 @@ export default function PricingPage({ onBack }) {
 
         .pg-root {
           min-height: 100vh;
-          background: #0c0a09;
-          color: #e7e5e4;
+          background: #f7f9fc;
+          color: #07152f;
           font-family: 'DM Sans', sans-serif;
           overflow-x: hidden;
           position: relative;
@@ -151,8 +151,8 @@ export default function PricingPage({ onBack }) {
           position: fixed;
           inset: 0;
           background:
-            radial-gradient(ellipse 60% 40% at 80% 10%, rgba(245,158,11,0.07) 0%, transparent 60%),
-            radial-gradient(ellipse 40% 60% at 10% 80%, rgba(245,158,11,0.04) 0%, transparent 50%);
+            radial-gradient(ellipse 60% 40% at 80% 10%, rgba(20,99,243,0.07) 0%, transparent 60%),
+            radial-gradient(ellipse 40% 60% at 10% 80%, rgba(20,99,243,0.04) 0%, transparent 50%);
           pointer-events: none;
           z-index: 0;
         }
@@ -160,8 +160,8 @@ export default function PricingPage({ onBack }) {
           position: fixed;
           inset: 0;
           background-image:
-            linear-gradient(rgba(245,158,11,0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(245,158,11,0.03) 1px, transparent 1px);
+            linear-gradient(rgba(20,99,243,0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(20,99,243,0.03) 1px, transparent 1px);
           background-size: 60px 60px;
           pointer-events: none;
           z-index: 0;
@@ -190,8 +190,8 @@ export default function PricingPage({ onBack }) {
           align-items: center;
           gap: 8px;
           background: none;
-          border: 1px solid rgba(245,158,11,0.2);
-          color: #a8a29e;
+          border: 1px solid rgba(20,99,243,0.2);
+          color: #59677d;
           border-radius: 4px;
           padding: 7px 14px;
           cursor: pointer;
@@ -200,11 +200,11 @@ export default function PricingPage({ onBack }) {
           letter-spacing: 0.05em;
           transition: border-color 0.2s, color 0.2s;
         }
-        .pg-back:hover { border-color: #f59e0b; color: #f59e0b; }
+        .pg-back:hover { border-color: #1463f3; color: #1463f3; }
         .pg-nav-tag {
           font-family: 'DM Mono', monospace;
           font-size: 0.7rem;
-          color: #57534e;
+          color: #59677d;
           letter-spacing: 0.12em;
         }
 
@@ -220,7 +220,7 @@ export default function PricingPage({ onBack }) {
           font-family: 'DM Mono', monospace;
           font-size: 0.7rem;
           letter-spacing: 0.2em;
-          color: #f59e0b;
+          color: #1463f3;
           margin-bottom: 16px;
           text-transform: uppercase;
         }
@@ -229,13 +229,13 @@ export default function PricingPage({ onBack }) {
           font-size: clamp(3.5rem, 8vw, 7rem);
           line-height: 0.92;
           letter-spacing: 0.02em;
-          color: #fafaf9;
+          color: #07152f;
           margin: 0 0 24px;
         }
-        .pg-title span { color: #f59e0b; }
+        .pg-title span { color: #1463f3; }
         .pg-subtitle {
           font-size: 0.9rem;
-          color: #78716c;
+          color: #59677d;
           font-weight: 300;
           max-width: 400px;
           line-height: 1.7;
@@ -246,7 +246,7 @@ export default function PricingPage({ onBack }) {
           font-family: 'DM Mono', monospace;
           font-size: 0.65rem;
           letter-spacing: 0.18em;
-          color: #57534e;
+          color: #59677d;
           text-transform: uppercase;
           margin-bottom: 20px;
           display: flex;
@@ -257,7 +257,7 @@ export default function PricingPage({ onBack }) {
           content: '';
           flex: 1;
           height: 1px;
-          background: rgba(245,158,11,0.1);
+          background: rgba(20,99,243,0.1);
         }
 
         .pg-plans {
@@ -272,8 +272,8 @@ export default function PricingPage({ onBack }) {
         .pg-plans.in { opacity: 1; transform: translateY(0); }
 
         .plan-card {
-          background: #141210;
-          border: 1px solid rgba(255,255,255,0.06);
+          background: #ffffff;
+          border: 1px solid #dbe3ef;
           padding: 32px 28px 28px;
           cursor: pointer;
           transition: border-color 0.25s, background 0.25s;
@@ -291,8 +291,8 @@ export default function PricingPage({ onBack }) {
           transition: transform 0.35s ease;
         }
         .plan-card:hover::before, .plan-card.active::before { transform: scaleX(1); }
-        .plan-card:hover { border-color: rgba(255,255,255,0.12); background: #1a1714; }
-        .plan-card.featured { background: #16130f; border-color: rgba(245,158,11,0.18); }
+        .plan-card:hover { border-color: #dbe3ef; background: #f2f7ff; }
+        .plan-card.featured { background: #f2f7ff; border-color: rgba(20,99,243,0.18); }
 
         .plan-tag {
           font-family: 'DM Mono', monospace;
@@ -306,7 +306,7 @@ export default function PricingPage({ onBack }) {
           font-family: 'Bebas Neue', sans-serif;
           font-size: 2.2rem;
           letter-spacing: 0.05em;
-          color: #fafaf9;
+          color: #07152f;
           line-height: 1;
           margin-bottom: 6px;
         }
@@ -325,14 +325,14 @@ export default function PricingPage({ onBack }) {
         .plan-unit {
           font-family: 'DM Mono', monospace;
           font-size: 0.72rem;
-          color: #57534e;
+          color: #59677d;
         }
 
         .plan-features {
           list-style: none;
           padding: 0;
           margin: 0 0 28px;
-          border-top: 1px solid rgba(255,255,255,0.05);
+          border-top: 1px solid #dbe3ef;
           padding-top: 20px;
         }
         .plan-feature {
@@ -340,16 +340,16 @@ export default function PricingPage({ onBack }) {
           align-items: center;
           gap: 10px;
           font-size: 0.8rem;
-          color: #78716c;
+          color: #59677d;
           padding: 5px 0;
           font-weight: 300;
         }
-        .plan-feature.ok { color: #d6d3d1; }
+        .plan-feature.ok { color: #3d4d69; }
         .feat-dot {
           width: 6px; height: 6px;
           border-radius: 50%;
           flex-shrink: 0;
-          background: #292524;
+          background: #dbe3ef;
         }
         .plan-feature.ok .feat-dot { background: var(--accent); }
 
@@ -367,10 +367,10 @@ export default function PricingPage({ onBack }) {
           text-transform: uppercase;
           transition: background 0.2s, color 0.2s;
         }
-        .plan-btn:hover { background: var(--accent); color: #0c0a09; }
+        .plan-btn:hover { background: var(--accent); color: #ffffff; }
         .plan-btn:disabled { opacity: 0.35; cursor: default; }
-        .plan-btn.free { border-color: #292524; color: #44403c; cursor: default; }
-        .plan-btn.free:hover { background: transparent; color: #44403c; }
+        .plan-btn.free { border-color: #dbe3ef; color: #8fa0b8; cursor: default; }
+        .plan-btn.free:hover { background: transparent; color: #8fa0b8; }
 
         /* CREDITS */
         .pg-credits {
@@ -388,17 +388,17 @@ export default function PricingPage({ onBack }) {
         }
 
         .credit-card {
-          background: #141210;
-          border: 1px solid rgba(255,255,255,0.06);
+          background: #ffffff;
+          border: 1px solid #dbe3ef;
           padding: 28px;
           position: relative;
           transition: border-color 0.25s, background 0.25s;
           cursor: pointer;
         }
-        .credit-card:hover { background: #1a1714; border-color: rgba(245,158,11,0.15); }
+        .credit-card:hover { background: #f2f7ff; border-color: rgba(20,99,243,0.15); }
         .credit-card.best-val {
-          border-color: rgba(245,158,11,0.25);
-          background: #16130f;
+          border-color: rgba(20,99,243,0.25);
+          background: #f2f7ff;
         }
         .best-badge {
           position: absolute;
@@ -406,8 +406,8 @@ export default function PricingPage({ onBack }) {
           font-family: 'DM Mono', monospace;
           font-size: 0.58rem;
           letter-spacing: 0.1em;
-          background: #f59e0b;
-          color: #0c0a09;
+          background: #1463f3;
+          color: #ffffff;
           padding: 3px 8px;
           border-radius: 2px;
           text-transform: uppercase;
@@ -417,13 +417,13 @@ export default function PricingPage({ onBack }) {
           font-family: 'Bebas Neue', sans-serif;
           font-size: 3.5rem;
           line-height: 1;
-          color: #fafaf9;
+          color: #07152f;
           margin-bottom: 4px;
         }
         .credit-sub {
           font-family: 'DM Mono', monospace;
           font-size: 0.65rem;
-          color: #57534e;
+          color: #59677d;
           letter-spacing: 0.1em;
           text-transform: uppercase;
           margin-bottom: 20px;
@@ -431,22 +431,22 @@ export default function PricingPage({ onBack }) {
         .credit-price {
           font-family: 'DM Mono', monospace;
           font-size: 1.2rem;
-          color: #f59e0b;
+          color: #1463f3;
           margin-bottom: 4px;
         }
         .credit-price::before { content: '₩ '; font-size: 0.75rem; }
         .credit-per {
           font-family: 'DM Mono', monospace;
           font-size: 0.65rem;
-          color: #44403c;
+          color: #8fa0b8;
           margin-bottom: 22px;
         }
         .credit-btn {
           width: 100%;
           padding: 10px;
           background: transparent;
-          border: 1px solid rgba(245,158,11,0.25);
-          color: #f59e0b;
+          border: 1px solid rgba(20,99,243,0.25);
+          color: #1463f3;
           border-radius: 3px;
           cursor: pointer;
           font-family: 'DM Mono', monospace;
@@ -455,14 +455,14 @@ export default function PricingPage({ onBack }) {
           text-transform: uppercase;
           transition: background 0.2s, color 0.2s, border-color 0.2s;
         }
-        .credit-btn:hover { background: #f59e0b; color: #0c0a09; border-color: #f59e0b; }
+        .credit-btn:hover { background: #1463f3; color: #ffffff; border-color: #1463f3; }
         .credit-btn:disabled { opacity: 0.35; cursor: default; }
 
         /* ERROR */
         .pg-error {
-          background: rgba(239,68,68,0.08);
-          border: 1px solid rgba(239,68,68,0.2);
-          color: #fca5a5;
+          background: #fef2f2;
+          border: 1px solid #fef2f2;
+          color: #b91c1c;
           border-radius: 4px;
           padding: 12px 16px;
           font-family: 'DM Mono', monospace;
@@ -475,8 +475,8 @@ export default function PricingPage({ onBack }) {
           display: flex;
           gap: 32px;
           padding: 16px 0;
-          border-top: 1px solid rgba(255,255,255,0.04);
-          border-bottom: 1px solid rgba(255,255,255,0.04);
+          border-top: 1px solid #dbe3ef;
+          border-bottom: 1px solid #dbe3ef;
           margin-bottom: 56px;
           overflow: hidden;
         }
@@ -487,10 +487,10 @@ export default function PricingPage({ onBack }) {
           flex-shrink: 0;
           font-family: 'DM Mono', monospace;
           font-size: 0.7rem;
-          color: #44403c;
+          color: #8fa0b8;
           letter-spacing: 0.06em;
         }
-        .ticker-item span { color: #f59e0b; }
+        .ticker-item span { color: #1463f3; }
 
         @media (max-width: 768px) {
           .pg-plans { grid-template-columns: 1fr; }
@@ -585,7 +585,7 @@ export default function PricingPage({ onBack }) {
 
           <div className={`pg-credits ${visible ? 'in' : ''}`}>
             <div className="pg-section-label">크레딧 충전 · 1회 구매</div>
-            <p style={{ fontSize: 12, color: '#a8a29e', margin: '0 0 14px' }}>
+            <p style={{ fontSize: 12, color: '#59677d', margin: '0 0 14px' }}>
               연락처 열람 {creditConfig.unlockCost}C/건 · 패키지·단가는 creditConfig에서 변경
             </p>
             <div className="credit-grid">
