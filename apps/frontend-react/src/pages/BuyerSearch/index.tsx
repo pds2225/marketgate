@@ -752,6 +752,9 @@ interface BuyerSearchPageProps {
   onClose?: () => void;
 }
 
+// 콜드 스타트 여유를 둔 상한. 초과하면 무한 로딩 대신 재시도 가능한 오류 화면을 보여준다.
+const SEARCH_TIMEOUT_MS = 60_000;
+
 export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
   const [currentCategory, setCurrentCategory] = useState<string>('');
   const [step, setStep] = useState<Step>('countries');
@@ -798,13 +801,19 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
         throw inputErr;
       }
 
-      const res = await api.post('/v1/predict', {
-        hs_code: hsCode,
-        exporter_country_iso3: 'KOR',
-        top_n: 5,
-        year: 2023,
-        filters: { min_trade_value_usd: 0 },
-      });
+      // 공용 api 클라이언트에는 timeout 이 없어 요청이 멈추면 로딩 오버레이가 영구히 남는다.
+      // 이 화면에서만 상한을 두고, 초과 시 아래 catch 에서 재시도 가능한 오류로 처리한다.
+      const res = await api.post(
+        '/v1/predict',
+        {
+          hs_code: hsCode,
+          exporter_country_iso3: 'KOR',
+          top_n: 5,
+          year: 2023,
+          filters: { min_trade_value_usd: 0 },
+        },
+        { timeout: SEARCH_TIMEOUT_MS },
+      );
 
       const buyersData = res.data?.data?.buyers;
       if (!buyersData || buyersData.status !== 'ok' || !buyersData.items?.length) {
@@ -843,6 +852,8 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
         msg = err.message;
       } else if (kind === 'empty') {
         msg = '현재 조건에 맞는 바이어를 찾지 못했습니다.';
+      } else if (err.code === 'ECONNABORTED' || /timeout/i.test(err.message || '')) {
+        msg = '분석 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.';
       } else if (status && status >= 500) {
         msg = '바이어 분석 서버에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.';
       } else if (status) {
@@ -957,12 +968,12 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
             <span className="text-xs font-bold text-slate-400 tracking-wider">HS {selectedBuyer?.hsCode || categoryData?.hsCode || inputHsCode || '—'}</span>
             <span className="text-xs text-slate-500">({selectedBuyer?.hsLabel || categoryData?.hsLabel || '스킨케어'})</span>
           </div>
-          <div className="flex items-center gap-2"><Button variant="outline" size="sm" className="h-7 text-xs gap-1.5"><LayoutGrid className="h-3.5 w-3.5" />품 모드</Button></div>
+          <div className="flex items-center gap-2"><Button variant="outline" size="sm" className="h-7 text-xs gap-1.5"><LayoutGrid className="h-3.5 w-3.5" />폼 모드</Button></div>
         </div>
         <SearchBar onSearch={handleSearch} activeCategory={currentCategory} loading={loading} initialQuery={seedQuery} />
       </header>
       <div className="flex-1 overflow-hidden relative">
-        {loading && <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center"><Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-3" /><p className="text-sm text-slate-600">바이어 데이터를 분석 중입니다...</p><p className="text-xs text-slate-400 mt-1">KOTRA 공공데이터 CSV 기반 분석 중</p></div>}
+        {loading && <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center"><Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-3" /><p className="text-sm text-slate-600">바이어 데이터를 분석 중입니다...</p><p className="text-xs text-slate-400 mt-1">KOTRA 포함 글로벌 데이터 분석 중</p></div>}
         {renderRightPanel()}
       </div>
       <ExportConditionPanel open={showConditionPanel} onClose={() => setShowConditionPanel(false)} conditions={conditions} onChange={setConditions} onApply={handleApplyConditions} onReset={handleResetConditions} />

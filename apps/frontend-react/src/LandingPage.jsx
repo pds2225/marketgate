@@ -183,7 +183,7 @@ export default function LandingPage({
             className="landing-nav-link"
             onClick={() => onStartOpportunities?.()}
           >
-            구매신호 탐색
+            해외 수요 찾기
           </button>
           <button
             className="landing-nav-link"
