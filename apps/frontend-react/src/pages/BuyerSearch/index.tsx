@@ -750,12 +750,14 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
 /* ================================================================== */
 interface BuyerSearchPageProps {
   onClose?: () => void;
+  /** 폼 모드(AnalysisPage)로 전환. 현재 화면의 HS 코드를 preset 으로 넘긴다. */
+  onOpenFormMode?: (preset: { hsCode: string }) => void;
 }
 
 // 콜드 스타트 여유를 둔 상한. 초과하면 무한 로딩 대신 재시도 가능한 오류 화면을 보여준다.
 const SEARCH_TIMEOUT_MS = 60_000;
 
-export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
+export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearchPageProps) {
   const [currentCategory, setCurrentCategory] = useState<string>('');
   const [step, setStep] = useState<Step>('countries');
   const [selectedCountry, setSelectedCountry] = useState<CountryRec | null>(null);
@@ -902,6 +904,9 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
     toast.info('수익성 시뮬레이션을 확인했습니다', { description: '바이어 목록은 필터링 없이 전체 실데이터를 표시합니다.' });
   };
   const handleResetConditions = () => {};
+  // 폼 모드로 넘길 HS 코드 — 6자리 숫자일 때만 전달한다(카테고리명은 AnalysisPage 가 파싱하지 못함).
+  const rawHsCode = selectedBuyer?.hsCode || categoryData?.hsCode || inputHsCode.trim();
+  const formModeHsCode = /^\d{6}$/.test(rawHsCode) ? rawHsCode : '';
 
   const renderRightPanel = () => {
     if (!categoryData) return (
@@ -968,7 +973,13 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
             <span className="text-xs font-bold text-slate-400 tracking-wider">HS {selectedBuyer?.hsCode || categoryData?.hsCode || inputHsCode || '—'}</span>
             <span className="text-xs text-slate-500">({selectedBuyer?.hsLabel || categoryData?.hsLabel || '스킨케어'})</span>
           </div>
-          <div className="flex items-center gap-2"><Button variant="outline" size="sm" className="h-7 text-xs gap-1.5"><LayoutGrid className="h-3.5 w-3.5" />폼 모드</Button></div>
+          <div className="flex items-center gap-2">
+            {onOpenFormMode && (
+              <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={() => onOpenFormMode({ hsCode: formModeHsCode })}>
+                <LayoutGrid className="h-3.5 w-3.5" />폼 모드
+              </Button>
+            )}
+          </div>
         </div>
         <SearchBar onSearch={handleSearch} activeCategory={currentCategory} loading={loading} initialQuery={seedQuery} />
       </header>

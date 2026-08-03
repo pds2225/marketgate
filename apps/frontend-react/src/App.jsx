@@ -190,7 +190,11 @@ function App() {
 
       {page === 'buyerSearch' && (
         <main className="app-detail-page app-detail-page--buyer-search">
-          <BuyerSearchPage onClose={() => navigate('landing')} onBalanceRefresh={refreshBalance} />
+          <BuyerSearchPage
+            onClose={() => navigate('landing')}
+            onOpenFormMode={(preset) => navigate('analysis', preset)}
+            onBalanceRefresh={refreshBalance}
+          />
         </main>
       )}
 
