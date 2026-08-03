@@ -778,11 +778,17 @@ async function requestPredict(hsCode: string) {
     year: 2023,
     filters: { min_trade_value_usd: 0 },
   };
+  // SEARCH_TIMEOUT_MS 는 재시도를 포함한 전체 상한이다. 시도마다 상한을 새로 주면
+  // 최악 180초가 되어 화면에 안내한 시간과 어긋나므로, 마감시각을 한 번만 정하고
+  // 재시도에는 남은 시간만 준다. 남은 시간이 없으면 첫 오류를 그대로 던진다.
+  const deadline = Date.now() + SEARCH_TIMEOUT_MS;
   try {
     return await api.post('/v1/predict', payload, { timeout: SEARCH_TIMEOUT_MS });
   } catch (err) {
     if (!isTransportFailure(err)) throw err;
-    return await api.post('/v1/predict', payload, { timeout: SEARCH_TIMEOUT_MS });
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw err;
+    return await api.post('/v1/predict', payload, { timeout: remaining });
   }
 }
 
@@ -1020,7 +1026,7 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
             <Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-3" />
             <p className="text-sm text-slate-600">바이어 데이터를 분석 중입니다...</p>
             <p className="text-xs text-slate-400 mt-1">KOTRA 포함 글로벌 데이터 분석 중</p>
-            {slowNotice && <p className="text-xs text-slate-400 mt-2">분석 서버를 깨우는 중입니다 — 첫 검색은 최대 1분까지 걸릴 수 있어요.</p>}
+            {slowNotice && <p className="text-xs text-slate-400 mt-2">분석 서버를 깨우는 중입니다 — 첫 검색은 최대 1분 30초까지 걸릴 수 있어요.</p>}
           </div>
         )}
         {renderRightPanel()}

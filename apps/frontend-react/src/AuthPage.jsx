@@ -24,9 +24,16 @@ export default function AuthPage({ onSuccess, sessionExpired = false, duringPaym
     // 유휴 상태의 백엔드는 첫 요청에 40초 이상 걸린다(실측). 상한이 없으면 응답이
     // 끊겨도 '—' 가 영구히 남으므로, 상한을 두고 응답 없는 실패만 1회 재시도한다.
     let alive = true
-    const fetchSummary = () => api.get('/v1/demo/summary', { timeout: 90_000 })
-    fetchSummary()
-      .catch((err) => (err?.response ? Promise.reject(err) : fetchSummary()))
+    // 90초는 재시도를 포함한 전체 상한이다. 시도마다 새로 주면 최악 180초가 되므로
+    // 마감시각을 한 번만 정하고 재시도에는 남은 시간만 준다.
+    const deadline = Date.now() + 90_000
+    const fetchSummary = (timeout) => api.get('/v1/demo/summary', { timeout })
+    fetchSummary(90_000)
+      .catch((err) => {
+        const remaining = deadline - Date.now()
+        if (err?.response || remaining <= 0) return Promise.reject(err)
+        return fetchSummary(remaining)
+      })
       .then((r) => {
         if (alive) setDataStats({ total: r.data?.total, countryCount: r.data?.countryCount })
       })
