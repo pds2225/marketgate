@@ -202,11 +202,11 @@ function App() {
       )}
 
       {page === 'analysis' && (
-        <main className="app-detail-page"><AnalysisPage onBack={() => navigate('landing')} preset={chatPreset} /></main>
+        <main className="app-detail-page"><AnalysisPage onBack={() => navigate('landing')} preset={chatPreset} onBalanceRefresh={refreshBalance} /></main>
       )}
 
       {page === 'exportFlow' && (
-        <main className="app-detail-page"><ExportFlowPage onBack={() => navigate('landing')} /></main>
+        <main className="app-detail-page"><ExportFlowPage onBack={() => navigate('landing')} onBalanceRefresh={refreshBalance} /></main>
       )}
 
       {page === 'pricing' && (

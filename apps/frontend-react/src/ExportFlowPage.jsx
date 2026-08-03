@@ -357,7 +357,7 @@ async function requestReadiness(analysis, recommendation) {
 }
 
 /* ── DispatchRequestModal — 인콰이어리 발송 요청 (draft → review_required) ── */
-function DispatchRequestModal({ buyer, hsCode, onClose }) {
+function DispatchRequestModal({ buyer, hsCode, onClose, onBalanceRefresh }) {
   const [senderCompany, setSenderCompany] = useState("");
   const [senderName, setSenderName] = useState("");
   const [message, setMessage] = useState("");
@@ -409,6 +409,7 @@ function DispatchRequestModal({ buyer, hsCode, onClose }) {
       setSubmitted(true);
       try {
         await api.post("/v1/credits/deduct", { action: "contact_send" });
+        if (onBalanceRefresh) await onBalanceRefresh();
       } catch {
         /* 큐 접수는 유지 */
       }
@@ -818,7 +819,7 @@ function PurchaseOrderGenerator({ selectedBuyer, simulationParams, hsCode, onRes
 }
 
 /* ── ExportFlowPage ── */
-export default function ExportFlowPage({ onBack }) {
+export default function ExportFlowPage({ onBack, onBalanceRefresh }) {
   const [step, setStep] = useState(1);
   const totalSteps = 4;
 
@@ -1316,6 +1317,7 @@ export default function ExportFlowPage({ onBack }) {
                     buyer={dispatchBuyer}
                     hsCode={hsCode}
                     onClose={() => setDispatchBuyer(null)}
+                    onBalanceRefresh={onBalanceRefresh}
                   />
                 )}
               </AnimatePresence>

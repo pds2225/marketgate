@@ -1,11 +1,12 @@
 # REQUEST_LEDGER — MarketGate 요청 원장
 
-> 최종 갱신: 2026-08-01 (Cursor transcripts + Claude Code + Codex 반영)
+> 최종 갱신: 2026-08-03 (A-MVP CTA 확인 + A-005 잔액 갱신)
 
 ## 이번에 시킨 것
 
 | # | 요청 | 상태 | 지금 상태 |
 |---|------|------|-----------|
+| 8 | A-기술 MVP 랜딩 CTA 착수 | ⭕ | CTA→analysis/exportFlow/buyerSearch 연결 확인 완료. A-005 deduct 후 헤더 잔액 칩 갱신 패치 |
 | 1 | d이어 (이전 작업 이어가기) | 🔶 | 체크포인트 읽고 요약까지 됨. stash 정리 vs A-기술 MVP 중 선택·실행은 아직 |
 | 2 | 백그라운드 검색/git 결과 짧게 알려달라 (여러 번) | ⭕ | 매번 짧게 안내함 |
 | 3 | MarketGate 체크포인트 | ⭕ | RESUME 기준 완료/남은일 요약 제시함 |

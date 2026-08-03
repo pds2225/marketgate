@@ -1075,7 +1075,7 @@ function ConfidenceNotice({ recommendation }) {
   );
 }
 
-export default function AnalysisPage({ onBack, preset }) {
+export default function AnalysisPage({ onBack, preset, onBalanceRefresh }) {
   const [hsCode, setHsCode] = useState("330499");
   const [topN, setTopN] = useState(5);
   const [year, setYear] = useState(2023);
@@ -1295,6 +1295,7 @@ export default function AnalysisPage({ onBack, preset }) {
       setCopyStatus("발송 검토 요청이 접수되었습니다. 관리자 승인 후 발송됩니다.");
       try {
         await api.post("/v1/credits/deduct", { action: "contact_send" });
+        if (onBalanceRefresh) await onBalanceRefresh();
       } catch {
         /* 잔액 부족이어도 큐 접수는 유지 */
       }
