@@ -78,7 +78,7 @@ export default function OpportunityExplorePage({ onBack, preset }) {
           </button>
           <div>
             <p className="analysis-kicker">Purchase Signals</p>
-            <h1>구매신호 전체 탐색</h1>
+            <h1>해외 수요 전체 보기</h1>
           </div>
         </div>
         <div className="analysis-header-status">

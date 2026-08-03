@@ -120,6 +120,7 @@ function App() {
     return (
       <AuthPage
         sessionExpired={sessionExpired}
+        duringPayment={page === 'paymentCallback'}
         onSuccess={() => { setSessionExpired(false); setAuthed(true) }}
       />
     )
@@ -135,7 +136,7 @@ function App() {
           <nav className="app-global-nav" aria-label="주요 메뉴">
             {[
               { label: '내 인콰이어리', page: 'myInquiries' },
-              { label: '구매신호 탐색', page: 'opportunities' },
+              { label: '해외 수요 찾기', page: 'opportunities' },
               { label: '국가·바이어 비교', page: 'compare' },
               { label: '요금제', page: 'pricing' },
               { label: '시뮬레이션', page: 'simulation' },
@@ -190,7 +191,11 @@ function App() {
 
       {page === 'buyerSearch' && (
         <main className="app-detail-page app-detail-page--buyer-search">
-          <BuyerSearchPage onClose={() => navigate('landing')} onBalanceRefresh={refreshBalance} />
+          <BuyerSearchPage
+            onClose={() => navigate('landing')}
+            onOpenFormMode={(preset) => navigate('analysis', preset)}
+            onBalanceRefresh={refreshBalance}
+          />
         </main>
       )}
 

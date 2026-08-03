@@ -17,8 +17,9 @@ import {
   Cpu,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { resolveProductToHs } from "./lib/hsKeywordMap";
+import api from "./lib/api";
 
 function persistSearchQuery(value) {
   const q = String(value ?? "").trim();
@@ -124,6 +125,15 @@ export default function LandingPage({
 }) {
   const [query, setQuery] = useState("");
 
+  // 유휴 상태의 백엔드는 첫 요청에 40초 이상 걸린다(프로덕션 실측 43.8초, 웜 0.67초).
+  // 바이어 검색 화면에서도 깨우지만, 그 화면에 닿기까지의 시간만큼 늦다.
+  // 랜딩은 모든 방문자의 첫 화면이므로 여기서 깨워 두면 가장 이르다.
+  // 검색으로 이어지지 않아도 손해가 없는 단발 GET 이고, 실패는 무시한다
+  // (워밍은 부가 조치이고 실제 안전망은 검색 화면의 상한·재시도다).
+  useEffect(() => {
+    api.get("/v1/health", { timeout: 90_000 }).catch(() => {});
+  }, []);
+
   // 검색-우선 메인: 제품명/HS코드를 입력하면 바이어 검색 흐름을 연다.
   // 입력값은 sessionStorage에 남겨 이후 검색 화면이 프리필로 활용할 수 있게 한다(없어도 동작).
   const handleSearch = (e) => {
@@ -183,7 +193,7 @@ export default function LandingPage({
             className="landing-nav-link"
             onClick={() => onStartOpportunities?.()}
           >
-            구매신호 탐색
+            해외 수요 찾기
           </button>
           <button
             className="landing-nav-link"
