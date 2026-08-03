@@ -96,8 +96,8 @@ export default function OpportunityExplorePage({ onBack, preset }) {
                 type="button"
                 className="ui-button ui-button--ghost"
                 style={{
-                  borderColor: hs === c.hs || String(hs).startsWith(c.hs) ? 'rgba(245,158,11,0.5)' : undefined,
-                  color: hs === c.hs || String(hs).startsWith(c.hs) ? '#f59e0b' : undefined,
+                  borderColor: hs === c.hs || String(hs).startsWith(c.hs) ? 'rgba(20,99,243,0.5)' : undefined,
+                  color: hs === c.hs || String(hs).startsWith(c.hs) ? '#1463f3' : undefined,
                 }}
                 onClick={() => applyCategory(c.hs)}
               >
