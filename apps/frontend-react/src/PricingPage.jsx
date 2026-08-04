@@ -136,7 +136,6 @@ export default function PricingPage({ onBack }) {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
 
         .pg-root {
           min-height: 100vh;

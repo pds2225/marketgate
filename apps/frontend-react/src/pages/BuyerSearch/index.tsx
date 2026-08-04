@@ -110,11 +110,14 @@ function buildBuyerReportText(buyer: Buyer): string {
 
 // 카테고리 정의 (검색 진입용). 바이어 목록은 항상 API 실데이터로만 채운다 —
 // 가상의 예시 바이어(하드코딩 목업)는 데이터 정책 위반이라 제거했다.
+// 무역 데이터 커버리지는 현재 화장품(3304xx)에만 있다. 나머지 품목은 predict 가
+// HS_NOT_IN_TRADE_COVERAGE / HS_NOT_SUPPORTED 로 응답해 국가 추천이 나오지 않는다.
+// 정의는 남겨 두고 노출만 막는다 — 데이터가 들어오면 inCoverage 만 켜면 된다.
 const CATEGORIES: CategoryData[] = [
   { label: 'K-뷰티', hsCode: '330499', hsLabel: '스킨케어', icon: <Sparkles className="h-4 w-4" />, countries: [], buyers: [] },
   { label: '건강식품', hsCode: '210690', hsLabel: '건강기능식품', icon: <Stethoscope className="h-4 w-4" />, countries: [], buyers: [] },
-  { label: 'K-패션', hsCode: '6203', hsLabel: '여성 의류', icon: <Shirt className="h-4 w-4" />, countries: [], buyers: [] },
-  { label: '반도체', hsCode: '8541', hsLabel: '반도체 소자', icon: <Cpu className="h-4 w-4" />, countries: [], buyers: [] },
+  { label: 'K-패션', hsCode: '620343', hsLabel: '여성 의류', icon: <Shirt className="h-4 w-4" />, countries: [], buyers: [] },
+  { label: '반도체', hsCode: '854140', hsLabel: '반도체 소자', icon: <Cpu className="h-4 w-4" />, countries: [], buyers: [] },
 ];
 
 /* ── Reusable small components ── */
@@ -276,7 +279,15 @@ const ExportConditionPanel: React.FC<{ open: boolean; onClose: () => void; condi
 };
 
 /* ── SearchBar ── */
-const SUGGESTED_KEYWORDS = ['스킨케어', '홍삼', '여성의류', '메모리 반도체'];
+// 커버리지 보유 품목(3304xx)만 노출한다. 홍삼·여성의류·메모리 반도체는
+// 눌러도 "데이터 미보유" 안내만 나와 추천처럼 보이면 안 된다.
+const SUGGESTED_KEYWORDS = ['스킨케어', '세럼', '화장품'];
+
+/** 무역 데이터 커버리지를 보유해 실제로 국가 추천이 나오는 품목 */
+const COVERED_HS_PREFIXES = ['3304'];
+const VISIBLE_CATEGORIES = CATEGORIES.filter((c) =>
+  COVERED_HS_PREFIXES.some((prefix) => c.hsCode.startsWith(prefix))
+);
 const SearchBar: React.FC<{ onSearch: (text: string) => void; activeCategory: string; loading: boolean; initialQuery?: string; }> = ({ onSearch, activeCategory, loading, initialQuery = '' }) => {
   const [input, setInput] = useState(initialQuery);
   useEffect(() => {
@@ -302,7 +313,7 @@ const SearchBar: React.FC<{ onSearch: (text: string) => void; activeCategory: st
         </div>
         <div className="flex flex-wrap items-center gap-2 mt-3">
           <span className="text-[11px] text-slate-400 mr-1">카테고리</span>
-          {CATEGORIES.map((cat) => (
+          {VISIBLE_CATEGORIES.map((cat) => (
             <button key={cat.label} onClick={() => !loading && onSearch(cat.label)} disabled={loading} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50 ${activeCategory === cat.label ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'}`}>{cat.icon} {cat.label}</button>
           ))}
         </div>
@@ -837,7 +848,7 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
       } else if (sixDigit) {
         hsCode = sixDigit[1];
       } else if (!/^\d{6}$/.test(hsCode)) {
-        const inputErr: any = new Error('HS 코드는 6자리 숫자이거나, K-뷰티/건강식품/K-패션/반도체 중 하나를 입력해 주세요.');
+        const inputErr: any = new Error('HS 코드는 6자리 숫자이거나, K-뷰티 관련 키워드(스킨케어·세럼·화장품 등)를 입력해 주세요.');
         inputErr.errorKind = 'input';
         throw inputErr;
       }
@@ -848,7 +859,14 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
 
       const buyersData = res.data?.data?.buyers;
       if (!buyersData || buyersData.status !== 'ok' || !buyersData.items?.length) {
-        const emptyErr: any = new Error('현재 조건에 맞는 바이어를 찾지 못했습니다.');
+        // 서버는 왜 비었는지를 diagnostics.coverage_message 로 알려준다. 이걸 버리고
+        // "바이어를 찾지 못했습니다"만 보여주면 정반대 함의가 전달된다 —
+        // 무역 데이터 미보유인데 사용자는 "이 품목은 수요가 없구나"로 읽는다.
+        const coverage = res.data?.data?.diagnostics?.coverage_message;
+        const emptyErr: any = new Error(
+          (typeof coverage === 'string' && coverage.trim()) ||
+            '현재 조건에 맞는 바이어를 찾지 못했습니다.'
+        );
         emptyErr.errorKind = 'empty';
         throw emptyErr;
       }
@@ -882,13 +900,23 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
       if (kind === 'input') {
         msg = err.message;
       } else if (kind === 'empty') {
-        msg = '현재 조건에 맞는 바이어를 찾지 못했습니다.';
+        // 위에서 서버의 coverage_message 를 담아 던졌으므로 그대로 쓴다.
+        msg = err.message || '현재 조건에 맞는 바이어를 찾지 못했습니다.';
       } else if (err.code === 'ECONNABORTED' || /timeout/i.test(err.message || '')) {
         msg = '분석 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.';
       } else if (status && status >= 500) {
         msg = '바이어 분석 서버에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.';
       } else if (status) {
-        msg = err.response?.data?.detail || '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+        // FastAPI 검증 실패(422)의 detail 은 문자열이 아니라 객체 배열이다.
+        // 그대로 넣으면 화면에 아무것도 렌더되지 않아 "눌렀는데 반응이 없는" 상태가 된다.
+        const detail = err.response?.data?.detail;
+        const detailText =
+          typeof detail === 'string'
+            ? detail
+            : Array.isArray(detail)
+              ? detail.map((d: any) => d?.msg).filter(Boolean).join(' / ')
+              : '';
+        msg = detailText || '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
       } else {
         // No response at all → backend down / network error.
         msg = '서버에 연결하지 못했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.';
@@ -971,20 +999,20 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
             <>
               <Database className="h-12 w-12 mb-4 text-slate-200" />
               <p className="text-sm text-slate-600">{searchError}</p>
-              <p className="text-xs mt-1">다른 키워드나 HS코드로 다시 검색해 보세요 (예: 스킨케어, 홍삼, 여성의류, 반도체)</p>
+              <p className="text-xs mt-1">다른 키워드나 HS코드로 다시 검색해 보세요 (예: 스킨케어, 세럼, 330499)</p>
             </>
           ) : (
             <>
               <AlertCircle className="h-12 w-12 mb-4 text-amber-300" />
               <p className="text-sm text-amber-600">{searchError}</p>
-              <p className="text-xs mt-1">검색어를 바꿔 다시 시도해 보세요 (예: 스킨케어, 홍삼, 여성의류, 반도체)</p>
+              <p className="text-xs mt-1">검색어를 바꿔 다시 시도해 보세요 (예: 스킨케어, 세럼, 330499)</p>
             </>
           )
         ) : (
           <>
             <Search className="h-12 w-12 mb-4 text-slate-200" />
             <p className="text-sm">위 검색바에 제품 키워드나 HS코드를 입력해 바이어를 찾아보세요</p>
-            <p className="text-xs mt-1">예: 스킨케어, 홍삼, 여성의류, 반도체</p>
+            <p className="text-xs mt-1">예: 스킨케어, 세럼, 330499</p>
           </>
         )}
       </div>
@@ -1007,8 +1035,14 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
                 <span className="font-bold">MarketGate</span>
               </button>
             )}
-            <span className="text-xs font-bold text-slate-400 tracking-wider">HS {selectedBuyer?.hsCode || categoryData?.hsCode || inputHsCode || '—'}</span>
-            <span className="text-xs text-slate-500">({selectedBuyer?.hsLabel || categoryData?.hsLabel || '스킨케어'})</span>
+            {/* inputHsCode 는 사용자가 친 검색어라 "반도체" 같은 키워드가 들어온다.
+                HS 자리에 그대로 넣으면 키워드가 코드인 것처럼 보인다.
+                라벨도 '스킨케어' 로 하드코딩돼 있어, 다른 품목을 검색했는데
+                스킨케어라고 표시되는 문제가 있었다. 둘 다 모르면 표시하지 않는다. */}
+            <span className="text-xs font-bold text-slate-400 tracking-wider">HS {selectedBuyer?.hsCode || categoryData?.hsCode || '—'}</span>
+            {(selectedBuyer?.hsLabel || categoryData?.hsLabel) && (
+              <span className="text-xs text-slate-500">({selectedBuyer?.hsLabel || categoryData?.hsLabel})</span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {onOpenFormMode && (

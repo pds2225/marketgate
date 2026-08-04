@@ -82,7 +82,6 @@ export default function AuthPage({ onSuccess, sessionExpired = false, duringPaym
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
 
         /* 색상은 랜딩(App.css --landing-*)과 동일한 팔레트를 쓴다.
            blue #1463f3 / blue-dark #0b4ed1 / navy #07152f / muted #59677d
