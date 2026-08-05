@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MarketGate - Buyer Report Mockup</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0c0a09; color: #e7e5e4; font-family: 'DM Sans', sans-serif; min-height: 100vh; }
+.container { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
+.badge { font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.12em; color: #f59e0b; text-transform: uppercase; }
+.meta { font-family: 'DM Mono', monospace; font-size: 0.6rem; color: #57534e; margin-top: 4px; }
+.target { font-size: 0.75rem; color: #a8a29e; margin-top: 8px; }
+.banner { background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.15); border-radius: 4px; padding: 12px 16px; margin-top: 16px; display: flex; gap: 10px; align-items: flex-start; }
+.banner p { font-size: 0.7rem; color: #a8a29e; line-height: 1.6; }
+.divider { height: 1px; background: rgba(255,255,255,0.05); margin: 24px 0; }
+.section-title { font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.08em; color: #f59e0b; margin-bottom: 16px; }
+.company-name { font-size: 1.6rem; font-weight: 500; color: #fafaf9; }
+.company-sub { font-size: 0.75rem; color: #78716c; margin-top: 2px; }
+.profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+.profile-item { display: flex; flex-direction: column; gap: 2px; }
+.profile-item strong { font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.08em; color: #57534e; text-transform: uppercase; }
+.profile-item span { font-size: 0.8rem; color: #d6d3d1; }
+.contact-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+.contact-row svg { color: #78716c; flex-shrink: 0; }
+.contact-row span { font-size: 0.8rem; color: #d6d3d1; }
+.contact-row strong { color: #a8a29e; margin-right: 8px; min-width: 60px; }
+.contact-status { margin-top: 12px; padding: 10px 14px; background: rgba(34,197,94,0.06); border: 1px solid rgba(34,197,94,0.15); border-radius: 4px; font-size: 0.7rem; color: #22c55e; }
+.fit-section { display: flex; gap: 32px; align-items: flex-start; }
+.fit-score { text-align: center; min-width: 120px; }
+.fit-number { font-size: 3rem; font-weight: 500; color: #f59e0b; font-family: 'DM Mono', monospace; }
+.fit-label { font-size: 0.75rem; color: #f59e0b; margin-top: 4px; }
+.fit-bars { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+.fit-bar-row { display: flex; align-items: center; gap: 12px; }
+.fit-bar-label { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: #a8a29e; min-width: 100px; }
+.fit-bar-track { flex: 1; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
+.fit-bar-fill { height: 100%; border-radius: 3px; background: #f59e0b; }
+.match-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+.match-table th { font-family: 'DM Mono', monospace; font-size: 0.6rem; letter-spacing: 0.08em; color: #57534e; text-transform: uppercase; text-align: left; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.match-table td { font-size: 0.75rem; color: #d6d3d1; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+.match-table tr:hover { background: rgba(245,158,11,0.03); }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 0.6rem; font-family: 'DM Mono', monospace; }
+.tag-green { background: rgba(34,197,94,0.1); color: #22c55e; border: 1px solid rgba(34,197,94,0.2); }
+.tag-yellow { background: rgba(245,158,11,0.1); color: #f59e0b; border: 1px solid rgba(245,158,11,0.2); }
+.tag-red { background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+.header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.header-brand { font-family: 'DM Mono', monospace; font-size: 0.8rem; color: #f59e0b; letter-spacing: 0.15em; }
+.header-nav { display: flex; gap: 16px; }
+.header-nav a { font-size: 0.7rem; color: #57534e; text-decoration: none; cursor: pointer; }
+.header-nav a:hover { color: #f59e0b; }
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- Header -->
+  <div class="header-bar">
+    <div class="header-brand">MARKETGATE</div>
+    <div class="header-nav">
+      <a>내 인콰이어리</a>
+      <a>구매신호 탐색</a>
+      <a>국가·바이어 비교</a>
+      <a>요금제</a>
+      <a>시뮬레이션</a>
+      <a>로그아웃</a>
+    </div>
+  </div>
+
+  <!-- Report Header -->
+  <div>
+    <span class="badge">MARKETGATE BUYER ANALYSIS REPORT</span>
+    <div class="meta">리포트 ID: RPT-2026-0805-001</div>
+    <div class="meta">발행일: 2026-08-05 · 데이터 기준일: 2026-07-31</div>
+    <div class="target">분석 대상: 독일 (DEU) · HS 330499 (화장품)</div>
+    <div class="banner">
+      <span style="font-size: 1.2rem;">🛡️</span>
+      <p>공공데이터 CSV 기반 바이어 후보 분석 결과입니다. 수입실적·신용정보는 원본 자료에 포함되어 있지 않으며, 원본에 없는 값은 표시하지 않습니다.</p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- 기본 프로필 -->
+  <section>
+    <h3 class="section-title">【기본 프로필】</h3>
+    <div class="company-name">Beiersdorf AG</div>
+    <div class="company-sub">(beiersdorf ag)</div>
+    <div class="profile-grid">
+      <div class="profile-item"><strong>업종</strong><span>Personal Care / Cosmetics</span></div>
+      <div class="profile-item"><strong>국가/지역</strong><span>🇩🇪 독일 · 유럽</span></div>
+      <div class="profile-item"><strong>데이터 출처</strong><span>KOTRA 공공데이터</span></div>
+      <div class="profile-item"><strong>원본 추적</strong><span>kotra_buyers_2026.csv / row 1,247</span></div>
+      <div class="profile-item"><strong>데이터 수집일</strong><span>2026-07-15</span></div>
+      <div class="profile-item"><strong>검증 상태</strong><span class="tag tag-green">형식 검증됨</span></div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 연락처 정보 -->
+  <section>
+    <h3 class="section-title">【연락처 정보】</h3>
+    <div class="contact-row">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span><strong>담당자</strong> Hans Müller</span>
+    </div>
+    <div class="contact-row">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+      <span><strong>이메일</strong> h.muller@beiersdorf.com</span>
+    </div>
+    <div class="contact-row">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      <span><strong>전화</strong> +49 40 4909-0</span>
+    </div>
+    <div class="contact-row">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+      <span><strong>웹사이트</strong> www.beiersdorf.com</span>
+    </div>
+    <div class="contact-status">🟢 형식 검증됨 — 이메일 형식 검증 완료</div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 수출 적합도 분석 -->
+  <section>
+    <h3 class="section-title">【수출 적합도 분석】</h3>
+    <div class="fit-section">
+      <div class="fit-score">
+        <div class="fit-number">87</div>
+        <div class="fit-label">🟢 매우 적합</div>
+      </div>
+      <div class="fit-bars">
+        <div class="fit-bar-row">
+          <span class="fit-bar-label">수입 이력 매칭</span>
+          <div class="fit-bar-track"><div class="fit-bar-fill" style="width: 85%;"></div></div>
+        </div>
+        <div class="fit-bar-row">
+          <span class="fit-bar-label">시장 성장률</span>
+          <div class="fit-bar-track"><div class="fit-bar-fill" style="width: 72%;"></div></div>
+        </div>
+        <div class="fit-bar-row">
+          <span class="fit-bar-label">GDP 규모</span>
+          <div class="fit-bar-track"><div class="fit-bar-fill" style="width: 92%;"></div></div>
+        </div>
+        <div class="fit-bar-row">
+          <span class="fit-bar-label">거리/물류 이점</span>
+          <div class="fit-bar-track"><div class="fit-bar-fill" style="width: 68%;"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 매칭 상세 -->
+  <section>
+    <h3 class="section-title">【매칭 상세】</h3>
+    <table class="match-table">
+      <thead>
+        <tr><th>항목</th><th>값</th><th>출처</th><th>상태</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>HS 코드</td>
+          <td>330499</td>
+          <td>KOTRA CSV</td>
+          <td><span class="tag tag-green">매칭</span></td>
+        </tr>
+        <tr>
+          <td>품목</td>
+          <td>Other beauty / makeup preparations</td>
+          <td>HS Code DB</td>
+          <td><span class="tag tag-green">확인</span></td>
+        </tr>
+        <tr>
+          <td>수입 실적</td>
+          <td>3건 (2024-2025)</td>
+          <td>KOTRA 공공데이터</td>
+          <td><span class="tag tag-yellow">부분 확인</span></td>
+        </tr>
+        <tr>
+          <td>신용 등급</td>
+          <td>—</td>
+          <td>미신청</td>
+          <td><span class="tag tag-red">없음</span></td>
+        </tr>
+        <tr>
+          <td>최근 활동</td>
+          <td>2026-06 Exhibition 참가</td>
+          <td>KOTRA CSV</td>
+          <td><span class="tag tag-green">확인</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 검증 상태 3축 -->
+  <section>
+    <h3 class="section-title">【검증 상태 3축】</h3>
+    <div class="profile-grid">
+      <div class="profile-item">
+        <strong>연락처 검증</strong>
+        <span>🟢 형식 검증됨 — 이메일 형식 검증 완료</span>
+      </div>
+      <div class="profile-item">
+        <strong>수입실적</strong>
+        <span>🟡 출처 확인됨 — KOTRA CSV 내 수입 이력 확인</span>
+      </div>
+      <div class="profile-item">
+        <strong>신용조사</strong>
+        <span>⚪ 미신청 — 신용보고서를 보려면 별도 신청 필요</span>
+      </div>
+      <div class="profile-item">
+        <strong>수출 타겟가</strong>
+        <span>FOB $13.68 (5% 할인 적용)</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- 데이터 한계 고지 -->
+  <div class="banner" style="border-color: rgba(239,68,68,0.2); background: rgba(239,68,68,0.04);">
+    <span style="font-size: 1.2rem;">⚠️</span>
+    <p style="color: #fca5a5;">이 리포트는 공공데이터 기반 분석 결과이며, 실제 거래 가능성을 보장하지 않습니다. 연락처 정보의 소유 검증은 별도 과정이 필요하며, 신용조사는 신용보고서 신청을 통해 확인할 수 있습니다.</p>
+  </div>
+</div>
+</body>
+</html>
