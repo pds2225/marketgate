@@ -5,7 +5,7 @@ services:
     runtime: python3
     region: singapore
     rootDir: services/p1-export-fit-api
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && python -m app.run_migrations
     startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
     envVars:
       - key: PYTHON_VERSION
@@ -20,6 +20,11 @@ services:
       # 미설정 상태로 배포하면 기동 시 하드 실패한다.
       # Render 기반 CI/프리뷰에서 pytest 를 돌릴 때도 더미 값이 필요하다 (없으면 수집 단계에서 실패).
       - key: JWT_SECRET
+        sync: false
+      # 인증 데이터(users, token_blacklist) 영구 저장용 PostgreSQL.
+      # Render 대시보드에서 외부 DB(Neon/Supabase 등)의 연결 문자열을 설정한다.
+      # 미설정 시 파일 기반 폴백(Render 무료 플랜은 배포마다 초기화).
+      - key: DATABASE_URL
         sync: false
     healthCheckPath: /health
     autoDeploy: true
