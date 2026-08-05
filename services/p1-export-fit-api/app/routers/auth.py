@@ -76,15 +76,35 @@ def login(payload: Dict[str, Any] = Body(...)):
 
 @router.post("/refresh")
 def refresh(payload: Dict[str, Any] = Body(...)):
+    # Single-use refresh: blacklist the presented jti, then rotate a new pair.
+    # Returning only a new access token (L024) leaves the client with a dead
+    # refresh_token in localStorage — the next silent refresh forces logout.
     token = str(payload.get("refresh_token", ""))
     decoded = decode_refresh(token)
     add_to_blacklist(decoded["jti"])
-    return {"access_token": create_access_token(decoded["sub"])}
+    user_id = decoded["sub"]
+    return {
+        "access_token": create_access_token(user_id),
+        "refresh_token": create_refresh_token(user_id),
+    }
 
 
 @router.post("/logout")
-def logout(token_payload: dict = Depends(get_token_payload)):
+def logout(
+    token_payload: dict = Depends(get_token_payload),
+    payload: Dict[str, Any] | None = Body(default=None),
+):
+    # Access jti alone is not enough — a surviving refresh_token can mint a
+    # new access token after "logout" (L024).
     add_to_blacklist(token_payload.get("jti", ""))
+    refresh = str((payload or {}).get("refresh_token") or "")
+    if refresh:
+        try:
+            decoded = decode_refresh(refresh)
+            add_to_blacklist(decoded.get("jti", ""))
+        except HTTPException:
+            # Already expired/revoked — local clear still proceeds on the client.
+            pass
     return {"status": "logged_out"}
 
 

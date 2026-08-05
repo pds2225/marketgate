@@ -98,12 +98,11 @@ export default function PaymentCallbackPage({ onBack, onBalanceRefresh }) {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400&display=swap');
 
         .cb-root {
           min-height: 100vh;
-          background: #0c0a09;
-          color: #e7e5e4;
+          background: #f7f9fc;
+          color: #07152f;
           font-family: 'DM Sans', sans-serif;
           display: flex;
           flex-direction: column;
@@ -117,8 +116,8 @@ export default function PaymentCallbackPage({ onBack, onBalanceRefresh }) {
           position: fixed;
           inset: 0;
           background-image:
-            linear-gradient(rgba(245,158,11,0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(245,158,11,0.03) 1px, transparent 1px);
+            linear-gradient(rgba(20,99,243,0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(20,99,243,0.03) 1px, transparent 1px);
           background-size: 60px 60px;
           pointer-events: none;
         }
@@ -140,7 +139,7 @@ export default function PaymentCallbackPage({ onBack, onBalanceRefresh }) {
           font-family: 'DM Mono', monospace;
           font-size: 0.65rem;
           letter-spacing: 0.2em;
-          color: #57534e;
+          color: #59677d;
           text-transform: uppercase;
           margin-bottom: 32px;
         }
@@ -157,12 +156,12 @@ export default function PaymentCallbackPage({ onBack, onBalanceRefresh }) {
           line-height: 1;
           margin-bottom: 16px;
         }
-        .cb-title.ok { color: #f59e0b; }
+        .cb-title.ok { color: #1463f3; }
         .cb-title.fail { color: #ef4444; }
-        .cb-title.loading { color: #44403c; }
+        .cb-title.loading { color: #8fa0b8; }
         .cb-desc {
           font-size: 0.85rem;
-          color: #78716c;
+          color: #59677d;
           font-weight: 300;
           margin-bottom: 40px;
           line-height: 1.7;
@@ -182,11 +181,11 @@ export default function PaymentCallbackPage({ onBack, onBalanceRefresh }) {
           transition: opacity 0.2s, transform 0.15s;
         }
         .cb-btn:hover { opacity: 0.85; transform: translateY(-1px); }
-        .cb-btn.ok { background: #f59e0b; color: #0c0a09; }
-        .cb-btn.fail { background: #292524; color: #a8a29e; border: 1px solid #3d3330; }
+        .cb-btn.ok { background: #1463f3; color: #ffffff; }
+        .cb-btn.fail { background: #dbe3ef; color: #59677d; border: 1px solid #dbe3ef; }
         .cb-divider {
           width: 48px; height: 1px;
-          background: rgba(245,158,11,0.2);
+          background: rgba(20,99,243,0.2);
           margin: 24px auto;
         }
         .cb-dots { letter-spacing: 0.15em; }
@@ -197,9 +196,9 @@ export default function PaymentCallbackPage({ onBack, onBalanceRefresh }) {
           className="cb-glow"
           style={{
             background: status === 'success'
-              ? 'rgba(245,158,11,0.08)'
+              ? 'rgba(20,99,243,0.08)'
               : status === 'fail'
-              ? 'rgba(239,68,68,0.06)'
+              ? '#fef2f2'
               : 'rgba(68,64,60,0.06)',
           }}
         />

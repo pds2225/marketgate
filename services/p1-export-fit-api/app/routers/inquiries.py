@@ -70,6 +70,7 @@ def create_dispatch_draft(
         country=payload.get("country"),
         match_relevance=payload.get("match_relevance"),
         recommendation_lines=payload.get("recommendation_lines"),
+        sender_email=payload.get("sender_email", ""),
     )
 
     record = create_inquiry(
@@ -82,6 +83,7 @@ def create_dispatch_draft(
         sender_name=sender_name,
         message=_clean(payload.get("message")),
         country=_clean(payload.get("country")),
+        sender_email=_clean(payload.get("sender_email")),
         draft_ko=draft["draft_ko"],
         draft_en=draft["draft_en"],
     )

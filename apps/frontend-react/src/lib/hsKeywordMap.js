@@ -5,8 +5,8 @@
 export const CATEGORY_HS = {
   'K-뷰티': { hsCode: '330499', hsLabel: '스킨케어' },
   '건강식품': { hsCode: '210690', hsLabel: '건강기능식품' },
-  'K-패션': { hsCode: '6203', hsLabel: '여성 의류' },
-  '반도체': { hsCode: '8541', hsLabel: '반도체 소자' },
+  'K-패션': { hsCode: '620343', hsLabel: '여성 의류' },
+  '반도체': { hsCode: '854140', hsLabel: '반도체 소자' },
 }
 
 /** 키워드(정규화) → 카테고리 라벨 */

@@ -67,6 +67,7 @@ def create_inquiry(
     sender_name: str,
     message: str = "",
     country: str = "",
+    sender_email: str = "",
     draft_ko: str = "",
     draft_en: str = "",
 ) -> dict:
@@ -82,6 +83,7 @@ def create_inquiry(
         "hs_code": hs_code,
         "country": country,
         "message": message,
+        "sender_email": sender_email,
         "draft_ko": draft_ko,
         "draft_en": draft_en,
         "status": "draft",

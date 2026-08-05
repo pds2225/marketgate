@@ -49,6 +49,9 @@ export default async function handler(req, res) {
   if (incomingCt) headers["content-type"] = incomingCt;
   const incomingAuth = req.headers["authorization"];
   if (incomingAuth) headers["authorization"] = incomingAuth;
+  // Buffering and reframing is deterministic only when the upstream body is
+  // not a long-lived compressed stream (large predict responses hit this path).
+  headers["accept-encoding"] = "identity";
 
   let body;
   if (req.method && !["GET", "HEAD"].includes(req.method)) {
@@ -76,12 +79,27 @@ export default async function handler(req, res) {
     return;
   }
 
-  const text = await upstream.text();
+  const responseBody = Buffer.from(await upstream.arrayBuffer());
   res.status(upstream.status);
+  const blockedResponseHeaders = new Set([
+    "connection",
+    "content-encoding",
+    "content-length",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+  ]);
   upstream.headers.forEach((value, key) => {
     const k = key.toLowerCase();
-    if (k === "content-encoding" || k === "transfer-encoding") return;
+    // fetch() may decompress the upstream body. Reframe the completed buffer
+    // below, and never forward hop-by-hop headers to a different connection.
+    if (blockedResponseHeaders.has(k)) return;
     res.setHeader(key, value);
   });
-  res.send(text);
+  res.setHeader("content-length", String(responseBody.byteLength));
+  res.end(responseBody);
 }

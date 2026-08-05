@@ -16,11 +16,11 @@ on:
         required: true
         type: string
       api_base_url:
-        description: Isolated Render E2E API URL (preview write journey only)
+        description: Isolated Render E2E API URL (required for write journey)
         required: false
         type: string
       run_write_journey:
-        description: Run registration, analysis, inquiry, and cleanup
+        description: Run registration, analysis, inquiry, and cleanup (API stays on isolated Render)
         required: true
         default: false
         type: boolean
@@ -87,7 +87,9 @@ jobs:
             process.env.E2E_WRITE_ENABLED === 'true' &&
             new URL(process.env.E2E_BASE_URL).hostname === 'marketgate.vercel.app'
           ) {
-            throw new Error('Write E2E must never target the production frontend')
+            throw new Error(
+              'Preview write job must not use the production frontend URL; use production-write'
+            )
           }
           NODE
 
@@ -100,22 +102,56 @@ jobs:
       - name: Wait for protected deployment
         run: |
           node --input-type=module - <<'NODE'
+          // Do not send x-vercel-set-bypass-cookie. It makes Vercel answer with a cookie-setting
+          // redirect back to the same URL and can trap clients in a redirect loop. The bypass
+          // header alone authorizes this healthcheck, matching the Playwright browser config.
           const headers = {
             'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
-            'x-vercel-set-bypass-cookie': 'true',
           }
           const url = new URL('/api/v1/health', process.env.E2E_BASE_URL)
+          // redirect: 'manual' keeps Vercel's SSO bounce visible. Following it turns a
+          // rejected bypass secret into an opaque "not healthy" timeout.
+          // Match on where the redirect points, not its status code: the bounce has been
+          // observed as both 302 and 307 depending on where the request originates.
+          const bypassRejected = (response) => {
+            if (response.status === 401 || response.status === 403) return true
+            if (response.status < 300 || response.status >= 400) return false
+            const location = response.headers.get('location') || ''
+            if (!location) return false
+            // A warming app never redirects off its own origin; only protection does.
+            try {
+              return new URL(location, url).origin !== url.origin
+            } catch {
+              return false
+            }
+          }
+          let last = 'no response'
           for (let attempt = 1; attempt <= 12; attempt += 1) {
             try {
               const response = await fetch(url, {
                 headers,
+                redirect: 'manual',
                 signal: AbortSignal.timeout(15_000),
               })
               if (response.ok) process.exit(0)
-            } catch {}
+              const location = response.headers.get('location')
+              last = `HTTP ${response.status}${location ? ` -> ${location}` : ''}`
+              if (bypassRejected(response)) {
+                throw new Error(
+                  `Deployment protection rejected the automation bypass (${last}).\n` +
+                    'This is a configuration error, not a cold start — retrying cannot fix it.\n' +
+                    'Vercel > Project Settings > Deployment Protection > Protection Bypass for Automation:\n' +
+                    'enable it, copy the secret, then set the GitHub secret VERCEL_AUTOMATION_BYPASS_SECRET to that value.'
+                )
+              }
+            } catch (error) {
+              if (error instanceof Error && error.message.startsWith('Deployment protection')) throw error
+              last = error instanceof Error ? error.message : String(error)
+            }
+            console.log(`[health] attempt ${attempt}/12 -> ${last}`)
             if (attempt < 12) await new Promise((resolve) => setTimeout(resolve, 5000))
           }
-          throw new Error('Preview did not become healthy after 12 attempts')
+          throw new Error(`Preview did not become healthy after 12 attempts (last: ${last})`)
           NODE
 
       - name: Run deployed preview checks
@@ -180,6 +216,113 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: production-smoke-${{ github.run_id }}
+          path: |
+            apps/frontend-react/playwright-report
+            apps/frontend-react/test-results
+          retention-days: 7
+
+  production-write:
+    name: Production UI + isolated E2E API write
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       inputs.target_environment == 'production' &&
+       inputs.run_write_journey) ||
+      (github.event_name == 'deployment_status' &&
+       github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Production' &&
+       vars.DEPLOYED_E2E_WRITE_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: Production
+    defaults:
+      run:
+        working-directory: apps/frontend-react
+    env:
+      E2E_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.base_url || 'https://marketgate.vercel.app' }}
+      E2E_API_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.api_base_url || vars.E2E_API_BASE_URL }}
+      E2E_WRITE_ENABLED: "true"
+      E2E_ADMIN_TOKEN: ${{ secrets.E2E_ADMIN_TOKEN }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+    steps:
+      - name: Check out deployed commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'deployment_status' && github.event.deployment.sha || github.ref }}
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/frontend-react/package-lock.json
+
+      - name: Validate fail-closed production write configuration
+        run: |
+          node --input-type=module - <<'NODE'
+          const required = [
+            'E2E_BASE_URL',
+            'E2E_API_BASE_URL',
+            'E2E_ADMIN_TOKEN',
+            'VERCEL_AUTOMATION_BYPASS_SECRET',
+          ]
+          const missing = required.filter((name) => !process.env[name]?.trim())
+          if (missing.length) {
+            throw new Error(`Missing production write E2E configuration: ${missing.join(', ')}`)
+          }
+          const frontendHost = new URL(process.env.E2E_BASE_URL).hostname
+          const apiHost = new URL(process.env.E2E_API_BASE_URL).hostname
+          if (frontendHost !== 'marketgate.vercel.app') {
+            throw new Error(
+              `production-write frontend must be marketgate.vercel.app, got ${frontendHost}`
+            )
+          }
+          if (apiHost === 'marketgate.vercel.app') {
+            throw new Error('Write E2E API must be the isolated Render backend, not the frontend')
+          }
+          const identityUrl = new URL('/v1/e2e/identity', process.env.E2E_API_BASE_URL)
+          let body = null
+          let lastError = null
+          for (let attempt = 1; attempt <= 10; attempt += 1) {
+            try {
+              const identity = await fetch(identityUrl, {
+                signal: AbortSignal.timeout(20_000),
+              })
+              if (!identity.ok) {
+                lastError = `HTTP ${identity.status}`
+              } else {
+                body = await identity.json()
+                if (body?.environment === 'e2e') break
+                lastError = `unexpected body ${JSON.stringify(body)}`
+                body = null
+              }
+            } catch (error) {
+              lastError = String(error && error.message ? error.message : error)
+            }
+            if (attempt < 10) {
+              await new Promise((resolve) => setTimeout(resolve, 5000))
+            }
+          }
+          if (!body || body.environment !== 'e2e') {
+            throw new Error(
+              `Isolated E2E identity check failed after retries: ${lastError}`
+            )
+          }
+          NODE
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run production UI write journey against isolated API
+        run: npm run test:e2e:journey
+
+      - name: Upload write journey diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-write-e2e-${{ github.run_id }}
           path: |
             apps/frontend-react/playwright-report
             apps/frontend-react/test-results
