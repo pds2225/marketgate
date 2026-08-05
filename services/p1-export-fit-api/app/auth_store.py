@@ -4,189 +4,78 @@ import threading
 import uuid
 from datetime import datetime, timezone
 
-from app.db_conn import get_conn, put_conn, is_available
-
 USERS_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "users.json")
 BLACKLIST_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "token_blacklist.json")
 
 _users_lock = threading.Lock()
 _blacklist_lock = threading.Lock()
 
+# Try NCP Object Storage first, fall back to file
+_ncp = None
 
-# ── file-based fallback (Render free plan: ephemeral) ──
+
+def _get_ncp():
+    global _ncp
+    if _ncp is not None:
+        return _ncp
+    try:
+        from app.ncp_store import is_ncp_available
+        if is_ncp_available():
+            from app import ncp_store
+            _ncp = ncp_store
+            return _ncp
+    except Exception:
+        pass
+    return None
+
 
 def _load_users() -> dict:
+    ncp = _get_ncp()
+    if ncp:
+        from app.ncp_store import USERS_KEY
+        return ncp._s3_load(USERS_KEY, USERS_PATH)
     try:
         with open(USERS_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, dict) else {}
+            return json.load(f) or {}
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
 
 def _save_users(data: dict) -> None:
+    ncp = _get_ncp()
+    if ncp:
+        from app.ncp_store import USERS_KEY
+        ncp._s3_save(USERS_KEY, data, USERS_PATH)
+        return
     os.makedirs(os.path.dirname(USERS_PATH), exist_ok=True)
     with open(USERS_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 def _load_blacklist() -> list:
+    ncp = _get_ncp()
+    if ncp:
+        from app.ncp_store import BLACKLIST_KEY
+        return ncp._s3_load(BLACKLIST_KEY, BLACKLIST_PATH)
     try:
         with open(BLACKLIST_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, list) else []
+            return json.load(f) or []
     except (FileNotFoundError, json.JSONDecodeError):
         return []
 
 
 def _save_blacklist(data: list) -> None:
+    ncp = _get_ncp()
+    if ncp:
+        from app.ncp_store import BLACKLIST_KEY
+        ncp._s3_save(BLACKLIST_KEY, data, BLACKLIST_PATH)
+        return
     os.makedirs(os.path.dirname(BLACKLIST_PATH), exist_ok=True)
     with open(BLACKLIST_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-# ── PostgreSQL operations ──
-
-def _db_find_user_by_email(email: str) -> dict | None:
-    conn = get_conn()
-    if conn is None:
-        return None
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT user_id, email, hashed_pw, role, plan, login_fail_count, locked_until "
-                "FROM auth_users WHERE email = %s", (email,)
-            )
-            row = cur.fetchone()
-            if not row:
-                return None
-            return {
-                "user_id": row[0], "email": row[1], "hashed_pw": row[2],
-                "role": row[3], "plan": row[4],
-                "login_fail_count": row[5],
-                "locked_until": row[6].isoformat() if row[6] else None,
-            }
-    finally:
-        put_conn(conn)
-
-
-def _db_find_user_by_id(user_id: str) -> dict | None:
-    conn = get_conn()
-    if conn is None:
-        return None
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT user_id, email, hashed_pw, role, plan, login_fail_count, locked_until "
-                "FROM auth_users WHERE user_id = %s", (user_id,)
-            )
-            row = cur.fetchone()
-            if not row:
-                return None
-            return {
-                "user_id": row[0], "email": row[1], "hashed_pw": row[2],
-                "role": row[3], "plan": row[4],
-                "login_fail_count": row[5],
-                "locked_until": row[6].isoformat() if row[6] else None,
-            }
-    finally:
-        put_conn(conn)
-
-
-def _db_create_user(email: str, hashed_pw: str) -> dict:
-    user_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
-    conn = get_conn()
-    if conn is None:
-        raise RuntimeError("PostgreSQL unavailable")
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO auth_users (user_id, email, hashed_pw, role, plan, login_fail_count, created_at, updated_at) "
-                "VALUES (%s, %s, %s, 'user', 'Basic', 0, %s, %s)",
-                (user_id, email, hashed_pw, now, now)
-            )
-        conn.commit()
-        return {
-            "user_id": user_id, "email": email, "hashed_pw": hashed_pw,
-            "plan": "Basic", "created_at": now.isoformat(),
-            "login_fail_count": 0, "locked_until": None,
-        }
-    finally:
-        put_conn(conn)
-
-
-def _db_update_user(user_id: str, updates: dict) -> None:
-    conn = get_conn()
-    if conn is None:
-        return
-    try:
-        sets = []
-        vals = []
-        for k, v in updates.items():
-            sets.append(f"{k} = %s")
-            vals.append(v)
-        sets.append("updated_at = %s")
-        vals.append(datetime.now(timezone.utc))
-        vals.append(user_id)
-        with conn.cursor() as cur:
-            cur.execute(f"UPDATE auth_users SET {', '.join(sets)} WHERE user_id = %s", vals)
-        conn.commit()
-    finally:
-        put_conn(conn)
-
-
-def _db_delete_user(user_id: str, email: str) -> bool:
-    conn = get_conn()
-    if conn is None:
-        return False
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM auth_users WHERE user_id = %s AND email = %s",
-                (user_id, email)
-            )
-            deleted = cur.rowcount > 0
-        conn.commit()
-        return deleted
-    finally:
-        put_conn(conn)
-
-
-def _db_add_to_blacklist(jti: str) -> None:
-    if not jti:
-        return
-    conn = get_conn()
-    if conn is None:
-        return
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO auth_token_blacklist (jti) VALUES (%s) ON CONFLICT DO NOTHING",
-                (jti,)
-            )
-        conn.commit()
-    finally:
-        put_conn(conn)
-
-
-def _db_is_blacklisted(jti: str) -> bool:
-    conn = get_conn()
-    if conn is None:
-        return False
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT 1 FROM auth_token_blacklist WHERE jti = %s", (jti,))
-            return cur.fetchone() is not None
-    finally:
-        put_conn(conn)
-
-
-# ── public API (PostgreSQL优先, file fallback) ──
-
 def find_user_by_email(email: str) -> dict | None:
-    if is_available():
-        return _db_find_user_by_email(email)
     for user in _load_users().values():
         if user.get("email") == email:
             return user
@@ -194,14 +83,10 @@ def find_user_by_email(email: str) -> dict | None:
 
 
 def find_user_by_id(user_id: str) -> dict | None:
-    if is_available():
-        return _db_find_user_by_id(user_id)
     return _load_users().get(user_id)
 
 
 def create_user(email: str, hashed_pw: str) -> dict:
-    if is_available():
-        return _db_create_user(email, hashed_pw)
     with _users_lock:
         data = _load_users()
         user_id = str(uuid.uuid4())
@@ -220,8 +105,6 @@ def create_user(email: str, hashed_pw: str) -> dict:
 
 
 def update_user(user_id: str, updates: dict) -> None:
-    if is_available():
-        return _db_update_user(user_id, updates)
     with _users_lock:
         data = _load_users()
         if user_id in data:
@@ -230,8 +113,6 @@ def update_user(user_id: str, updates: dict) -> None:
 
 
 def delete_user(user_id: str, email: str) -> bool:
-    if is_available():
-        return _db_delete_user(user_id, email)
     with _users_lock:
         data = _load_users()
         user = data.get(user_id)
@@ -243,8 +124,6 @@ def delete_user(user_id: str, email: str) -> bool:
 
 
 def add_to_blacklist(jti: str) -> None:
-    if is_available():
-        return _db_add_to_blacklist(jti)
     if not jti:
         return
     with _blacklist_lock:
@@ -255,6 +134,4 @@ def add_to_blacklist(jti: str) -> None:
 
 
 def is_blacklisted(jti: str) -> bool:
-    if is_available():
-        return _db_is_blacklisted(jti)
     return jti in _load_blacklist()
