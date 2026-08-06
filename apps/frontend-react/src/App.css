@@ -1951,14 +1951,14 @@
 }
 
 .landing-search-field:focus-within {
-  border-color: #f59e0b;
-  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.16),
-    0 14px 34px -18px rgba(245, 158, 11, 0.4);
+  border-color: var(--landing-blue);
+  box-shadow: 0 0 0 4px rgba(20, 99, 243, 0.16),
+    0 14px 34px -18px rgba(20, 99, 243, 0.4);
 }
 
 .landing-search-icon {
   flex: none;
-  color: #9a8466;
+  color: var(--landing-muted);
 }
 
 .landing-search-input {
@@ -1986,8 +1986,8 @@
   padding: 12px 22px;
   border: none;
   border-radius: 12px;
-  background: #f59e0b;
-  color: #1c1207;
+  background: var(--landing-blue);
+  color: #ffffff;
   font-size: 0.98rem;
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -1996,7 +1996,7 @@
 }
 
 .landing-search-button:hover {
-  background: #fbbf24;
+  background: var(--landing-blue-dark);
   transform: translateY(-1px);
 }
 
@@ -2035,9 +2035,9 @@
 }
 
 .landing-search-chip:hover {
-  border-color: #f59e0b;
-  color: #b45309;
-  background: rgba(245, 158, 11, 0.08);
+  border-color: var(--landing-blue);
+  color: var(--landing-blue-dark);
+  background: rgba(20, 99, 243, 0.08);
 }
 
 .landing-search-chip code {

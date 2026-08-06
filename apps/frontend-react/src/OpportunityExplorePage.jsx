@@ -78,7 +78,7 @@ export default function OpportunityExplorePage({ onBack, preset }) {
           </button>
           <div>
             <p className="analysis-kicker">Purchase Signals</p>
-            <h1>구매신호 전체 탐색</h1>
+            <h1>해외 수요 전체 보기</h1>
           </div>
         </div>
         <div className="analysis-header-status">
@@ -96,8 +96,8 @@ export default function OpportunityExplorePage({ onBack, preset }) {
                 type="button"
                 className="ui-button ui-button--ghost"
                 style={{
-                  borderColor: hs === c.hs || String(hs).startsWith(c.hs) ? 'rgba(245,158,11,0.5)' : undefined,
-                  color: hs === c.hs || String(hs).startsWith(c.hs) ? '#f59e0b' : undefined,
+                  borderColor: hs === c.hs || String(hs).startsWith(c.hs) ? 'rgba(20,99,243,0.5)' : undefined,
+                  color: hs === c.hs || String(hs).startsWith(c.hs) ? '#1463f3' : undefined,
                 }}
                 onClick={() => applyCategory(c.hs)}
               >

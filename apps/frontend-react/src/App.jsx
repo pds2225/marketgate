@@ -1,18 +1,22 @@
-import { startTransition, useEffect, useState } from 'react'
+import { lazy, startTransition, Suspense, useEffect, useState } from 'react'
 import { Search } from 'lucide-react'
 import LandingPage from './LandingPage'
-import AnalysisPage from './AnalysisPage'
-import AdminDashboard from './AdminDashboard'
-import ExportFlowPage from './ExportFlowPage'
-import BuyerSearchPage from './pages/BuyerSearch'
-import AuthPage from './AuthPage'
-import SimulationPage from './SimulationPage'
-import PricingPage from './PricingPage'
-import PaymentCallbackPage from './PaymentCallbackPage'
-import OpportunityExplorePage from './OpportunityExplorePage'
-import ComparePage from './ComparePage'
-import MyInquiriesPage from './MyInquiriesPage'
-import CreditTopUpSheet from './components/CreditTopUpSheet'
+
+// 랜딩은 모든 방문자의 첫 화면이라 정적으로 둔다 — 지연 로딩하면 왕복이 한 번 더 생긴다.
+// 나머지는 해당 화면에 들어갈 때만 받는다. 전부 정적 import 였을 때는 랜딩만 보는
+// 방문자도 관리자 화면까지 포함한 전체 코드를 내려받았다.
+const AnalysisPage = lazy(() => import('./AnalysisPage'))
+const AdminDashboard = lazy(() => import('./AdminDashboard'))
+const ExportFlowPage = lazy(() => import('./ExportFlowPage'))
+const BuyerSearchPage = lazy(() => import('./pages/BuyerSearch'))
+const AuthPage = lazy(() => import('./AuthPage'))
+const SimulationPage = lazy(() => import('./SimulationPage'))
+const PricingPage = lazy(() => import('./PricingPage'))
+const PaymentCallbackPage = lazy(() => import('./PaymentCallbackPage'))
+const OpportunityExplorePage = lazy(() => import('./OpportunityExplorePage'))
+const ComparePage = lazy(() => import('./ComparePage'))
+const MyInquiriesPage = lazy(() => import('./MyInquiriesPage'))
+const CreditTopUpSheet = lazy(() => import('./components/CreditTopUpSheet'))
 import { getWallet, subscribeWallet, syncBalanceFromServer } from './lib/creditWallet'
 import api from './lib/api'
 import './App.css'
@@ -26,6 +30,13 @@ function getInitialPage() {
     return 'paymentCallback'
   }
   return 'landing'
+}
+
+// 지연 로딩한 화면의 청크를 받는 동안 잠깐 보이는 자리표시자.
+// 스피너 대신 빈 면으로 둔다 — 청크는 대개 수십 ms 안에 오고, 그 사이 스피너가
+// 번쩍이면 오히려 느리게 느껴진다.
+function PageFallback() {
+  return <div style={{ minHeight: '60vh' }} aria-busy="true" />
 }
 
 function App() {
@@ -118,10 +129,13 @@ function App() {
 
   if (!authed && page !== 'landing') {
     return (
-      <AuthPage
-        sessionExpired={sessionExpired}
-        onSuccess={() => { setSessionExpired(false); setAuthed(true) }}
-      />
+      <Suspense fallback={<PageFallback />}>
+        <AuthPage
+          sessionExpired={sessionExpired}
+          duringPayment={page === 'paymentCallback'}
+          onSuccess={() => { setSessionExpired(false); setAuthed(true) }}
+        />
+      </Suspense>
     )
   }
 
@@ -135,7 +149,7 @@ function App() {
           <nav className="app-global-nav" aria-label="주요 메뉴">
             {[
               { label: '내 인콰이어리', page: 'myInquiries' },
-              { label: '구매신호 탐색', page: 'opportunities' },
+              { label: '해외 수요 찾기', page: 'opportunities' },
               { label: '국가·바이어 비교', page: 'compare' },
               { label: '요금제', page: 'pricing' },
               { label: '시뮬레이션', page: 'simulation' },
@@ -177,6 +191,9 @@ function App() {
         </header>
       )}
 
+      {/* 지연 로딩 화면 전체를 하나의 경계로 감싼다. 랜딩은 정적이라 이 안에서도
+          즉시 그려지고, 나머지는 청크가 오는 동안 PageFallback 이 자리를 지킨다. */}
+      <Suspense fallback={<PageFallback />}>
       {page === 'landing' && (
         <LandingPage
           onStartFlow={() => navigate('exportFlow')}
@@ -190,7 +207,11 @@ function App() {
 
       {page === 'buyerSearch' && (
         <main className="app-detail-page app-detail-page--buyer-search">
-          <BuyerSearchPage onClose={() => navigate('landing')} onBalanceRefresh={refreshBalance} />
+          <BuyerSearchPage
+            onClose={() => navigate('landing')}
+            onOpenFormMode={(preset) => navigate('analysis', preset)}
+            onBalanceRefresh={refreshBalance}
+          />
         </main>
       )}
 
@@ -248,7 +269,10 @@ function App() {
           </div>
         )
       )}
-      <CreditTopUpSheet open={topUpOpen} onClose={() => setTopUpOpen(false)} />
+      {/* 열렸을 때만 렌더한다. 닫힌 채로 두면 React.lazy 가 마운트 시점에
+          청크를 바로 받아 와 지연 로딩 효과가 사라진다. */}
+      {topUpOpen && <CreditTopUpSheet open onClose={() => setTopUpOpen(false)} />}
+      </Suspense>
     </div>
   )
 }

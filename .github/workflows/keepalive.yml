@@ -1,0 +1,51 @@
+name: Keepalive
+
+# Render 무료 플랜은 15분 유휴 시 인스턴스를 내린다. 다시 깨우는 데 실측 43.8초가
+# 걸려(웜 상태는 0.67초) 그 시간대 첫 방문자는 서비스가 멈춘 것으로 인식한다.
+#
+# 24시간 깨워두지 않는 이유:
+#   무료 플랜은 계정당 월 750 인스턴스-시간을 모든 무료 서비스가 나눠 쓴다.
+#   한 달은 약 730시간이라, 프로덕션 API 하나를 24시간 켜두면 그것만으로 거의
+#   전부를 쓴다. E2E 용 서비스(marketgate-e2e)가 쓸 몫이 남지 않아 한도를 넘기면
+#   그 달 남은 기간 무료 서비스가 전부 중단된다 — 느린 사이트를 죽은 사이트로
+#   바꾸는 셈이다.
+#
+# 그래서 사람이 실제로 쓰는 시간대만 깨워둔다.
+#   09:00~23:00 KST = 00:00~14:00 UTC → 하루 14시간 → 월 약 420시간
+#   750시간 중 330시간이 E2E 와 여유분으로 남는다.
+#
+# 5분 주기인 이유: GitHub 스케줄러는 best-effort 라 부하 시 수 분씩 밀린다.
+# 10분 주기면 지연이 겹쳤을 때 15분 유휴 한계를 넘겨 잠들 수 있다.
+on:
+  schedule:
+    # UTC 00:00~13:55 (KST 09:00~22:55)
+    - cron: '*/5 0-13 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    name: Ping backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping health endpoint
+        env:
+          # 저장소 변수로 덮어쓸 수 있게 둔다.
+          URL: ${{ vars.KEEPALIVE_URL || 'https://marketgate.vercel.app/api/v1/health' }}
+        run: |
+          # 이미 잠들어 있었다면 이 요청이 기동을 유발하고 40초 이상 걸린다.
+          start=$(date +%s)
+          code=$(curl -sS -m 90 -o /dev/null -w '%{http_code}' "$URL" || echo 000)
+          elapsed=$(( $(date +%s) - start ))
+          echo "health -> $code (${elapsed}s)"
+          # 일시 실패로 워크플로를 붉게 만들지 않는다. 5분 뒤 다시 시도한다.
+          if [ "$code" != "200" ]; then
+            echo "::warning::health check returned $code after ${elapsed}s"
+          fi
