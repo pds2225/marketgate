@@ -176,3 +176,82 @@ def test_build_draft_runtime_spy_no_file_write_or_network(monkeypatch) -> None:
 
     assert result["draft_en"]
     assert violations == []
+
+
+def test_build_draft_en_uses_english_country_name_for_korean_input() -> None:
+    """영문 초안에 한글 국가명이 들어가면 안 된다 (실사용 결함 수정 검증)."""
+    result = build_draft(
+        buyer_name="Beauti Control",
+        contact_email="buyer@example.com",
+        hs_code="330499",
+        sender_company="MarketGate",
+        sender_name="Kim",
+        country="미국",
+        match_relevance="strong",
+    )
+
+    assert "United States" in result["draft_en"]
+    assert "미국" not in result["draft_en"]
+    # 한글 초안에는 한글 국가명 유지
+    assert "미국" in result["draft_ko"]
+
+
+def test_build_draft_en_omits_unmapped_korean_country() -> None:
+    """매핑에 없는 한글 국가명은 영문 초안에서 국가 언급 자체를 생략한다."""
+    result = build_draft(
+        buyer_name="ACME",
+        contact_email="buyer@example.com",
+        hs_code="330499",
+        sender_company="MarketGate",
+        sender_name="Kim",
+        country="모로코",
+        match_relevance="strong",
+    )
+
+    assert "모로코" not in result["draft_en"]
+
+
+def test_build_draft_contact_line_uses_sender_email_not_recipient() -> None:
+    """본문 Contact는 발신자 이메일이어야 한다. 수신자 이메일이 들어가면 안 된다."""
+    result = build_draft(
+        buyer_name="ACME",
+        contact_email="buyer@example.com",
+        hs_code="330499",
+        sender_company="MarketGate",
+        sender_name="Kim",
+        sender_email="sales@marketgate.kr",
+    )
+
+    assert "Contact: sales@marketgate.kr" in result["draft_en"]
+    assert "연락처: sales@marketgate.kr" in result["draft_ko"]
+    assert "buyer@example.com" not in result["draft_en"]
+    assert "buyer@example.com" not in result["draft_ko"]
+
+
+def test_build_draft_without_sender_email_has_no_contact_line() -> None:
+    """발신자 이메일 미입력 시 Contact 줄 자체를 넣지 않는다 (수신자 이메일 fallback 금지)."""
+    result = build_draft(
+        buyer_name="ACME",
+        contact_email="buyer@example.com",
+        hs_code="330499",
+        sender_company="MarketGate",
+        sender_name="Kim",
+    )
+
+    assert "Contact:" not in result["draft_en"]
+    assert "연락처:" not in result["draft_ko"]
+    assert "buyer@example.com" not in result["draft_en"]
+
+
+def test_build_draft_ko_fallback_message_is_korean() -> None:
+    """메시지 미입력 시 한글 초안에는 한글 fallback, 영문 초안에는 영문 fallback."""
+    result = build_draft(
+        buyer_name="ACME",
+        contact_email="buyer@example.com",
+        hs_code="330499",
+        sender_company="MarketGate",
+        sender_name="Kim",
+    )
+
+    assert "Additional details can be shared upon request." in result["draft_en"]
+    assert "Additional details can be shared upon request." not in result["draft_ko"]

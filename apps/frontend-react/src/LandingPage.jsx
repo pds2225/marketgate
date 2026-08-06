@@ -17,8 +17,19 @@ import {
   Cpu,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { resolveProductToHs } from "./lib/hsKeywordMap";
+import api from "./lib/api";
+
+function persistSearchQuery(value) {
+  const q = String(value ?? "").trim();
+  if (!q) return;
+  try {
+    sessionStorage.setItem("mg_search_query", q);
+  } catch {
+    /* 저장 실패는 무시(시크릿 모드 등) */
+  }
+}
 
 const trustMetrics = [
   { icon: Globe2, value: "20+", label: "분석 대상 국가" },
@@ -98,38 +109,10 @@ const sourceNotes = [
 ];
 
 const quickStartItems = [
-  {
-    id: "kbeauty",
-    icon: Sparkles,
-    label: "K-뷰티",
-    sub: "지금 시작",
-    hsCode: "330499",
-    available: true,
-  },
-  {
-    id: "health",
-    icon: Heart,
-    label: "건강식품",
-    sub: "지금 시작",
-    hsCode: "210690",
-    available: true,
-  },
-  {
-    id: "kfashion",
-    icon: Shirt,
-    label: "K-패션",
-    sub: "지금 시작",
-    hsCode: "6203",
-    available: true,
-  },
-  {
-    id: "semi",
-    icon: Cpu,
-    label: "반도체",
-    sub: "지금 시작",
-    hsCode: "8541",
-    available: true,
-  },
+  { id: "kbeauty", icon: Sparkles, label: "K-뷰티", hsCode: "330499" },
+  { id: "health", icon: Heart, label: "건강식품", hsCode: "210690" },
+  { id: "kfashion", icon: Shirt, label: "K-패션", hsCode: "6203" },
+  { id: "semi", icon: Cpu, label: "반도체", hsCode: "8541" },
 ];
 
 export default function LandingPage({
@@ -140,39 +123,29 @@ export default function LandingPage({
   onStartCompare,
   onStartMyInquiries,
 }) {
-  const [toast, setToast] = useState(null);
   const [query, setQuery] = useState("");
+
+  // 유휴 상태의 백엔드는 첫 요청에 40초 이상 걸린다(프로덕션 실측 43.8초, 웜 0.67초).
+  // 바이어 검색 화면에서도 깨우지만, 그 화면에 닿기까지의 시간만큼 늦다.
+  // 랜딩은 모든 방문자의 첫 화면이므로 여기서 깨워 두면 가장 이르다.
+  // 검색으로 이어지지 않아도 손해가 없는 단발 GET 이고, 실패는 무시한다
+  // (워밍은 부가 조치이고 실제 안전망은 검색 화면의 상한·재시도다).
+  useEffect(() => {
+    api.get("/v1/health", { timeout: 90_000 }).catch(() => {});
+  }, []);
 
   // 검색-우선 메인: 제품명/HS코드를 입력하면 바이어 검색 흐름을 연다.
   // 입력값은 sessionStorage에 남겨 이후 검색 화면이 프리필로 활용할 수 있게 한다(없어도 동작).
   const handleSearch = (e) => {
     e?.preventDefault?.();
-    const q = query.trim();
-    if (q) {
-      try {
-        sessionStorage.setItem("mg_search_query", q);
-      } catch {
-        /* 저장 실패는 무시(시크릿 모드 등) */
-      }
-    }
+    persistSearchQuery(query);
     onStartBuyerSearch?.();
   };
 
   const handleChipClick = (item) => {
-    if (item.available) {
-      setQuery(`${item.label} ${item.hsCode}`);
-      try {
-        sessionStorage.setItem("mg_search_query", item.hsCode);
-      } catch {
-        /* noop */
-      }
-      onStartBuyerSearch?.();
-    } else {
-      setToast(
-        `🚧 ${item.label}는 아직 준비 중이에요. 오픈되면 가장 먼저 알려드릴게요.`
-      );
-      setTimeout(() => setToast(null), 3000);
-    }
+    setQuery(`${item.label} ${item.hsCode}`);
+    persistSearchQuery(item.hsCode);
+    onStartBuyerSearch?.();
   };
 
   // 하단 CTA: 검색창에 HS/키워드가 있으면 분석·바이어 화면으로 이어 준다.
@@ -188,23 +161,13 @@ export default function LandingPage({
     return null;
   };
 
-  const persistQueryForBuyerSearch = () => {
-    const q = query.trim();
-    if (!q) return;
-    try {
-      sessionStorage.setItem("mg_search_query", q);
-    } catch {
-      /* noop */
-    }
-  };
-
   const startAnalysis = () => {
     const hs = resolveHsFromQuery();
     onStartAnalysis?.(hs ? { hsCode: hs } : undefined);
   };
 
   const startBuyerSearch = () => {
-    persistQueryForBuyerSearch();
+    persistSearchQuery(query);
     onStartBuyerSearch?.();
   };
 
@@ -230,7 +193,7 @@ export default function LandingPage({
             className="landing-nav-link"
             onClick={() => onStartOpportunities?.()}
           >
-            구매신호 탐색
+            해외 수요 찾기
           </button>
           <button
             className="landing-nav-link"
@@ -298,20 +261,13 @@ export default function LandingPage({
                   <button
                     type="button"
                     key={item.id}
-                    className={`landing-search-chip ${
-                      item.available ? "" : "landing-search-chip--soon"
-                    }`}
+                    className="landing-search-chip"
                     onClick={() => handleChipClick(item)}
-                    title={
-                      item.available
-                        ? `${item.label} (HS ${item.hsCode})로 검색`
-                        : `${item.label} 준비 중`
-                    }
+                    title={`${item.label} (HS ${item.hsCode})로 검색`}
                   >
                     <Icon size={15} />
                     <span>{item.label}</span>
                     <code>{item.hsCode}</code>
-                    {!item.available && <em>준비중</em>}
                   </button>
                 );
               })}
@@ -330,16 +286,6 @@ export default function LandingPage({
               실제 데이터를 정량 분석한 결과입니다.
             </span>
           </motion.div>
-
-          {toast && (
-            <motion.div
-              className="landing-toast"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              {toast}
-            </motion.div>
-          )}
         </div>
       </section>
 

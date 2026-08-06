@@ -1,31 +1,19 @@
 # 마켓게이트 (MarketGate)
 
-> 한국 화장품 수출기업을 위한 해외 바이어 발굴 플랫폼
-
----
-
-## 🚧 현재 서비스 범위 (K-뷰티 HS 330499 파일럿)
-
-- **품목 범위**: K-뷰티 스킨케어 **HS 330499 단일 품목** 파일럿으로 제한합니다.
-- **운영 형태**: 외부 유료 서비스가 아닌 **컨설턴트 동행 파일럿**입니다. 결제·에스크로·다품목·D&B 자동조회·완전 셀프서비스는 후순위입니다.
-- **데이터 정책**: API·CSV 원본에 없는 값(수입이력·수입액·성장률·RFM·검증일 등)은 생성하지 않으며, 화면에는 "자료 내 확인 불가"로 표시합니다.
-- **바이어 검증 상태**: `contact_status`(연락처) / `trade_status`(거래·출처) / `credit_status`(신용)를 분리 관리합니다. 연락처 보유는 검증 완료를 의미하지 않습니다.
-- **인콰이어리 발송**: `draft → review_required → approved → queued → sent/failed` 순서의 **관리자 승인 큐**로 관리하며, 초기에는 관리자가 수동 발송 후 결과(성공·실패·회신)를 기록합니다.
+> 한국 화장품 수출기업을 위한 해외 바이어 발굴·중개 플랫폼
 
 ---
 
 ## 📌 이 프로젝트는 뭔가요?
 
-마켓게이트는 한국의 화장품 수출기업이 전 세계에서 진짜로 제품을 사고 싶어하는 바이어를 쉽게 찾을 수 있게 도와주는 데이터 플랫폼입니다.
-
-### 왜 필요한가요?
+마켓게이트는 한국의 화장품 수출기업이 전 세계에서 진짜로 제품을 사고 싶어하는 바이어를 쉽게 찾고, **연락처를 직접 사고파는 대신 플랫폼이 안전하게 중개 발송**해주는 거래 인프라입니다.
 
 | 기존 방식 | 마켓게이트 방식 |
 |----------|---------------|
 | KOTRA 홈페이지에 직접 들어가서 하나하나 검색 | 모든 바이어 데이터를 한 곳에서 한눈에 보기 |
 | 600만 개 기업 중에서 수작업으로 찾기 | 화장품 관심 바이어만 자동으로 골라주기 |
 | 한 바이어 정보는 있지만 "살 의향"은 불확실 | 인콰이어리/구매오퍼 데이터로 "살 의향" 확인 |
-| 여러 사이트 왔다갔다 다니기 | CSV 하나로 엑셀에서 바로 분석 |
+| 바이어 연락처를 통째로 구매 (법적 리스크) | 연락처 비노출, 플랫폼이 대신 제안 발송 |
 
 ### 누가 쓰나요?
 
@@ -36,98 +24,108 @@
 
 ---
 
-## 📊 현재 보유 데이터 (2025년 4월 기준)
+## 🚧 현재 서비스 범위 (K-뷰티 HS 330499 파일럿)
+
+- **품목 범위**: K-뷰티 스킨케어 **HS 330499 단일 품목** 파일럿으로 제한합니다.
+- **운영 형태**: 외부 유료 서비스가 아닌 **컨설턴트 동행 파일럿**입니다. 결제·에스크로·다품목·완전 셀프서비스는 후순위입니다.
+- **중개 모델**: 바이어 연락처 원문은 판매·노출하지 않고, 인콰이어리는 `draft → review_required → approved → queued → sent/failed` 순서의 **관리자 승인 큐**로 발송합니다.
+- **데이터 정책**: API·CSV 원본에 없는 값(수입이력·수입액·성장률·검증일 등)은 생성하지 않으며, 화면에는 "자료 내 확인 불가"로 표시합니다.
+- **설계 기준 문서**: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (v2 확정본). 상태 머신·스키마·정책은 이 문서가 기준입니다.
+
+---
+
+## 🗂️ 저장소 구조
+
+```
+marketgate/
+├── apps/
+│   ├── frontend-react/          ← 메인 웹앱 (React + Vite, Vercel 배포)
+│   └── web-dig-landing/         ← 정적 랜딩 페이지 (HTML/CSS/JS)
+│
+├── services/
+│   ├── p1-export-fit-api/       ← 메인 백엔드 API (FastAPI, Render 배포)
+│   │                              바이어 추천 / 인콰이어리 / 크레딧·구독
+│   └── cosmetics_mvp_preprocess/← 바이어 데이터 수집·필터링 파이프라인
+│
+├── db/
+│   ├── migrations/              ← PostgreSQL 스키마 (Phase 0, Vault 암호화 포함)
+│   └── tests/                   ← 마이그레이션 회귀 테스트
+│
+├── data/raw/                    ← 원본 데이터
+├── scripts/                     ← data / dev / integrations / maintenance
+├── tools/                       ← 파이썬 유틸 스크립트 + 테스트
+├── ops/monitoring/              ← 운영·모니터링
+├── archive/                     ← 구형 코드 보관 (legacy-export-intelligence)
+└── docs/                        ← 설계 문서 (ARCHITECTURE.md가 최상위 기준)
+```
+
+### 문서 읽는 순서
+
+1. `docs/ARCHITECTURE.md` — 목표 아키텍처 확정본 (상태 머신·스키마·정책)
+2. `docs/PRODUCT.md` — 상품 구조·가격·전환 퍼널
+3. `docs/ERD.md` — 데이터베이스 구조
+4. `TASKS.md` — 현재 진행 중인 작업과 다음 순서
+
+---
+
+## 🚀 개발 현황 (2026-08 기준)
+
+### ✅ MVP 개발 완료 (2026-08-02 선언)
+
+- **MVP E2E**: HS코드 입력 → 바이어 조회 → 인콰이어리 초안 생성·발송 요청까지 전 구간 동작
+- **검증**: 백엔드 전체 테스트 **214 passed / 0 failed**, 프론트엔드 프로덕션 빌드 성공 (2026-08-02 실행)
+- **프론트엔드**: 랜딩 → 유망국 분석 → 바이어 검색 → 인콰이어리 모달 연결 완료
+- **Phase 0 DB**: 17테이블 DDL·ERD·데이터 사전, 연락처 암호화 금고(Vault), 키 회전 — PostgreSQL 16 CI 통과
+
+### 진행 순서 (2026-08-02 결정)
+
+> **법적·컴플라이언스 관련 개발은 모든 서비스 기능이 완성된 후로 보류합니다.**
+> MVP 이후 다음 단계는 매칭·슬롯·캠페인 등 서비스 기능 확장이 우선입니다.
+
+자세한 작업 목록은 [`TASKS.md`](TASKS.md)를 참고하세요.
+
+---
+
+## 📊 보유 바이어 데이터
 
 총 **18,012건**의 화장품 관심 해외 바이어 데이터
 
 | 데이터 출처 | 건수 | 특징 |
 |------------|------|------|
 | KOTRA SNS 마케팅 수집 바이어 | 12,666건 | SNS에서 직접 수집한 관심 바이어 |
-| GoBizKorea 인콰이어리 (2024) | 2,429건 | 올해 바이어가 직접 "이 제품 살게요" 문의 |
 | GoBizKorea 인콰이어리 (2021~2023) | 2,981건 | 과거 인콰이어리 누적 |
-| GoBizKorea 구매오퍼 | 166건 | 구매 의향을 공식 신청한 바이어 |
+| GoBizKorea 인콰이어리 (2024) | 2,429건 | 바이어가 직접 "이 제품 살게요" 문의 |
 | NIPA 글로벌ICT포털 | 1,853건 | ICT/통신 바이어 (전화번호 100% 포함) |
+| GoBizKorea 구매오퍼 | 166건 | 구매 의향을 공식 신청한 바이어 |
 
-### 국가별 분포 상위 10개
+국가별 상위: 인도(2,605) · 미국(2,053) · 필리핀(1,045) · 파키스탄(822) · 말레이시아(501) · 베트남(449) · 일본(409) · 인도네시아(348) · UAE(285) · 카자흐스탄(280)
 
-| 국가 | 건수 | 비고 |
-|------|------|------|
-| 🇮🇳 인도 | 2,605건 | 소비재 시장 확대 중 |
-| 🇺🇸 미국 | 2,053건 | K-뷰티 인기 상승 |
-| 🇵🇰 파키스탄 | 822건 | 신흥 시장 |
-| 🇵🇭 필리핀 | 1,045건 | 동남아 허브 |
-| 🇲🇾 말레이시아 | 501건 | 동남아 진출 거점 |
-| 🇻🇳 베트남 | 449건 | 급성장 중 |
-| 🇯🇵 일본 | 409건 | 프리미엄 수요 |
-| 🇮🇩 인도네시아 | 348건 | 인구 대국 |
-| 🇦🇪 아랍에미리트 | 285건 | 중동 허브 |
-| 🇰🇿 카자흐스탄 | 280건 | 중앙아시아 게이트 |
+### 데이터 파일 위치
+
+```
+services/cosmetics_mvp_preprocess/output/
+├── buyer_candidate_CLEANED_20250430.csv   ← 최신 화장품 데이터 (18,012건)
+├── NONCOS_buyer_data_20250430.csv         ← 비화장품 데이터 (2,083건)
+└── raw/                                   ← 원본 보관
+```
+
+### 주요 컬럼
+
+| 컬럼명 | 뜻 | 예시 |
+|--------|-----|------|
+| `title` | 관심 품목 | `lipsticks and cosmetics` |
+| `normalized_name` | 기업명 | `Lazada Group` |
+| `country_raw` / `country_iso3` | 국가 / ISO 코드 | `US` / `USA` |
+| `hs_code_raw` | HS 품목분류코드 | `330499` |
+| `keywords_raw` | 원본 키워드 | `beauty products, skincare` |
+| `has_contact` | 연락처 유무 | `True` / `False` |
+| `contact_phone` / `contact_website` | 전화번호 / 웹사이트 | — |
+| `source_dataset` | 데이터 출처 | `KOTRA SNS 마케팅 수집 바이어` |
+| `valid_until` | 데이터 기준일 | `2025-11-27` |
 
 ---
 
-## 🗂️ 데이터 구성
-
-```
-services/cosmetics_mvp_preprocess/
-│
-├── output/                          ← 바로 사용할 수 있는 데이터
-│   ├── buyer_candidate.csv           (기존: 34,088건)
-│   ├── buyer_candidate_CLEANED_20250430.csv  ← 최신 화장품 데이터 (18,012건)
-│   ├── NONCOS_buyer_data_20250430.csv         ← 비화장품 데이터 (2,083건)
-│   └── raw/                         ← 원본 보관
-│       ├── sns_buyer_2025.csv
-│       ├── gobiz_inquiry_2024.csv
-│       ├── gobiz_inquiry_2021_2023.csv
-│       ├── gobiz_purchase_offer.csv
-│       └── nipa_ict_buyer.csv
-│
-├── docs/                            ← 사용 설명서
-│   ├── DATA_COLLECTION_GUIDE.md     (데이터 수집 가이드)
-│   ├── NICE_DNB_신청가이드.txt     (나이스 디앤비 API 신청 방법)
-│   └── GITHUB_ACTIONS_GUIDE.txt    (자동화 사용법)
-│
-└── scripts/                         ← 자동화 스크립트
-    ├── fetch_govdata_api.py       (공공데이터 API 호출)
-    ├── fetch_buykorea_inquiry.py  (바이코리아 인콰이어리 수집)
-    ├── nice_dnb_poc.py            (나이스 디앤비 바이어 검증)
-    └── enrich_emails.py           (이메일 확보 파이프라인)
-```
-
----
-
-## 🚀 자동화: 파일만 넣으면 알아서 필터링
-
-### 어떻게 작동하나요?
-
-1. 새로운 바이어 CSV를 `raw/` 폴더에 업로드
-2. 깃허브가 1~2분 안에 자동 실행
-3. 화장품 관련 바이어만 골라서 `COS_combined_YYYYMMDD.csv` 생성
-
-### 예시
-
-```
-[새 파일 업로드]
-  RAW_importyeti_us_20250601.csv
-        ↓
-[깃허브 자동 실행]
-        ↓
-[프로그램이 자동으로]
-  ├─ CSV 읽기
-  ├─ 컬럼 통일 (기업명, 국가, 품목)
-  ├─ 화장품 키워드 필터링
-  │   ├─ lipstick, serum, cream, perfume
-  │   ├─ 화장품, 뷰티, 크림, 로션
-  │   └─ HS코드 3303~3307
-  ├─ 중복 제거 (같은 기업+국가는 1개만)
-  └─ 결과 저장
-        ↓
-[자동 생성됨]
-  output/COS_combined_20250601.csv
-```
-
----
-
-## 📥 새 데이터 넣는 방법 (3단계)
+## 📥 새 바이어 데이터 넣는 방법
 
 ### 파일명 규칙
 
@@ -139,128 +137,42 @@ RAW_데이터소스_YYYYMMDD.csv
 |------------|------------|
 | `RAW_buykorea_20250601.csv` | ~~`buykorea.csv`~~ (RAW 없음) |
 | `RAW_importyeti_us_20250601.csv` | ~~`RAW_data.xlsx`~~ (엑셀 안 됨) |
-| `RAW_kotra_rfq_20250601.csv` | ~~`인콰이어리.csv`~~ (한글명 비권장) |
 
-### 방법 1: 깃허브 웹사이트에서 (가장 쉬움)
+### 절차
 
-1. https://github.com/pds2225/marketgate 접속
-2. `services/cosmetics_mvp_preprocess/output/raw/` 폴더로 이동
-3. **"Add file" → "Upload files"** 클릭
-4. CSV 파일을 드래그해서 놓기
-5. **"Commit changes"** 클릭
-6. **1~2분 후** `output/` 폴더에 `COS_combined_YYYYMMDD.csv` 자동 생성됨
+1. `services/cosmetics_mvp_preprocess/output/raw/` 폴더에 CSV 업로드 (GitHub 웹에서 "Add file → Upload files" 가능)
+2. 커밋하면 GitHub Actions가 1~2분 안에 자동 실행
+3. 화장품 키워드 필터링(lipstick, serum, cream, HS코드 3303~3307 등) + 중복 제거 후 `output/COS_combined_YYYYMMDD.csv` 자동 생성
 
-### 방법 2: 깃 명령어로
+---
+
+## 🛠️ 개발·테스트 명령
 
 ```bash
-git clone https://github.com/pds2225/marketgate.git
-cd marketgate
-cp ~/Downloads/RAW_xxx.csv services/cosmetics_mvp_preprocess/output/raw/
-git add .
-git commit -m "Add: RAW_xxx"
-git push origin main
+# 백엔드 테스트 (현재 개발 중심)
+cd services/p1-export-fit-api && python -m pytest --tb=short -q
+
+# 프론트엔드 개발 서버
+cd apps/frontend-react && npm run dev
 ```
-
----
-
-## 🔍 데이터 활용 예시
-
-### 엑셀에서 바로 쓰기
-
-1. `buyer_candidate_CLEANED_20250430.csv` 다운로드
-2. 엑셀에서 열기 (한글이 깨지면 "데이터 → 텍스트/CSV 가져오기 → UTF-8 선택")
-3. 필터로 국가별, 품목별 정렬
-4. 영업팀에 배포
-
-### 파이썬으로 분석하기
-
-```python
-import pandas as pd
-
-# 데이터 로드
-df = pd.read_csv("buyer_candidate_CLEANED_20250430.csv", encoding='utf-8-sig')
-
-# 국가별 통계
-print(df['country_raw'].value_counts())
-
-# 품목별 검색
-serum_buyers = df[df['keywords_raw'].str.contains('serum', case=False)]
-print(f"세럼 관심 바이어: {len(serum_buyers)}건")
-```
-
----
-
-## 📋 데이터 컬럼 설명
-
-| 컬럼명 | 뜻 | 예시 |
-|--------|-----|------|
-| `title` | 관심 품목 | `lipsticks and cosmetics` |
-| `normalized_name` | 기업명 | `Lazada Group` |
-| `country_raw` | 국가 | `US` |
-| `country_iso3` | ISO 국가코드 | `USA` |
-| `hs_code_raw` | HS 품목분류코드 | `330499` |
-| `keywords_raw` | 원본 키워드 | `beauty products, skincare` |
-| `has_contact` | 연락처 유무 | `True` / `False` |
-| `contact_phone` | 전화번호 | `(+7) 727 388 80 00` |
-| `contact_website` | 웹사이트 | `https://...` |
-| `source_dataset` | 데이터 출처 | `KOTRA SNS 마케팅 수집 바이어` |
-| `valid_until` | 데이터 기준일 | `2025-11-27` |
-
----
-
-## 🎯 향후 계획
-
-### 단기 (2025년 2분기)
-
-| 작업 | 목표 | 상태 |
-|------|------|------|
-| KOTRA 바이코리아 인콰이어리 수집 | 40,305건 활용신청 완료 후 추가 | ⏳ 대기 중 |
-| 나이스 디앤비 바이어 검증 | 100개 샘플로 검증 테스트 | 🔜 즉시 가능 |
-| 이메일 확보 파이프라인 | 기업 홈페이지 → 이메일 수집 | ⏳ 대기 중 |
-
-### 중기 (2025년 3분기)
-
-- 임포트예티 미국 수입 이력 데이터 추가
-- 정부지원 (수출바우처/데이터바우처) 신청으로 나이스 디앤비 정식 도입
-- 바이어 등급 자동 분류 (A/B/C) → 영업 우선순위 자동 산정
 
 ---
 
 ## ⚠️ 알아두면 좋은 점
 
-1. **이메일은 공공데이터에서 제공되지 않습니다**
-   - 개인정보보호법 때문입니다
-   - 대안: KOTRA 해외무역관 소개, 기업 홈페이지 공개 이메일 수집
-
-2. **화장품이 아닌 데이터도 일부 포함될 수 있습니다**
-   - `NONCOS_buyer_data_*.csv`로 분리 보관됩니다
-   - 키워드나 HS코드로 한 번 더 필터링하면 완벽해집니다
-
-3. **데이터는 수시로 업데이트됩니다**
-   - 최신 데이터는 `COS_combined_YYYYMMDD.csv` (날짜가 붙은 파일)입니다
+1. **이메일은 공공데이터에서 제공되지 않습니다** (개인정보보호법). 대안: KOTRA 해외무역관 소개, 기업 홈페이지 공개 이메일 수집.
+2. **화장품이 아닌 데이터도 일부 섞일 수 있습니다.** `NONCOS_buyer_data_*.csv`로 분리 보관되며, 키워드·HS코드로 한 번 더 필터링하면 됩니다.
+3. **각 출처별로 재사용 권한이 다릅니다.** 어떤 데이터를 어디까지 쓸 수 있는지는 `docs/ARCHITECTURE.md` §4.2(Source Rights Registry)가 기준입니다.
 
 ---
 
-## 🤝 기여 방법
-
-새로운 바이어 데이터가 있으면 `raw/` 폴더에 CSV만 넣어주세요.
-깃허브가 알아서 화장품 필터링 + 통합해 드립니다.
-
-**파일명 규칙만 지키면 됩니다:**
-```
-RAW_데이터소스_YYYYMMDD.csv
-```
-
----
-
-## 📞 문의 및 지원
+## 📞 문의
 
 | 항목 | 내용 |
 |------|------|
 | 저장소 주인 | 밸류업파트너스 |
 | 데이터 출처 | KOTRA, GoBizKorea, NIPA, 공공데이터포털 |
-| 정부지원 | 수출바우처 / 데이터바우처 (75% 할인) |
-| API 문의 | 나이스 디앤비 오픈 API (openapi.nicednb.com) |
+| 저장소 | https://github.com/pds2225/marketgate |
 
 ---
 

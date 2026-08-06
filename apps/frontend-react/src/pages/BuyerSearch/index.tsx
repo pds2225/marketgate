@@ -110,11 +110,14 @@ function buildBuyerReportText(buyer: Buyer): string {
 
 // 카테고리 정의 (검색 진입용). 바이어 목록은 항상 API 실데이터로만 채운다 —
 // 가상의 예시 바이어(하드코딩 목업)는 데이터 정책 위반이라 제거했다.
+// 무역 데이터 커버리지는 현재 화장품(3304xx)에만 있다. 나머지 품목은 predict 가
+// HS_NOT_IN_TRADE_COVERAGE / HS_NOT_SUPPORTED 로 응답해 국가 추천이 나오지 않는다.
+// 정의는 남겨 두고 노출만 막는다 — 데이터가 들어오면 inCoverage 만 켜면 된다.
 const CATEGORIES: CategoryData[] = [
   { label: 'K-뷰티', hsCode: '330499', hsLabel: '스킨케어', icon: <Sparkles className="h-4 w-4" />, countries: [], buyers: [] },
   { label: '건강식품', hsCode: '210690', hsLabel: '건강기능식품', icon: <Stethoscope className="h-4 w-4" />, countries: [], buyers: [] },
-  { label: 'K-패션', hsCode: '6203', hsLabel: '여성 의류', icon: <Shirt className="h-4 w-4" />, countries: [], buyers: [] },
-  { label: '반도체', hsCode: '8541', hsLabel: '반도체 소자', icon: <Cpu className="h-4 w-4" />, countries: [], buyers: [] },
+  { label: 'K-패션', hsCode: '620343', hsLabel: '여성 의류', icon: <Shirt className="h-4 w-4" />, countries: [], buyers: [] },
+  { label: '반도체', hsCode: '854140', hsLabel: '반도체 소자', icon: <Cpu className="h-4 w-4" />, countries: [], buyers: [] },
 ];
 
 /* ── Reusable small components ── */
@@ -276,7 +279,15 @@ const ExportConditionPanel: React.FC<{ open: boolean; onClose: () => void; condi
 };
 
 /* ── SearchBar ── */
-const SUGGESTED_KEYWORDS = ['스킨케어', '홍삼', '여성의류', '메모리 반도체'];
+// 커버리지 보유 품목(3304xx)만 노출한다. 홍삼·여성의류·메모리 반도체는
+// 눌러도 "데이터 미보유" 안내만 나와 추천처럼 보이면 안 된다.
+const SUGGESTED_KEYWORDS = ['스킨케어', '세럼', '화장품'];
+
+/** 무역 데이터 커버리지를 보유해 실제로 국가 추천이 나오는 품목 */
+const COVERED_HS_PREFIXES = ['3304'];
+const VISIBLE_CATEGORIES = CATEGORIES.filter((c) =>
+  COVERED_HS_PREFIXES.some((prefix) => c.hsCode.startsWith(prefix))
+);
 const SearchBar: React.FC<{ onSearch: (text: string) => void; activeCategory: string; loading: boolean; initialQuery?: string; }> = ({ onSearch, activeCategory, loading, initialQuery = '' }) => {
   const [input, setInput] = useState(initialQuery);
   useEffect(() => {
@@ -302,7 +313,7 @@ const SearchBar: React.FC<{ onSearch: (text: string) => void; activeCategory: st
         </div>
         <div className="flex flex-wrap items-center gap-2 mt-3">
           <span className="text-[11px] text-slate-400 mr-1">카테고리</span>
-          {CATEGORIES.map((cat) => (
+          {VISIBLE_CATEGORIES.map((cat) => (
             <button key={cat.label} onClick={() => !loading && onSearch(cat.label)} disabled={loading} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50 ${activeCategory === cat.label ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'}`}>{cat.icon} {cat.label}</button>
           ))}
         </div>
@@ -411,24 +422,24 @@ const OpportunityFact: React.FC<{ label: string; value?: string | null }> = ({ l
 );
 
 const OpportunitySignalsBanner: React.FC<{ signals: OpportunitySignal[] }> = ({ signals }) => (
-  <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-5">
+  <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-5">
     <div className="flex items-center justify-between gap-2 mb-2">
-      <h2 className="text-sm font-semibold text-amber-950">구매 신호</h2>
-      <span className="text-[11px] font-medium text-amber-800">{signals.length}건</span>
+      <h2 className="text-sm font-semibold text-slate-900">구매 신호</h2>
+      <span className="text-[11px] font-medium text-blue-800">{signals.length}건</span>
     </div>
-    <p className="text-[11px] text-amber-900/80 mb-3 leading-relaxed">
+    <p className="text-[11px] text-slate-700/80 mb-3 leading-relaxed">
       buyKOREA 인콰이어리 등 <strong>수요 신호</strong>입니다. 연락 가능한 바이어 명단이 아니며, 원본에 있는 필드만 표시합니다.
     </p>
     {signals.length === 0 ? (
-      <p className="text-xs text-amber-900/70">연결된 구매 신호 없음 — 자료 내 확인 불가 또는 현재 조건에 매칭된 신호 없음</p>
+      <p className="text-xs text-slate-700/70">연결된 구매 신호 없음 — 자료 내 확인 불가 또는 현재 조건에 매칭된 신호 없음</p>
     ) : (
       <ul className="space-y-2">
         {signals.map((signal, index) => {
           const keywords = formatKeywords(signal.keywords);
           return (
-            <li key={`${signal.title}-${index}`} className="bg-white/80 border border-amber-100 rounded-lg px-3 py-2.5">
+            <li key={`${signal.title}-${index}`} className="bg-white/80 border border-blue-100 rounded-lg px-3 py-2.5">
               <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px]">{signalTypeLabel(signal.signalType)}</Badge>
+                <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-[10px]">{signalTypeLabel(signal.signalType)}</Badge>
                 <span className="text-[11px] text-slate-600">{signal.countryName || signal.countryIso3 || '국가 미상'}</span>
                 {signal.scoringApplied ? (
                   <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px]">점수 반영됨</Badge>
@@ -750,9 +761,49 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
 /* ================================================================== */
 interface BuyerSearchPageProps {
   onClose?: () => void;
+  /** 폼 모드(AnalysisPage)로 전환. 현재 화면의 HS 코드를 preset 으로 넘긴다. */
+  onOpenFormMode?: (preset: { hsCode: string }) => void;
 }
 
-export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
+// 백엔드(Render)가 유휴 상태에서 깨어나는 데 실측 40초 이상 걸린다. 여기에 predict 자체
+// 소요(실측 5~9초)를 더해 상한을 잡는다. 초과 시 무한 로딩 대신 재시도 가능한 오류 화면.
+const SEARCH_TIMEOUT_MS = 90_000;
+// 콜드 스타트 구간에서 "멈춘 것 아님"을 알려주는 시점.
+const SLOW_NOTICE_MS = 8_000;
+
+/** 응답 자체가 없는 실패(콜드 스타트 중 끊김·타임아웃)인지. 4xx/5xx 는 재시도 대상이 아니다. */
+function isTransportFailure(err: any) {
+  if (err?.response) return false;
+  return err?.code === 'ECONNABORTED' || err?.code === 'ERR_NETWORK' || !!err?.request;
+}
+
+/**
+ * predict 호출. 유휴 상태의 백엔드가 깨어나는 첫 요청은 연결이 끊기거나 상한을 넘길 수 있어
+ * 응답 없는 실패에 한해 1회만 재시도한다. 4xx/5xx 는 그대로 던져 원인별 안내를 유지한다.
+ */
+async function requestPredict(hsCode: string) {
+  const payload = {
+    hs_code: hsCode,
+    exporter_country_iso3: 'KOR',
+    top_n: 5,
+    year: 2023,
+    filters: { min_trade_value_usd: 0 },
+  };
+  // SEARCH_TIMEOUT_MS 는 재시도를 포함한 전체 상한이다. 시도마다 상한을 새로 주면
+  // 최악 180초가 되어 화면에 안내한 시간과 어긋나므로, 마감시각을 한 번만 정하고
+  // 재시도에는 남은 시간만 준다. 남은 시간이 없으면 첫 오류를 그대로 던진다.
+  const deadline = Date.now() + SEARCH_TIMEOUT_MS;
+  try {
+    return await api.post('/v1/predict', payload, { timeout: SEARCH_TIMEOUT_MS });
+  } catch (err) {
+    if (!isTransportFailure(err)) throw err;
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw err;
+    return await api.post('/v1/predict', payload, { timeout: remaining });
+  }
+}
+
+export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearchPageProps) {
   const [currentCategory, setCurrentCategory] = useState<string>('');
   const [step, setStep] = useState<Step>('countries');
   const [selectedCountry, setSelectedCountry] = useState<CountryRec | null>(null);
@@ -768,6 +819,8 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
   // 랜딩에서 sessionStorage(mg_search_query)로 넘긴 검색어 — 마운트 시 1회 소비·자동 검색
   const [seedQuery, setSeedQuery] = useState('');
   const [opportunitySignals, setOpportunitySignals] = useState<OpportunitySignal[]>([]);
+  // 콜드 스타트로 응답이 늦어질 때만 켜지는 부가 안내.
+  const [slowNotice, setSlowNotice] = useState(false);
 
   const categoryData = useMemo(() => dynamicCategory || CATEGORIES.find((c) => c.label === currentCategory), [dynamicCategory, currentCategory]);
   // 바이어별 수입실적 데이터가 원본에 없어 MOQ 기반 바이어 필터링은 제공하지 않는다.
@@ -779,8 +832,10 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
     setInputHsCode(text);
     setLastQuery(text);
     setLoading(true);
+    setSlowNotice(false);
     setSearchError(null);
     setSearchErrorKind(null);
+    const slowTimer = window.setTimeout(() => setSlowNotice(true), SLOW_NOTICE_MS);
 
     try {
       let hsCode = text.trim();
@@ -793,22 +848,25 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
       } else if (sixDigit) {
         hsCode = sixDigit[1];
       } else if (!/^\d{6}$/.test(hsCode)) {
-        const inputErr: any = new Error('HS 코드는 6자리 숫자이거나, K-뷰티/건강식품/K-패션/반도체 중 하나를 입력해 주세요.');
+        const inputErr: any = new Error('HS 코드는 6자리 숫자이거나, K-뷰티 관련 키워드(스킨케어·세럼·화장품 등)를 입력해 주세요.');
         inputErr.errorKind = 'input';
         throw inputErr;
       }
 
-      const res = await api.post('/v1/predict', {
-        hs_code: hsCode,
-        exporter_country_iso3: 'KOR',
-        top_n: 5,
-        year: 2023,
-        filters: { min_trade_value_usd: 0 },
-      });
+      // 공용 api 클라이언트에는 timeout 이 없어 요청이 멈추면 로딩 오버레이가 영구히 남는다.
+      // 이 화면에서만 상한을 두고, 초과 시 아래 catch 에서 재시도 가능한 오류로 처리한다.
+      const res = await requestPredict(hsCode);
 
       const buyersData = res.data?.data?.buyers;
       if (!buyersData || buyersData.status !== 'ok' || !buyersData.items?.length) {
-        const emptyErr: any = new Error('현재 조건에 맞는 바이어를 찾지 못했습니다.');
+        // 서버는 왜 비었는지를 diagnostics.coverage_message 로 알려준다. 이걸 버리고
+        // "바이어를 찾지 못했습니다"만 보여주면 정반대 함의가 전달된다 —
+        // 무역 데이터 미보유인데 사용자는 "이 품목은 수요가 없구나"로 읽는다.
+        const coverage = res.data?.data?.diagnostics?.coverage_message;
+        const emptyErr: any = new Error(
+          (typeof coverage === 'string' && coverage.trim()) ||
+            '현재 조건에 맞는 바이어를 찾지 못했습니다.'
+        );
         emptyErr.errorKind = 'empty';
         throw emptyErr;
       }
@@ -842,11 +900,23 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
       if (kind === 'input') {
         msg = err.message;
       } else if (kind === 'empty') {
-        msg = '현재 조건에 맞는 바이어를 찾지 못했습니다.';
+        // 위에서 서버의 coverage_message 를 담아 던졌으므로 그대로 쓴다.
+        msg = err.message || '현재 조건에 맞는 바이어를 찾지 못했습니다.';
+      } else if (err.code === 'ECONNABORTED' || /timeout/i.test(err.message || '')) {
+        msg = '분석 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.';
       } else if (status && status >= 500) {
         msg = '바이어 분석 서버에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.';
       } else if (status) {
-        msg = err.response?.data?.detail || '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+        // FastAPI 검증 실패(422)의 detail 은 문자열이 아니라 객체 배열이다.
+        // 그대로 넣으면 화면에 아무것도 렌더되지 않아 "눌렀는데 반응이 없는" 상태가 된다.
+        const detail = err.response?.data?.detail;
+        const detailText =
+          typeof detail === 'string'
+            ? detail
+            : Array.isArray(detail)
+              ? detail.map((d: any) => d?.msg).filter(Boolean).join(' / ')
+              : '';
+        msg = detailText || '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
       } else {
         // No response at all → backend down / network error.
         msg = '서버에 연결하지 못했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.';
@@ -862,9 +932,17 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
       setSearchErrorKind(kind);
       toast.error(msg);
     } finally {
+      window.clearTimeout(slowTimer);
+      setSlowNotice(false);
       setLoading(false);
     }
   };
+
+  // 유휴 상태의 백엔드는 첫 요청에서 40초 이상 걸린다. 화면 진입 즉시 health 를 한 번 두드려
+  // 사용자가 검색어를 입력하는 동안 미리 깨워 둔다(실패는 무시 — 검색 자체에 영향 없음).
+  useEffect(() => {
+    api.get('/v1/health', { timeout: SEARCH_TIMEOUT_MS }).catch(() => {});
+  }, []);
 
   // 랜딩 히어로/칩에서 넘긴 mg_search_query 를 1회 읽어 자동 검색한다.
   useEffect(() => {
@@ -891,6 +969,9 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
     toast.info('수익성 시뮬레이션을 확인했습니다', { description: '바이어 목록은 필터링 없이 전체 실데이터를 표시합니다.' });
   };
   const handleResetConditions = () => {};
+  // 폼 모드로 넘길 HS 코드 — 6자리 숫자일 때만 전달한다(카테고리명은 AnalysisPage 가 파싱하지 못함).
+  const rawHsCode = selectedBuyer?.hsCode || categoryData?.hsCode || inputHsCode.trim();
+  const formModeHsCode = /^\d{6}$/.test(rawHsCode) ? rawHsCode : '';
 
   const renderRightPanel = () => {
     if (!categoryData) return (
@@ -918,20 +999,20 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
             <>
               <Database className="h-12 w-12 mb-4 text-slate-200" />
               <p className="text-sm text-slate-600">{searchError}</p>
-              <p className="text-xs mt-1">다른 키워드나 HS코드로 다시 검색해 보세요 (예: 스킨케어, 홍삼, 여성의류, 반도체)</p>
+              <p className="text-xs mt-1">다른 키워드나 HS코드로 다시 검색해 보세요 (예: 스킨케어, 세럼, 330499)</p>
             </>
           ) : (
             <>
               <AlertCircle className="h-12 w-12 mb-4 text-amber-300" />
               <p className="text-sm text-amber-600">{searchError}</p>
-              <p className="text-xs mt-1">검색어를 바꿔 다시 시도해 보세요 (예: 스킨케어, 홍삼, 여성의류, 반도체)</p>
+              <p className="text-xs mt-1">검색어를 바꿔 다시 시도해 보세요 (예: 스킨케어, 세럼, 330499)</p>
             </>
           )
         ) : (
           <>
             <Search className="h-12 w-12 mb-4 text-slate-200" />
             <p className="text-sm">위 검색바에 제품 키워드나 HS코드를 입력해 바이어를 찾아보세요</p>
-            <p className="text-xs mt-1">예: 스킨케어, 홍삼, 여성의류, 반도체</p>
+            <p className="text-xs mt-1">예: 스킨케어, 세럼, 330499</p>
           </>
         )}
       </div>
@@ -954,15 +1035,34 @@ export default function BuyerSearchPage({ onClose }: BuyerSearchPageProps) {
                 <span className="font-bold">MarketGate</span>
               </button>
             )}
-            <span className="text-xs font-bold text-slate-400 tracking-wider">HS {selectedBuyer?.hsCode || categoryData?.hsCode || inputHsCode || '—'}</span>
-            <span className="text-xs text-slate-500">({selectedBuyer?.hsLabel || categoryData?.hsLabel || '스킨케어'})</span>
+            {/* inputHsCode 는 사용자가 친 검색어라 "반도체" 같은 키워드가 들어온다.
+                HS 자리에 그대로 넣으면 키워드가 코드인 것처럼 보인다.
+                라벨도 '스킨케어' 로 하드코딩돼 있어, 다른 품목을 검색했는데
+                스킨케어라고 표시되는 문제가 있었다. 둘 다 모르면 표시하지 않는다. */}
+            <span className="text-xs font-bold text-slate-400 tracking-wider">HS {selectedBuyer?.hsCode || categoryData?.hsCode || '—'}</span>
+            {(selectedBuyer?.hsLabel || categoryData?.hsLabel) && (
+              <span className="text-xs text-slate-500">({selectedBuyer?.hsLabel || categoryData?.hsLabel})</span>
+            )}
           </div>
-          <div className="flex items-center gap-2"><Button variant="outline" size="sm" className="h-7 text-xs gap-1.5"><LayoutGrid className="h-3.5 w-3.5" />품 모드</Button></div>
+          <div className="flex items-center gap-2">
+            {onOpenFormMode && (
+              <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={() => onOpenFormMode({ hsCode: formModeHsCode })}>
+                <LayoutGrid className="h-3.5 w-3.5" />폼 모드
+              </Button>
+            )}
+          </div>
         </div>
         <SearchBar onSearch={handleSearch} activeCategory={currentCategory} loading={loading} initialQuery={seedQuery} />
       </header>
       <div className="flex-1 overflow-hidden relative">
-        {loading && <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center"><Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-3" /><p className="text-sm text-slate-600">바이어 데이터를 분석 중입니다...</p><p className="text-xs text-slate-400 mt-1">KOTRA 공공데이터 CSV 기반 분석 중</p></div>}
+        {loading && (
+          <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center" data-testid="buyer-search-loading">
+            <Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-3" />
+            <p className="text-sm text-slate-600">바이어 데이터를 분석 중입니다...</p>
+            <p className="text-xs text-slate-400 mt-1">KOTRA 포함 글로벌 데이터 분석 중</p>
+            {slowNotice && <p className="text-xs text-slate-400 mt-2">분석 서버를 깨우는 중입니다 — 첫 검색은 최대 1분 30초까지 걸릴 수 있어요.</p>}
+          </div>
+        )}
         {renderRightPanel()}
       </div>
       <ExportConditionPanel open={showConditionPanel} onClose={() => setShowConditionPanel(false)} conditions={conditions} onChange={setConditions} onApply={handleApplyConditions} onReset={handleResetConditions} />

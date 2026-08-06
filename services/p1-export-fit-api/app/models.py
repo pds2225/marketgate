@@ -183,6 +183,7 @@ class InquiryRequest(BaseModel):
     sender_company: str = Field(..., description="Sender company name")
     sender_name: str = Field(..., description="Sender person name")
     message: Optional[str] = Field(default="", description="Optional additional message")
+    sender_email: Optional[str] = Field(default="", description="Sender reply-to email (shown in draft body)")
     # 바이어 페이로드 (Optional+default — 미전달 시 기존 draft와 동일)
     country: Optional[str] = Field(default=None, description="Buyer country (personalization)")
     match_relevance: Optional[str] = Field(default=None, description="strong/weak/none (personalization)")
@@ -207,6 +208,7 @@ class InquiryResponse(BaseModel):
     personalized: bool = False
     country: Optional[str] = None
     match_relevance: Optional[str] = None
+    sender_email: str = ""
 
 
 # --- B5: Export Readiness Check (additive — predict 응답 재호출/재계산 없이 DTO 소비) ---
