@@ -12,6 +12,7 @@ export default function AuthPage({ onSuccess, sessionExpired = false, duringPaym
   const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
   const [focused, setFocused] = useState(null)
+  const [registered, setRegistered] = useState(false)
   // 실측 집계(/v1/demo/summary)만 표시 — 근거 없는 수치(50K+, 98% 등)는 사용하지 않는다
   const [dataStats, setDataStats] = useState(null)
 
@@ -43,12 +44,12 @@ export default function AuthPage({ onSuccess, sessionExpired = false, duringPaym
         const { data } = await api.post('/v1/auth/login', { email, password })
         localStorage.setItem('access_token', data.access_token)
         localStorage.setItem('refresh_token', data.refresh_token)
+        onSuccess()
       } else {
-        const { data } = await api.post('/v1/auth/register', { email, password })
-        localStorage.setItem('access_token', data.access_token || data.token)
-        if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token)
+        await api.post('/v1/auth/register', { email, password })
+        setRegistered(true)
+        setMode('login')
       }
-      onSuccess()
     } catch (err) {
       let msg
       if (!err.response) {
@@ -331,16 +332,21 @@ export default function AuthPage({ onSuccess, sessionExpired = false, duringPaym
                   : '보안을 위해 로그인 세션이 만료되었습니다. 작업을 이어가려면 다시 로그인해 주세요.'}
               </div>
             )}
+            {registered && (
+              <div className="auth-notice" role="status" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }}>
+                회원가입이 완료되었습니다. 로그인해 주세요.
+              </div>
+            )}
             <div className="auth-mode-row">
               <button
                 type="button"
                 className={`auth-mode-btn ${mode === 'login' ? 'active' : ''}`}
-                onClick={() => { setMode('login'); setError('') }}
+                onClick={() => { setMode('login'); setError(''); setRegistered(false) }}
               >로그인</button>
               <button
                 type="button"
                 className={`auth-mode-btn ${mode === 'register' ? 'active' : ''}`}
-                onClick={() => { setMode('register'); setError('') }}
+                onClick={() => { setMode('register'); setError(''); setRegistered(false) }}
               >회원가입</button>
             </div>
 
