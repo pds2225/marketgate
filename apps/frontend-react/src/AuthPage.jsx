@@ -71,25 +71,28 @@ export default function AuthPage({ onSuccess, sessionExpired = false, duringPaym
   return (
     <>
       <style>{`
-
-        /* 색상은 랜딩(App.css --landing-*)과 동일한 팔레트를 쓴다.
-           blue #1463f3 / blue-dark #0b4ed1 / navy #07152f / muted #59677d
-           line #dbe3ef / pale #f2f7ff */
+        /* 시안 A: 포트 배경 + 밝은 폼 */
         .auth-root {
+          --auth-blue: #1463f3;
+          --auth-blue-dark: #0b4ed1;
+          --auth-navy: #07152f;
+          --auth-muted: #59677d;
           min-height: 100vh;
-          background: #ffffff;
+          background: #f7fbff;
           display: grid;
-          grid-template-columns: 1fr 420px;
+          grid-template-columns: 1fr min(440px, 42vw);
           position: relative;
           overflow: hidden;
         }
         @media (max-width: 700px) {
           .auth-root { grid-template-columns: 1fr; }
-          .auth-left { display: none !important; }
-          .auth-right { padding: 32px 20px; }
+          .auth-left { min-height: 180px; padding: 28px 24px; }
+          .auth-hero-title { font-size: 2rem !important; }
+          .auth-stats { display: none !important; }
+          .auth-right { padding: 28px 20px 40px; }
         }
 
-        /* LEFT PANEL */
+        /* LEFT: 시안 A 포트 배경 */
         .auth-left {
           position: relative;
           display: flex;
@@ -98,95 +101,78 @@ export default function AuthPage({ onSuccess, sessionExpired = false, duringPaym
           padding: 40px 48px;
           border-right: 1px solid #dbe3ef;
           background:
-            radial-gradient(ellipse 70% 50% at 30% 30%, rgba(20,99,243,0.08) 0%, transparent 60%),
-            #f2f7ff;
+            linear-gradient(120deg, rgba(7, 21, 47, 0.72) 0%, rgba(7, 21, 47, 0.45) 55%, rgba(20, 99, 243, 0.28) 100%),
+            url("/hero-port.png") center / cover no-repeat;
           overflow: hidden;
         }
-        .auth-left::after {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background-image:
-            linear-gradient(rgba(20,99,243,0.05) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(20,99,243,0.05) 1px, transparent 1px);
-          background-size: 48px 48px;
-          pointer-events: none;
-        }
-        .auth-brand {
-          position: relative;
-          z-index: 1;
-        }
+        .auth-brand { position: relative; z-index: 1; }
         .auth-brand-name {
-          font-family: 'Bebas Neue', sans-serif;
-          font-size: 1.5rem;
-          letter-spacing: 0.12em;
-          color: #1463f3;
+          font-size: 1.55rem;
+          font-weight: 800;
+          letter-spacing: -0.04em;
+          color: #ffffff;
         }
         .auth-brand-sub {
-          font-family: 'DM Mono', monospace;
-          font-size: 0.6rem;
-          letter-spacing: 0.15em;
-          color: #59677d;
+          font-size: 0.72rem;
+          letter-spacing: 0.08em;
+          color: rgba(255,255,255,0.72);
           text-transform: uppercase;
-          margin-top: 4px;
+          margin-top: 6px;
         }
-        .auth-hero {
-          position: relative;
-          z-index: 1;
-        }
+        .auth-hero { position: relative; z-index: 1; }
         .auth-hero-title {
-          font-family: 'Bebas Neue', sans-serif;
-          font-size: clamp(3rem, 5vw, 5.5rem);
-          line-height: 0.9;
-          color: #07152f;
-          margin-bottom: 20px;
+          font-size: clamp(2.4rem, 4.5vw, 4.2rem);
+          font-weight: 850;
+          letter-spacing: -0.045em;
+          line-height: 1.05;
+          color: #ffffff;
+          margin-bottom: 16px;
+          word-break: keep-all;
         }
         .auth-hero-title em {
-          color: #1463f3;
+          color: #9ec0ff;
           font-style: normal;
           display: block;
         }
         .auth-hero-desc {
-          font-size: 0.82rem;
-          color: #59677d;
-          font-weight: 300;
-          line-height: 1.8;
-          max-width: 320px;
+          font-size: 0.95rem;
+          color: rgba(255,255,255,0.82);
+          font-weight: 450;
+          line-height: 1.7;
+          max-width: 360px;
+          word-break: keep-all;
         }
         .auth-stats {
           position: relative;
           z-index: 1;
           display: flex;
-          gap: 32px;
+          gap: 28px;
         }
         .auth-stat-val {
-          font-family: 'DM Mono', monospace;
-          font-size: 1.4rem;
-          color: #1463f3;
-          font-weight: 500;
+          font-size: 1.35rem;
+          color: #ffffff;
+          font-weight: 750;
         }
         .auth-stat-lbl {
-          font-family: 'DM Mono', monospace;
-          font-size: 0.6rem;
-          letter-spacing: 0.1em;
-          color: #59677d;
-          text-transform: uppercase;
-          margin-top: 2px;
+          font-size: 0.72rem;
+          letter-spacing: 0.02em;
+          color: rgba(255,255,255,0.7);
+          margin-top: 4px;
         }
 
-        /* RIGHT PANEL */
+        /* RIGHT: 랜딩과 같은 밝은 폼 */
         .auth-right {
           background: #ffffff;
           display: flex;
           flex-direction: column;
           justify-content: center;
-          padding: 48px 44px;
+          padding: 48px 40px;
           position: relative;
         }
         .auth-mode-row {
           display: flex;
           gap: 0;
-          margin-bottom: 40px;
+          margin-bottom: 28px;
           border-bottom: 1px solid #dbe3ef;
         }
         .auth-mode-btn {
@@ -194,126 +180,106 @@ export default function AuthPage({ onSuccess, sessionExpired = false, duringPaym
           border: none;
           padding: 10px 0;
           margin-right: 24px;
-          font-family: 'DM Mono', monospace;
-          font-size: 0.68rem;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
+          font-size: 0.92rem;
+          font-weight: 700;
           cursor: pointer;
-          color: #59677d;
+          color: var(--auth-muted);
           border-bottom: 2px solid transparent;
           margin-bottom: -1px;
           transition: color 0.2s, border-color 0.2s;
         }
-        .auth-mode-btn.active { color: #1463f3; border-bottom-color: #1463f3; }
+        .auth-mode-btn.active { color: var(--auth-blue); border-bottom-color: var(--auth-blue); }
 
-        .auth-form { display: flex; flex-direction: column; gap: 20px; }
+        .auth-demo {
+          margin-bottom: 20px;
+          padding: 12px 14px;
+          border: 1px solid #dbe3ef;
+          border-radius: 12px;
+          background: #f2f7ff;
+          color: var(--auth-navy);
+          font-size: 0.82rem;
+          line-height: 1.55;
+        }
+        .auth-demo strong { font-weight: 750; }
+        .auth-demo-fill {
+          display: inline-flex;
+          margin-top: 8px;
+          padding: 7px 12px;
+          border: 0;
+          border-radius: 10px;
+          background: var(--auth-blue);
+          color: #fff;
+          font-size: 0.78rem;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .auth-demo-fill:hover { background: var(--auth-blue-dark); }
+
+        .auth-form { display: flex; flex-direction: column; gap: 18px; }
 
         .auth-field { display: flex; flex-direction: column; gap: 6px; }
         .auth-label {
-          font-family: 'DM Mono', monospace;
-          font-size: 0.62rem;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          color: #59677d;
+          font-size: 0.78rem;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          color: var(--auth-muted);
           transition: color 0.2s;
         }
-        .auth-field:focus-within .auth-label { color: #1463f3; }
+        .auth-field:focus-within .auth-label { color: var(--auth-blue); }
 
         .auth-input {
           width: 100%;
           background: #ffffff;
-          border: 1px solid #dbe3ef;
-          border-radius: 3px;
-          color: #07152f;
+          border: 1px solid #ccd7e6;
+          border-radius: 12px;
+          color: var(--auth-navy);
           padding: 12px 14px;
-          font-family: 'DM Mono', monospace;
-          font-size: 0.82rem;
+          font-size: 0.95rem;
           outline: none;
-          transition: border-color 0.2s, background 0.2s;
+          transition: border-color 0.2s, box-shadow 0.2s;
           box-sizing: border-box;
         }
         .auth-input:focus {
-          border-color: #1463f3;
-          background: #f2f7ff;
+          border-color: var(--auth-blue);
+          box-shadow: 0 0 0 4px rgba(20, 99, 243, 0.12);
         }
         .auth-input::placeholder { color: #8fa0b8; }
 
         .auth-error {
-          font-family: 'DM Mono', monospace;
-          font-size: 0.68rem;
+          font-size: 0.82rem;
           color: #b91c1c;
           background: #fef2f2;
           border: 1px solid #fecaca;
           padding: 10px 12px;
-          border-radius: 3px;
-          letter-spacing: 0.04em;
+          border-radius: 10px;
         }
 
         .auth-notice {
-          font-family: 'DM Mono', monospace;
-          font-size: 0.68rem;
-          line-height: 1.6;
-          color: #0b4ed1;
-          background: #f2f7ff;
-          border: 1px solid #bfd6ff;
+          font-size: 0.82rem;
+          line-height: 1.55;
+          color: #92400e;
+          background: #fffbeb;
+          border: 1px solid #fde68a;
           padding: 12px 14px;
-          border-radius: 3px;
-          letter-spacing: 0.03em;
-          margin-bottom: 24px;
+          border-radius: 10px;
+          margin-bottom: 20px;
         }
 
         .auth-submit {
           width: 100%;
-          padding: 13px;
-          background: #1463f3;
+          min-height: 48px;
+          padding: 12px;
+          background: var(--auth-blue);
           border: none;
-          border-radius: 3px;
+          border-radius: 12px;
           color: #ffffff;
           cursor: pointer;
-          font-family: 'DM Mono', monospace;
-          font-size: 0.72rem;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          font-weight: 500;
-          transition: opacity 0.2s, transform 0.15s;
-          position: relative;
-          overflow: hidden;
+          font-size: 0.95rem;
+          font-weight: 750;
+          transition: background 0.2s, transform 0.15s;
         }
-        .auth-submit:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
-        .auth-submit:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
-        .auth-guest {
-          width: 100%;
-          padding: 12px;
-          background: transparent;
-          border: 1px solid #dbe3ef;
-          border-radius: 3px;
-          color: #59677d;
-          cursor: pointer;
-          font-family: 'DM Mono', monospace;
-          font-size: 0.68rem;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          transition: border-color 0.2s, color 0.2s;
-          margin-top: 4px;
-        }
-        .auth-guest:hover { border-color: #1463f3; color: #0b4ed1; }
-
-        .auth-divider {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          color: #8fa0b8;
-          font-family: 'DM Mono', monospace;
-          font-size: 0.6rem;
-          letter-spacing: 0.1em;
-        }
-        .auth-divider::before, .auth-divider::after {
-          content: '';
-          flex: 1;
-          height: 1px;
-          background: #dbe3ef;
-        }
+        .auth-submit:hover:not(:disabled) { background: var(--auth-blue-dark); transform: translateY(-1px); }
+        .auth-submit:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 
         .auth-panel {
           opacity: 0;
@@ -327,18 +293,16 @@ export default function AuthPage({ onSuccess, sessionExpired = false, duringPaym
         {/* LEFT */}
         <div className="auth-left">
           <div className="auth-brand">
-            <div className="auth-brand-name">MARKETGATE</div>
+            <div className="auth-brand-name">MarketGate</div>
             <div className="auth-brand-sub">Export Intelligence Platform</div>
           </div>
           <div className="auth-hero">
             <div className="auth-hero-title">
-              GLOBAL<br />
-              BUYER<br />
-              <em>MATCH.</em>
+              해외 바이어를<br />
+              <em>한 번에 찾으세요</em>
             </div>
             <p className="auth-hero-desc">
-              AI 기반 수출 바이어 적합성 분석.<br />
-              BEP 계산부터 컨택까지 하나의 플랫폼에서.
+              HS 코드와 무역 데이터로 유망 국가와 바이어 후보를 바로 추천합니다.
             </p>
           </div>
           <div className="auth-stats">
@@ -369,14 +333,35 @@ export default function AuthPage({ onSuccess, sessionExpired = false, duringPaym
             )}
             <div className="auth-mode-row">
               <button
+                type="button"
                 className={`auth-mode-btn ${mode === 'login' ? 'active' : ''}`}
                 onClick={() => { setMode('login'); setError('') }}
               >로그인</button>
               <button
+                type="button"
                 className={`auth-mode-btn ${mode === 'register' ? 'active' : ''}`}
                 onClick={() => { setMode('register'); setError('') }}
               >회원가입</button>
             </div>
+
+            {mode === 'login' && (
+              <div className="auth-demo">
+                <div><strong>테스트 계정</strong></div>
+                <div>이메일: demo@marketgate.test</div>
+                <div>비밀번호: MarketGateDemo2026!</div>
+                <button
+                  type="button"
+                  className="auth-demo-fill"
+                  onClick={() => {
+                    setEmail('demo@marketgate.test')
+                    setPassword('MarketGateDemo2026!')
+                    setError('')
+                  }}
+                >
+                  테스트 계정 입력
+                </button>
+              </div>
+            )}
 
             <form className="auth-form" onSubmit={submit}>
               <div className="auth-field">
@@ -403,10 +388,10 @@ export default function AuthPage({ onSuccess, sessionExpired = false, duringPaym
                 />
               </div>
 
-              {error && <div className="auth-error">ERR: {error}</div>}
+              {error && <div className="auth-error">{error}</div>}
 
               <button className="auth-submit" type="submit" disabled={loading}>
-                {loading ? '처리중...' : mode === 'login' ? '로그인 →' : '계정 생성 →'}
+                {loading ? '처리중...' : mode === 'login' ? '로그인' : '계정 생성'}
               </button>
             </form>
           </div>

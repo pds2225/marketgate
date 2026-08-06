@@ -2342,35 +2342,24 @@
   position: relative;
   display: block;
   width: 100%;
-  min-height: auto;
+  min-height: min(72svh, 720px);
   margin: 0;
   padding: clamp(72px, 8vw, 112px) 24px clamp(68px, 7vw, 104px);
   overflow: hidden;
+  /* 시안 A: full-bleed 포트 배경 + 밝은 오버레이(기존 검색 구조·다크 텍스트 유지) */
   background:
-    radial-gradient(circle at -4% 38%, rgba(255, 210, 88, 0.25), transparent 23rem),
-    radial-gradient(circle at 104% 48%, rgba(76, 176, 255, 0.24), transparent 27rem),
-    linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.86) 0%,
+      rgba(247, 251, 255, 0.78) 48%,
+      rgba(255, 255, 255, 0.9) 100%
+    ),
+    url("/hero-port.png") center / cover no-repeat;
 }
 
 .landing-hero::before,
 .landing-hero::after {
-  position: absolute;
-  width: 12rem;
-  height: 12rem;
-  border: 1px solid rgba(20, 99, 243, 0.08);
-  border-radius: 50%;
-  content: "";
-  pointer-events: none;
-}
-
-.landing-hero::before {
-  top: 56px;
-  left: -90px;
-}
-
-.landing-hero::after {
-  right: -72px;
-  bottom: 44px;
+  display: none;
 }
 
 .landing-hero-copy {
