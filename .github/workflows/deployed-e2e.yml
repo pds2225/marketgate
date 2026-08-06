@@ -28,8 +28,15 @@ on:
 permissions:
   contents: read
 
+# 그룹 키에 환경을 포함해야 한다. main 머지 시 Vercel 이 같은 커밋으로 Production 과
+# Preview 배포를 둘 다 만드는데, sha 만으로 묶으면 두 배포가 같은 그룹에 들어가
+# 나중에 도착한 쪽이 먼저 돌던 쪽을 취소한다.
+#
+# 실제로 723e555 에서 Production 잡 2종이 "Run production UI write journey" 까지
+# 진입한 뒤 Preview 실행이 시작되면서 취소됐다. 그래서 프로덕션 검증이 한 번도
+# 완주하지 못했고, 초록으로 보이던 결과는 전부 프리뷰 기준이었다.
 concurrency:
-  group: deployed-e2e-${{ github.event.deployment.sha || github.ref }}
+  group: deployed-e2e-${{ github.event.deployment.environment || 'manual' }}-${{ github.event.deployment.sha || github.ref }}
   cancel-in-progress: true
 
 jobs:
