@@ -38,9 +38,15 @@ def _load_blacklist_file() -> list:
 
 
 def _save_blacklist_file(data: list) -> None:
+    # Atomic replace — a torn in-place write can make concurrent readers hit
+    # JSONDecodeError and fail-open to an empty blacklist (L016/L025).
     os.makedirs(os.path.dirname(BLACKLIST_PATH), exist_ok=True)
-    with open(BLACKLIST_PATH, "w", encoding="utf-8") as f:
+    tmp_path = f"{BLACKLIST_PATH}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, BLACKLIST_PATH)
 
 
 # ── PostgreSQL operations ──
@@ -252,7 +258,25 @@ def add_to_blacklist(jti: str) -> None:
             _save_blacklist_file(bl)
 
 
+def consume_jti(jti: str) -> bool:
+    """Atomically blacklist a jti. True = first consumer; False = already used.
+
+    Refresh rotation must use this instead of is_blacklisted()+add_to_blacklist()
+    so concurrent /refresh calls cannot mint multiple live refresh chains (L025).
+    """
+    if not jti:
+        return False
+    with _blacklist_lock:
+        bl = _load_blacklist_file()
+        if jti in bl:
+            return False
+        bl.append(jti)
+        _save_blacklist_file(bl)
+        return True
+
+
 def is_blacklisted(jti: str) -> bool:
     if is_available():
         return _db_is_blacklisted(jti)
-    return jti in _load_blacklist_file()
+    with _blacklist_lock:
+        return jti in _load_blacklist_file()
