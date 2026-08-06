@@ -21,6 +21,12 @@ services:
       # Render 기반 CI/프리뷰에서 pytest 를 돌릴 때도 더미 값이 필요하다 (없으면 수집 단계에서 실패).
       - key: JWT_SECRET
         sync: false
-
+      # 인증 데이터(users, token_blacklist) 영구 저장용 PostgreSQL(Neon).
+      # Render 대시보드에서 Neon 연결 문자열(postgres://...)을 직접 설정한다.
+      # 미설정 시 하드 실패하지 않고 조용히 파일 저장으로 폴백된다 —
+      # Render 무료 플랜은 배포마다 파일시스템이 초기화되므로, 로그인 정보가
+      # 재배포마다 사라지는 것을 막으려면 반드시 값을 채워야 한다.
+      - key: DATABASE_URL
+        sync: false
     healthCheckPath: /health
     autoDeploy: true
