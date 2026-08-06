@@ -285,14 +285,8 @@ def shortlist_buyers(
             filtered_buyers["country_norm"].astype(str).eq(target_country)
         ].copy()
 
-    selected_opportunity = _select_opportunity(
-        opportunities,
-        supplier_profile=supplier_profile,
-        opportunity_title_contains=opportunity_title_contains,
-        opportunity_country_norm=opportunity_country_norm or target_country,
-        reference_date=reference_date,
-    )
-    matched_opportunity_records = _rank_opportunities(
+    # Rank once (limit=8) and use top-1 as selected opportunity (was 2 passes before)
+    ranked_opportunities = _rank_opportunities(
         opportunities,
         supplier_profile=supplier_profile,
         opportunity_title_contains=opportunity_title_contains,
@@ -300,6 +294,8 @@ def shortlist_buyers(
         reference_date=reference_date,
         limit=8,
     )
+    selected_opportunity = ranked_opportunities[0] if ranked_opportunities else None
+    matched_opportunity_records = ranked_opportunities
     # 점수에 쓴 1건이 목록 맨 앞에 오도록 정렬(중복 제거)
     if selected_opportunity is not None:
         selected_key = (
