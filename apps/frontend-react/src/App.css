@@ -125,13 +125,6 @@
 
 .landing-hero {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
-  gap: clamp(24px, 4vw, 48px);
-  padding: 32px 0 56px;
-  min-height: min(calc(100svh - 88px), 860px); /* cap so short viewports don't cut off content */
-  align-items: center;
-  background: #ffffff;
 }
 
 .landing-hero-copy {
@@ -817,8 +810,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-height: 124px;
-  padding: 18px;
+  padding: 14px 16px;
   border-radius: 22px;
   background: rgba(15, 23, 42, 0.04);
 }
@@ -919,12 +911,6 @@
   outline-offset: 2px;
 }
 
-/* ========== detail-row: remove large fixed min-height ========== */
-.analysis-detail-row {
-  min-height: unset;
-  padding: 14px 16px;
-}
-
 /* ========== ui-button: focus-visible ring ========== */
 .ui-button:focus-visible {
   outline: 2px solid rgba(15, 118, 110, 0.55);
@@ -947,21 +933,6 @@
 }
 
 @media (max-width: 1180px) {
-  .landing-hero {
-    grid-template-columns: 1fr;
-    align-items: start;
-    min-height: auto;
-    padding-top: 16px;
-  }
-
-  .landing-hero-media {
-    position: relative;
-    inset: auto;
-    width: 100%;
-    height: 420px;
-    order: 2;
-  }
-
   .landing-signal-rail {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1105,8 +1076,8 @@
 }
 
 .landing-quickstart-chip:hover {
-  border-color: #3b82f6;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.12);
+  border-color: var(--landing-blue, #1463f3);
+  box-shadow: 0 4px 12px rgba(20, 99, 243, 0.12);
 }
 
 .landing-quickstart-chip--soon {
@@ -1120,7 +1091,7 @@
 }
 
 .landing-quickstart-chip svg {
-  color: #3b82f6;
+  color: var(--landing-blue, #1463f3);
 }
 
 .landing-quickstart-chip-info {
@@ -1287,9 +1258,9 @@
 }
 
 .chat-bubble--user p {
-  background: #3b82f6;
+  background: var(--landing-blue, #1463f3);
   color: #fff;
-  border-color: #3b82f6;
+  border-color: var(--landing-blue, #1463f3);
 }
 
 .chat-loading {
@@ -1362,7 +1333,7 @@
 }
 
 .chat-send-btn {
-  background: #3b82f6;
+  background: var(--landing-blue, #1463f3);
   color: #fff;
 }
 
@@ -1376,7 +1347,7 @@
 }
 
 .chat-input:focus {
-  border-color: #3b82f6;
+  border-color: var(--landing-blue, #1463f3);
 }
 
 .chat-report-pane {
@@ -1914,14 +1885,6 @@
 }
 /* ========== Landing Page Enhancement (2025-05-03) ========== */
 
-/* Hero: remove 2-column forced height to prevent clipping */
-.landing-hero {
-  grid-template-columns: minmax(0, 1fr);
-  min-height: auto;
-  padding: 32px 0 48px;
-  align-items: start;
-}
-
 /* Hero headline sizing for multi-line service description */
 .landing-hero .landing-hero-copy h1 {
   font-size: clamp(2.8rem, 7vw, 5.2rem);
@@ -2204,12 +2167,6 @@
 @media (max-width: 1180px) {
   .landing-trust-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .landing-hero {
-    grid-template-columns: 1fr;
-    min-height: auto;
-    padding-top: 16px;
   }
 }
 

@@ -120,6 +120,12 @@ def _db_create_user(email: str, hashed_pw: str) -> dict:
         put_conn(conn)
 
 
+_ALLOWED_UPDATE_COLS = frozenset({
+    "email", "hashed_pw", "role", "plan",
+    "login_fail_count", "locked_until",
+})
+
+
 def _db_update_user(user_id: str, updates: dict) -> None:
     conn = get_conn()
     if conn is None:
@@ -128,8 +134,12 @@ def _db_update_user(user_id: str, updates: dict) -> None:
         sets = []
         vals = []
         for k, v in updates.items():
+            if k not in _ALLOWED_UPDATE_COLS:
+                raise ValueError(f"disallowed column: {k}")
             sets.append(f"{k} = %s")
             vals.append(v)
+        if not sets:
+            return
         sets.append("updated_at = %s")
         vals.append(datetime.now(timezone.utc))
         vals.append(user_id)
