@@ -196,6 +196,29 @@ def _db_is_blacklisted(jti: str) -> bool:
         put_conn(conn)
 
 
+def _db_consume_jti(jti: str) -> bool:
+    """Atomically insert jti into Postgres blacklist. True = first consumer.
+
+    Fail closed if the pool cannot hand out a connection: returning True here
+    would mint a rotated refresh without a durable revoke record (L026).
+    """
+    conn = get_conn()
+    if conn is None:
+        return False
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO auth_token_blacklist (jti) VALUES (%s) "
+                "ON CONFLICT DO NOTHING RETURNING jti",
+                (jti,),
+            )
+            row = cur.fetchone()
+        conn.commit()
+        return row is not None
+    finally:
+        put_conn(conn)
+
+
 # ── public API (PostgreSQL优先, file fallback) ──
 
 def find_user_by_email(email: str) -> dict | None:
@@ -273,9 +296,15 @@ def consume_jti(jti: str) -> bool:
 
     Refresh rotation must use this instead of is_blacklisted()+add_to_blacklist()
     so concurrent /refresh calls cannot mint multiple live refresh chains (L025).
+
+    When Postgres is configured, must write the same durable blacklist that
+    is_blacklisted()/add_to_blacklist() use — file-only consume is wiped on
+    Render ephemeral disk / multi-instance and allows refresh reuse (L026).
     """
     if not jti:
         return False
+    if is_available():
+        return _db_consume_jti(jti)
     with _blacklist_lock:
         bl = _load_blacklist_file()
         if jti in bl:
