@@ -3,16 +3,16 @@ import api from './lib/api'
 
 const inp = {
   width: '100%',
-  background: '#0d1117',
-  border: '1px solid #30363d',
-  borderRadius: 6,
-  padding: '7px 10px',
-  color: '#e6edf3',
+  background: '#ffffff',
+  border: '1px solid #dbe3ef',
+  borderRadius: 12,
+  padding: '10px 14px',
+  color: '#07152f',
   boxSizing: 'border-box',
-  fontSize: 13,
+  fontSize: 14,
 }
 
-const GRADE_COLOR = { 우수: '#3fb950', 보통: '#d29922', 손익분기: '#f0883e', 적자: '#f85149' }
+const GRADE_COLOR = { 우수: '#059669', 보통: '#d97706', 손익분기: '#ea580c', 적자: '#dc2626' }
 
 export default function SimulationPage({ onBack }) {
   const [form, setForm] = useState({ hs_code: '', country: '', unit_price: '', qty: '', logistics: 'sea' })
@@ -59,18 +59,18 @@ export default function SimulationPage({ onBack }) {
     }
   }
 
-  const card = { background: '#161b22', border: '1px solid #30363d', borderRadius: 12, padding: 24, maxWidth: 520, marginBottom: 24 }
+  const card = { background: '#ffffff', border: '1px solid #dbe3ef', borderRadius: 16, padding: 24, maxWidth: 520, marginBottom: 24, boxShadow: '0 1px 3px rgba(15,23,42,.05)' }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0d1117', color: '#e6edf3', padding: 24 }}>
-      <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#58a6ff', cursor: 'pointer', marginBottom: 20, fontSize: 13 }}>
+    <div style={{ minHeight: '100vh', background: '#f7f9fc', color: '#07152f', padding: 24 }}>
+      <button onClick={onBack} style={{ background: 'none', border: '1px solid #dbe3ef', color: '#59677d', cursor: 'pointer', marginBottom: 20, fontSize: 13, padding: '7px 14px', borderRadius: 4 }}>
         ← 돌아가기
       </button>
       <h2 style={{ marginBottom: 24, fontSize: 20 }}>수익성 시뮬레이션</h2>
 
       {/* Landed Cost */}
       <div style={card}>
-        <h3 style={{ marginBottom: 20, fontSize: 15, color: '#e6edf3' }}>Landed Cost 계산</h3>
+        <h3 style={{ marginBottom: 20, fontSize: 15, color: '#07152f' }}>Landed Cost 계산</h3>
         <form onSubmit={handleLandedCost}>
           {[
             { key: 'hs_code', label: 'HS 코드', type: 'text', placeholder: '330499' },
@@ -79,7 +79,7 @@ export default function SimulationPage({ onBack }) {
             { key: 'qty', label: '수량 (개)', type: 'number', placeholder: '1000' },
           ].map(({ key, label, type, placeholder }) => (
             <div key={key} style={{ marginBottom: 12 }}>
-              <label style={{ color: '#8b949e', fontSize: 12, display: 'block', marginBottom: 4 }}>{label}</label>
+              <label style={{ color: '#59677d', fontSize: 12, display: 'block', marginBottom: 4 }}>{label}</label>
               <input
                 type={type}
                 value={form[key]}
@@ -101,20 +101,20 @@ export default function SimulationPage({ onBack }) {
               <option value="air">항공</option>
             </select>
           </div>
-          {lcError && <p style={{ color: '#f85149', fontSize: 12, marginBottom: 12 }}>{lcError}</p>}
+          {lcError && <p style={{ color: '#dc2626', fontSize: 12, marginBottom: 12 }}>{lcError}</p>}
           <button
             type="submit"
             disabled={lcLoading}
-            style={{ background: '#1f6feb', border: 'none', borderRadius: 6, padding: '8px 18px', color: '#fff', cursor: 'pointer', fontSize: 13, opacity: lcLoading ? 0.7 : 1 }}
+            style={{ background: '#1463f3', border: 'none', borderRadius: 12, padding: '10px 18px', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, opacity: lcLoading ? 0.7 : 1 }}
           >
             {lcLoading ? '계산 중...' : '계산'}
           </button>
         </form>
 
         {result && (
-          <div style={{ marginTop: 20, borderTop: '1px solid #30363d', paddingTop: 16 }}>
+          <div style={{ marginTop: 20, borderTop: '1px solid #dbe3ef', paddingTop: 16 }}>
             {result.warning && (
-              <p style={{ color: '#d29922', fontSize: 12, marginBottom: 12, background: '#161b22', padding: '6px 10px', borderRadius: 4, border: '1px solid #d2992240' }}>
+              <p style={{ color: '#92400e', fontSize: 12, marginBottom: 12, background: '#fffbeb', padding: '8px 12px', borderRadius: 8, border: '1px solid #fde68a' }}>
                 {result.warning}
               </p>
             )}
@@ -128,9 +128,9 @@ export default function SimulationPage({ onBack }) {
                   ['Landed Cost', `$${result.landed_cost.toLocaleString()}`],
                   ['마진율', `${(result.margin_rate * 100).toFixed(2)}%`],
                 ].map(([k, v]) => (
-                  <tr key={k} style={{ borderBottom: '1px solid #21262d' }}>
-                    <td style={{ padding: '6px 0', color: '#8b949e' }}>{k}</td>
-                    <td style={{ textAlign: 'right', color: '#e6edf3', fontWeight: k === 'Landed Cost' ? 600 : 400 }}>{v}</td>
+                  <tr key={k} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '6px 0', color: '#59677d' }}>{k}</td>
+                    <td style={{ textAlign: 'right', color: '#07152f', fontWeight: k === 'Landed Cost' ? 600 : 400 }}>{v}</td>
                   </tr>
                 ))}
               </tbody>
@@ -144,7 +144,7 @@ export default function SimulationPage({ onBack }) {
 
       {/* BEP */}
       <div style={card}>
-        <h3 style={{ marginBottom: 20, fontSize: 15, color: '#e6edf3' }}>BEP (손익분기) 계산</h3>
+        <h3 style={{ marginBottom: 20, fontSize: 15, color: '#07152f' }}>BEP (손익분기) 계산</h3>
         <form onSubmit={handleBep}>
           {[
             { key: 'price', label: '판매단가 (USD)' },
@@ -152,7 +152,7 @@ export default function SimulationPage({ onBack }) {
             { key: 'variable_cost', label: '단위당 변동비 (USD)' },
           ].map(({ key, label }) => (
             <div key={key} style={{ marginBottom: 12 }}>
-              <label style={{ color: '#8b949e', fontSize: 12, display: 'block', marginBottom: 4 }}>{label}</label>
+              <label style={{ color: '#59677d', fontSize: 12, display: 'block', marginBottom: 4 }}>{label}</label>
               <input
                 type="number"
                 step="0.01"
@@ -163,21 +163,21 @@ export default function SimulationPage({ onBack }) {
               />
             </div>
           ))}
-          {bepError && <p style={{ color: '#f85149', fontSize: 12, marginBottom: 12 }}>{bepError}</p>}
+          {bepError && <p style={{ color: '#dc2626', fontSize: 12, marginBottom: 12 }}>{bepError}</p>}
           <button
             type="submit"
-            style={{ background: '#1f6feb', border: 'none', borderRadius: 6, padding: '8px 18px', color: '#fff', cursor: 'pointer', fontSize: 13 }}
+            style={{ background: '#1463f3', border: 'none', borderRadius: 12, padding: '10px 18px', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
           >
             계산
           </button>
         </form>
         {bepResult && (
-          <div style={{ marginTop: 16, borderTop: '1px solid #30363d', paddingTop: 14 }}>
-            <p style={{ fontSize: 14, color: '#8b949e', marginBottom: 6 }}>
-              BEP 수량: <span style={{ color: '#3fb950', fontWeight: 600 }}>{bepResult.bep_qty.toLocaleString()}개</span>
+          <div style={{ marginTop: 16, borderTop: '1px solid #dbe3ef', paddingTop: 14 }}>
+            <p style={{ fontSize: 14, color: '#59677d', marginBottom: 6 }}>
+              BEP 수량: <span style={{ color: '#059669', fontWeight: 600 }}>{bepResult.bep_qty.toLocaleString()}개</span>
             </p>
-            <p style={{ fontSize: 14, color: '#8b949e' }}>
-              BEP 매출: <span style={{ color: '#3fb950', fontWeight: 600 }}>${bepResult.bep_revenue.toLocaleString()}</span>
+            <p style={{ fontSize: 14, color: '#59677d' }}>
+              BEP 매출: <span style={{ color: '#059669', fontWeight: 600 }}>${bepResult.bep_revenue.toLocaleString()}</span>
             </p>
           </div>
         )}
