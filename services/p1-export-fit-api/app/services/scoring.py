@@ -176,7 +176,7 @@ def recommend_countries(req: PredictRequest) -> Tuple[List[Dict[str, Any]], Dict
     min_trade = float(req.filters.min_trade_value_usd or 0.0) if req.filters else 0.0
 
     # 1) 후보군 로드: kotra csv 에서.
-    candidate_score_map = kotra_candidate_scores(hs6, ds.mofa, ds.kotra)
+    candidate_score_map = kotra_candidate_scores(hs6, ds.mofa, ds.kotra, mofa_lookup=ds.mofa_lookup)
     candidates = sorted(candidate_score_map.keys())
     world_trade_value_usd = get_world_trade_value_usd(ds.trade, year, exporter, hs6)
     filters_applied: List[str] = []

@@ -16,6 +16,7 @@ class DataStore:
     wb_gdp: pd.DataFrame
     wb_growth: pd.DataFrame
     distance: pd.DataFrame
+    mofa_lookup: Dict[str, List[str]] = None
     load_errors: list[str] = None
 
 
@@ -129,6 +130,7 @@ def load_datastore() -> DataStore:
         wb_gdp=wb_gdp,
         wb_growth=wb_growth,
         distance=distance,
+        mofa_lookup=_build_mofa_lookup(mofa),
         load_errors=load_errors,
     )
     return _DATASTORE
@@ -150,12 +152,18 @@ def _build_mofa_lookup(mofa: pd.DataFrame) -> Dict[str, List[str]]:
     return {k: sorted(set(v)) for k, v in lookup.items()}
 
 
-def kotra_candidate_scores(hs_code_6: str, mofa: pd.DataFrame, kotra: pd.DataFrame) -> Dict[str, float]:
+def kotra_candidate_scores(
+    hs_code_6: str,
+    mofa: pd.DataFrame,
+    kotra: pd.DataFrame,
+    mofa_lookup: Dict[str, List[str]] | None = None,
+) -> Dict[str, float]:
     df = kotra[kotra["HSCD"].astype(str).str.zfill(6) == hs_code_6]
     if df.empty:
         return {}
 
-    mofa_lookup = _build_mofa_lookup(mofa)
+    if mofa_lookup is None:
+        mofa_lookup = _build_mofa_lookup(mofa)
     iso3_scores: Dict[str, List[float]] = {}
 
     for row in df[["NAT_NAME", "EXP_BHRC_SCR"]].itertuples(index=False):
@@ -170,15 +178,17 @@ def kotra_candidate_scores(hs_code_6: str, mofa: pd.DataFrame, kotra: pd.DataFra
         if len(hits) > 1:
             logger.warning(f"[ISO3] NAT_NAME '{nat}' mapped to multiple ISO3: {hits}")
 
-        raw_score = pd.to_numeric(pd.Series([row.EXP_BHRC_SCR]), errors="coerce").iloc[0]
-        score = float(raw_score) if pd.notna(raw_score) else 0.0
+        try:
+            score = float(row.EXP_BHRC_SCR)
+        except (ValueError, TypeError):
+            score = 0.0
 
         for iso3 in hits:
             iso3_scores.setdefault(iso3, []).append(score)
 
     candidate_scores: Dict[str, float] = {}
     for iso3, scores in iso3_scores.items():
-        valid_scores = [float(s) for s in scores if pd.notna(s)]
+        valid_scores = [float(s) for s in scores if s == s]  # NaN check without pandas
         if not valid_scores:
             candidate_scores[iso3] = 1.0
             continue

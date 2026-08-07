@@ -1,4 +1,7 @@
 {
   "rootDirectory": "apps/frontend-react",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://marketgate.onrender.com/v1/:path*" }
+  ]
 }
