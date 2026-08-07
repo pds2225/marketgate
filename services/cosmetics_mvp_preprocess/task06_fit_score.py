@@ -802,8 +802,15 @@ def score_buyers(
                 for term in cached_target_terms:
                     kw_ok = kw_ok | col.str.contains(term, na=False, regex=False)
 
+    # Contact presence (vectorized) — buyers with contact info deserve full scoring
+    contact_cols = ["contact_email", "contact_phone", "contact_website", "contact_name"]
+    has_contact = pd.Series(False, index=df.index)
+    for col_name in contact_cols:
+        if col_name in df.columns:
+            has_contact = has_contact | df[col_name].fillna("").astype(str).str.strip().ne("")
+
     # Buyers that match at least one signal → run full scoring
-    should_score = hs_prefix_ok | kw_ok
+    should_score = hs_prefix_ok | kw_ok | has_contact | country_ok
     # Country mismatch buyers still need scoring (for country_match_score component)
     # but they'll get lower scores naturally
 
