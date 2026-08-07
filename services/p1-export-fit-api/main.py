@@ -297,7 +297,7 @@ def predict_legacy(payload: Dict[str, Any] = Body(...), user: dict = Depends(get
         or normalized_payload.get("exporter_country")
         or "KOR"
     )
-    normalized_payload["top_n"] = normalized_payload.get("top_n", 10)
+    normalized_payload["top_n"] = normalized_payload.get("top_n", 3)
     normalized_payload["year"] = normalized_payload.get("year", 2023)
 
     req = PredictRequest(**normalized_payload)
