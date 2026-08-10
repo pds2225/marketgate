@@ -122,6 +122,7 @@ export default function LandingPage({
   onStartOpportunities,
   onStartCompare,
   onStartMyInquiries,
+  onStartCalculators,
 }) {
   const [query, setQuery] = useState("");
 
@@ -432,6 +433,12 @@ export default function LandingPage({
             onClick={() => onStartFlow?.()}
           >
             수출 플로우
+          </button>
+          <button
+            className="landing-cta-link"
+            onClick={() => onStartCalculators?.()}
+          >
+            수출 계산기
           </button>
           <button
             className="landing-cta-button landing-cta-button--primary"
