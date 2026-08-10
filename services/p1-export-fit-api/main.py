@@ -229,7 +229,8 @@ def credits_history(user: dict = Depends(get_current_user)):
 
 
 @app.post("/v1/inquiry", response_model=InquiryResponse)
-def create_inquiry(req: InquiryRequest, _: dict = Depends(require_plan("Advanced"))):
+def create_inquiry(req: InquiryRequest, _: dict = Depends(require_plan("Basic"))):
+    # 초안 생성은 가입(Basic)부터 허용. 실제 발송/추적은 Advanced·크레딧 경로를 유지한다.
     result = build_draft(
         buyer_name=req.buyer_name,
         contact_email=req.contact_email,

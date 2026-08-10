@@ -4,8 +4,8 @@ import api from './lib/api'
 // duringPayment: 결제 콜백에서 세션이 끊긴 경우. 돈이 이미 나간 직후라
 // 일반 만료 문구는 결제가 날아간 것으로 읽힌다. 실제로는 URL 의 paymentKey 가
 // 보존돼 재로그인 후 승인이 이어지므로(App.jsx onLogout), 그 사실을 알린다.
-export default function AuthPage({ onSuccess, sessionExpired = false, duringPayment = false }) {
-  const [mode, setMode] = useState('login')
+export default function AuthPage({ onSuccess, sessionExpired = false, duringPayment = false, initialMode = 'login' }) {
+  const [mode, setMode] = useState(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -14,6 +14,10 @@ export default function AuthPage({ onSuccess, sessionExpired = false, duringPaym
   const [focused, setFocused] = useState(null)
   // 실측 집계(/v1/demo/summary)만 표시 — 근거 없는 수치(50K+, 98% 등)는 사용하지 않는다
   const [dataStats, setDataStats] = useState(null)
+
+  useEffect(() => {
+    setMode(initialMode)
+  }, [initialMode])
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 80)

@@ -116,6 +116,8 @@ const quickStartItems = [
 ];
 
 export default function LandingPage({
+  onOpenLogin,
+  onOpenRegister,
   onStartAnalysis,
   onStartFlow,
   onStartBuyerSearch,
@@ -208,6 +210,20 @@ export default function LandingPage({
           >
             <Search size={17} aria-hidden="true" />
             바이어 검색
+          </button>
+          <button
+            type="button"
+            className="landing-nav-link"
+            onClick={() => onOpenLogin?.()}
+          >
+            로그인
+          </button>
+          <button
+            type="button"
+            className="landing-nav-auth"
+            onClick={() => onOpenRegister?.()}
+          >
+            무료로 시작
           </button>
         </nav>
       </header>

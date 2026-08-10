@@ -2338,6 +2338,25 @@
   box-shadow: 0 14px 28px rgba(20, 99, 243, 0.24);
 }
 
+.landing-nav-auth {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid #bfd6ff;
+  border-radius: 12px;
+  background: #f2f7ff;
+  color: var(--landing-blue-dark);
+  font-size: 14px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.landing-nav-auth:hover {
+  border-color: var(--landing-blue);
+  color: var(--landing-blue);
+}
+
 .landing-hero {
   position: relative;
   display: block;
