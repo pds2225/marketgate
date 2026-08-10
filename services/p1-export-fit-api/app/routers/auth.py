@@ -77,8 +77,9 @@ def login(payload: Dict[str, Any] = Body(...)):
 @router.post("/refresh")
 def refresh(payload: Dict[str, Any] = Body(...)):
     # Single-use refresh: blacklist the presented jti, then rotate a new pair.
-    # Returning only a new access token (L024) leaves the client with a dead
-    # refresh_token in localStorage — the next silent refresh forces logout.
+    # MUST return both tokens — client stores the new refresh_token and uses it
+    # for the next rotation. Without it, the next silent refresh fails and
+    # forces logout (L024).
     token = str(payload.get("refresh_token", ""))
     decoded = decode_refresh(token)
     add_to_blacklist(decoded["jti"])
