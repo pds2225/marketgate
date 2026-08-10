@@ -23,6 +23,7 @@ from app.routers import payment as payment_router
 from app.routers import readiness as readiness_router
 from app.routers import action_plan as action_plan_router
 from app.routers import inquiries as inquiries_router
+from app.routers import calculators as calculators_router
 
 app = FastAPI(title="Export Fit Score API(P1)", version="0.0.1")
 app.include_router(auth_router.router)
@@ -32,6 +33,7 @@ app.include_router(payment_router.router)
 app.include_router(readiness_router.router)
 app.include_router(action_plan_router.router)
 app.include_router(inquiries_router.router)
+app.include_router(calculators_router.router)
 if os.getenv("APP_ENV", "").strip().lower() == "e2e":
     from app.routers import e2e as e2e_router
 

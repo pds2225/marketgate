@@ -16,6 +16,10 @@ const PaymentCallbackPage = lazy(() => import('./PaymentCallbackPage'))
 const OpportunityExplorePage = lazy(() => import('./OpportunityExplorePage'))
 const ComparePage = lazy(() => import('./ComparePage'))
 const MyInquiriesPage = lazy(() => import('./MyInquiriesPage'))
+const CalculatorHubPage = lazy(() => import('./CalculatorHubPage'))
+const ExportPriceCalc = lazy(() => import('./calculators/ExportPriceCalc'))
+const CbmCalc = lazy(() => import('./calculators/CbmCalc'))
+const LandedCostCalc = lazy(() => import('./calculators/LandedCostCalc'))
 const CreditTopUpSheet = lazy(() => import('./components/CreditTopUpSheet'))
 import { getWallet, subscribeWallet, syncBalanceFromServer } from './lib/creditWallet'
 import api from './lib/api'
@@ -26,10 +30,19 @@ import './App.css'
 // 결제 확인 화면(PaymentCallbackPage)이 영영 보이지 않는다(정상 결제인데 고장처럼 보임).
 function getInitialPage() {
   if (typeof window === 'undefined') return 'landing'
-  if (window.location.pathname.replace(/\/+$/, '') === '/payment/callback') {
-    return 'paymentCallback'
-  }
+  const path = window.location.pathname.replace(/\/+$/, '')
+  if (path === '/payment/callback') return 'paymentCallback'
+  if (path === '/calculators') return 'calculators'
+  if (path.startsWith('/calculators/')) return 'calc'
   return 'landing'
+}
+
+// URL에서 계산기 ID 추출
+function getInitialCalcId() {
+  if (typeof window === 'undefined') return null
+  const path = window.location.pathname.replace(/\/+$/, '')
+  const m = path.match(/^\/calculators\/([a-z-]+)$/)
+  return m ? m[1] : null
 }
 
 // 지연 로딩한 화면의 청크를 받는 동안 잠깐 보이는 자리표시자.
@@ -41,6 +54,7 @@ function PageFallback() {
 
 function App() {
   const [page, setPage] = useState(getInitialPage)
+  const [calcId, setCalcId] = useState(getInitialCalcId)
   const [chatPreset, setChatPreset] = useState(null)
   const [authed, setAuthed] = useState(!!localStorage.getItem('access_token'))
   const [balance, setBalance] = useState(() => getWallet().balance)
@@ -61,6 +75,17 @@ function App() {
       window.location.pathname.replace(/\/+$/, '') === '/payment/callback'
     ) {
       window.history.replaceState(null, '', '/')
+    }
+    // 계산기 URL 처리 (검색 유입용)
+    if (nextPage === 'calculators') {
+      window.history.pushState(null, '', '/calculators')
+    } else if (nextPage === 'calc' && preset) {
+      window.history.pushState(null, '', `/calculators/${preset}`)
+      setCalcId(preset)
+    } else if (nextPage === 'landing') {
+      if (window.location.pathname.startsWith('/calculators')) {
+        window.history.pushState(null, '', '/')
+      }
     }
     startTransition(() => {
       setPage(nextPage)
@@ -100,6 +125,25 @@ function App() {
     }
     window.addEventListener('auth:logout', onLogout)
     return () => window.removeEventListener('auth:logout', onLogout)
+  }, [])
+
+  // 브라우저 뒤로가기/앞으로가기 처리 (계산기 URL용)
+  useEffect(() => {
+    const onPopState = () => {
+      const path = window.location.pathname.replace(/\/+$/, '')
+      if (path === '/calculators') {
+        startTransition(() => { setPage('calculators'); setCalcId(null) })
+      } else if (path.startsWith('/calculators/')) {
+        const m = path.match(/^\/calculators\/([a-z-]+)$/)
+        if (m) startTransition(() => { setPage('calc'); setCalcId(m[1]) })
+      } else if (path === '/payment/callback') {
+        startTransition(() => setPage('paymentCallback'))
+      } else {
+        startTransition(() => { setPage('landing'); setCalcId(null) })
+      }
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
   // 서버 크레딧 잔액 동기화 (실패 시 로컬 폴백)
@@ -151,6 +195,7 @@ function App() {
               { label: '내 인콰이어리', page: 'myInquiries' },
               { label: '해외 수요 찾기', page: 'opportunities' },
               { label: '국가·바이어 비교', page: 'compare' },
+              { label: '수출 계산기', page: 'calculators' },
               { label: '요금제', page: 'pricing' },
               { label: '시뮬레이션', page: 'simulation' },
               // 관리자 메뉴는 서버가 role=admin 을 내려준 계정에만 노출 (서버 403이 최종 방어선)
@@ -158,8 +203,8 @@ function App() {
             ].map(({ label, page: p }) => (
               <button
                 key={p}
-                className={`app-global-nav-link${page === p ? ' is-active' : ''}`}
-                aria-current={page === p ? 'page' : undefined}
+                className={`app-global-nav-link${page === p || (p === 'calculators' && page === 'calc') ? ' is-active' : ''}`}
+                aria-current={page === p || (p === 'calculators' && page === 'calc') ? 'page' : undefined}
                 onClick={() => navigate(p)}
               >
                 {label}
@@ -202,6 +247,7 @@ function App() {
           onStartOpportunities={(preset) => navigate('opportunities', preset || null)}
           onStartCompare={() => navigate('compare')}
           onStartMyInquiries={() => navigate('myInquiries')}
+          onStartCalculators={() => navigate('calculators')}
         />
       )}
 
@@ -245,6 +291,42 @@ function App() {
 
       {page === 'simulation' && (
         <main className="app-detail-page"><SimulationPage onBack={() => navigate('landing')} /></main>
+      )}
+
+      {page === 'calculators' && (
+        <main className="app-detail-page">
+          <CalculatorHubPage
+            onNavigate={(id) => navigate('calc', id)}
+            onBack={() => navigate('landing')}
+          />
+        </main>
+      )}
+
+      {page === 'calc' && calcId === 'export-price' && (
+        <main className="app-detail-page">
+          <ExportPriceCalc
+            onBack={() => navigate('calculators')}
+            onNavigate={(id) => navigate('calc', id)}
+          />
+        </main>
+      )}
+
+      {page === 'calc' && calcId === 'cbm' && (
+        <main className="app-detail-page">
+          <CbmCalc
+            onBack={() => navigate('calculators')}
+            onNavigate={(id) => navigate('calc', id)}
+          />
+        </main>
+      )}
+
+      {page === 'calc' && calcId === 'landed-cost' && (
+        <main className="app-detail-page">
+          <LandedCostCalc
+            onBack={() => navigate('calculators')}
+            onNavigate={(id) => navigate('calc', id)}
+          />
+        </main>
       )}
 
       {page === 'admin' && (
