@@ -6,11 +6,11 @@ from passlib.context import CryptContext
 
 from app.auth_store import (
     create_user, find_user_by_email,
-    update_user, add_to_blacklist,
+    update_user, add_to_blacklist, consume_jti,
 )
 from app.auth_deps import (
     create_access_token, create_refresh_token,
-    decode_refresh, get_current_user, get_token_payload,
+    decode_refresh, decode_refresh_claims, get_current_user, get_token_payload,
     is_admin,
 )
 
@@ -76,13 +76,17 @@ def login(payload: Dict[str, Any] = Body(...)):
 
 @router.post("/refresh")
 def refresh(payload: Dict[str, Any] = Body(...)):
-    # Single-use refresh: blacklist the presented jti, then rotate a new pair.
+    # Single-use refresh: atomically consume the presented jti, then rotate.
     # MUST return both tokens — client stores the new refresh_token and uses it
     # for the next rotation. Without it, the next silent refresh fails and
     # forces logout (L024).
+    # decode→add_to_blacklist was racy under concurrent tabs (L025): both
+    # callers passed is_blacklisted before either wrote, minting N live chains.
+    # consume_jti must also hit Postgres when DATABASE_URL is set (L026).
     token = str(payload.get("refresh_token", ""))
-    decoded = decode_refresh(token)
-    add_to_blacklist(decoded["jti"])
+    decoded = decode_refresh_claims(token)
+    if not consume_jti(decoded.get("jti", "")):
+        raise HTTPException(status_code=401, detail="token_revoked")
     user_id = decoded["sub"]
     return {
         "access_token": create_access_token(user_id),
