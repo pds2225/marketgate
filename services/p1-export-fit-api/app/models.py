@@ -28,7 +28,7 @@ class Filters(BaseModel):
 class PredictRequest(BaseModel):
     hs_code: str = Field(..., description="6-digit HS code")
     exporter_country_iso3: str = Field(..., description="Exporter ISO3")
-    top_n: Optional[int] = Field(3, description="1~20, default 3")
+    top_n: Optional[int] = Field(10, description="1~20, default 10")
     year: Optional[int] = Field(None, description="default: 2023 (latest available data year)")
     filters: Optional[Filters] = Field(default_factory=Filters)
 

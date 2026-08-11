@@ -125,6 +125,13 @@
 
 .landing-hero {
   position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: clamp(24px, 4vw, 48px);
+  padding: 32px 0 56px;
+  min-height: min(calc(100svh - 88px), 860px); /* cap so short viewports don't cut off content */
+  align-items: center;
+  background: #ffffff;
 }
 
 .landing-hero-copy {
@@ -810,7 +817,8 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 14px 16px;
+  min-height: 124px;
+  padding: 18px;
   border-radius: 22px;
   background: rgba(15, 23, 42, 0.04);
 }
@@ -911,6 +919,12 @@
   outline-offset: 2px;
 }
 
+/* ========== detail-row: remove large fixed min-height ========== */
+.analysis-detail-row {
+  min-height: unset;
+  padding: 14px 16px;
+}
+
 /* ========== ui-button: focus-visible ring ========== */
 .ui-button:focus-visible {
   outline: 2px solid rgba(15, 118, 110, 0.55);
@@ -933,6 +947,21 @@
 }
 
 @media (max-width: 1180px) {
+  .landing-hero {
+    grid-template-columns: 1fr;
+    align-items: start;
+    min-height: auto;
+    padding-top: 16px;
+  }
+
+  .landing-hero-media {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    height: 420px;
+    order: 2;
+  }
+
   .landing-signal-rail {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1076,8 +1105,8 @@
 }
 
 .landing-quickstart-chip:hover {
-  border-color: var(--landing-blue, #1463f3);
-  box-shadow: 0 4px 12px rgba(20, 99, 243, 0.12);
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.12);
 }
 
 .landing-quickstart-chip--soon {
@@ -1091,7 +1120,7 @@
 }
 
 .landing-quickstart-chip svg {
-  color: var(--landing-blue, #1463f3);
+  color: #3b82f6;
 }
 
 .landing-quickstart-chip-info {
@@ -1258,9 +1287,9 @@
 }
 
 .chat-bubble--user p {
-  background: var(--landing-blue, #1463f3);
+  background: #3b82f6;
   color: #fff;
-  border-color: var(--landing-blue, #1463f3);
+  border-color: #3b82f6;
 }
 
 .chat-loading {
@@ -1333,7 +1362,7 @@
 }
 
 .chat-send-btn {
-  background: var(--landing-blue, #1463f3);
+  background: #3b82f6;
   color: #fff;
 }
 
@@ -1347,7 +1376,7 @@
 }
 
 .chat-input:focus {
-  border-color: var(--landing-blue, #1463f3);
+  border-color: #3b82f6;
 }
 
 .chat-report-pane {
@@ -1885,6 +1914,14 @@
 }
 /* ========== Landing Page Enhancement (2025-05-03) ========== */
 
+/* Hero: remove 2-column forced height to prevent clipping */
+.landing-hero {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: auto;
+  padding: 32px 0 48px;
+  align-items: start;
+}
+
 /* Hero headline sizing for multi-line service description */
 .landing-hero .landing-hero-copy h1 {
   font-size: clamp(2.8rem, 7vw, 5.2rem);
@@ -2168,6 +2205,12 @@
   .landing-trust-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .landing-hero {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    padding-top: 16px;
+  }
 }
 
 @media (max-width: 760px) {
@@ -2295,28 +2338,58 @@
   box-shadow: 0 14px 28px rgba(20, 99, 243, 0.24);
 }
 
+.landing-nav-auth {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid #bfd6ff;
+  border-radius: 12px;
+  background: #f2f7ff;
+  color: var(--landing-blue-dark);
+  font-size: 14px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.landing-nav-auth:hover {
+  border-color: var(--landing-blue);
+  color: var(--landing-blue);
+}
+
 .landing-hero {
   position: relative;
   display: block;
   width: 100%;
-  min-height: min(72svh, 720px);
+  min-height: auto;
   margin: 0;
   padding: clamp(72px, 8vw, 112px) 24px clamp(68px, 7vw, 104px);
   overflow: hidden;
-  /* 시안 A: full-bleed 포트 배경 + 밝은 오버레이(기존 검색 구조·다크 텍스트 유지) */
   background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.86) 0%,
-      rgba(247, 251, 255, 0.78) 48%,
-      rgba(255, 255, 255, 0.9) 100%
-    ),
-    url("/hero-port.png") center / cover no-repeat;
+    radial-gradient(circle at -4% 38%, rgba(255, 210, 88, 0.25), transparent 23rem),
+    radial-gradient(circle at 104% 48%, rgba(76, 176, 255, 0.24), transparent 27rem),
+    linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
 }
 
 .landing-hero::before,
 .landing-hero::after {
-  display: none;
+  position: absolute;
+  width: 12rem;
+  height: 12rem;
+  border: 1px solid rgba(20, 99, 243, 0.08);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+}
+
+.landing-hero::before {
+  top: 56px;
+  left: -90px;
+}
+
+.landing-hero::after {
+  right: -72px;
+  bottom: 44px;
 }
 
 .landing-hero-copy {
@@ -3421,6 +3494,590 @@
   .app-detail-page,
   .app-detail-page > :first-child {
     min-height: calc(100vh - 118px);
+  }
+}
+
+/* ── 수출 계산기 ──────────────────────────────────────────── */
+
+/* 허브 */
+.calc-hub {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+.calc-hub-back {
+  background: none;
+  border: none;
+  color: #0f766e;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 16px;
+}
+.calc-hub-back:hover { text-decoration: underline; }
+
+.calc-hub-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 8px;
+}
+.calc-hub-subtitle {
+  font-size: 15px;
+  color: #64748b;
+  margin: 0 0 32px;
+  line-height: 1.5;
+}
+
+.calc-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.calc-hub-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  transition: box-shadow 180ms ease, border-color 180ms ease;
+}
+.calc-hub-card:hover:not(:disabled) {
+  border-color: #0f766e;
+  box-shadow: 0 4px 16px rgba(15, 118, 110, 0.10);
+}
+.calc-hub-card:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.calc-hub-card--mvp {
+  border-color: #99f6e4;
+  background: linear-gradient(135deg, #f0fdfa 0%, #fff 100%);
+}
+
+.calc-hub-card-icon {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: #f1f5f9;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f766e;
+}
+.calc-hub-card--mvp .calc-hub-card-icon {
+  background: #ccfbf1;
+}
+
+.calc-hub-card-body { flex: 1; min-width: 0; }
+.calc-hub-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.calc-hub-card-desc {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.calc-hub-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: #0f766e;
+  color: #fff;
+  letter-spacing: 0.03em;
+}
+.calc-hub-badge--soon {
+  background: #e2e8f0;
+  color: #94a3b8;
+}
+
+.calc-hub-cta {
+  margin-top: 48px;
+  text-align: center;
+  padding: 32px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f0fdfa 0%, #ecfeff 100%);
+  border: 1px solid #99f6e4;
+}
+.calc-hub-cta-text {
+  font-size: 16px;
+  color: #0f172a;
+  font-weight: 600;
+  margin: 0 0 16px;
+}
+.calc-hub-cta-button {
+  font-size: 15px;
+}
+
+/* 개별 계산기 공통 */
+.calc-shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+.calc-back {
+  background: none;
+  border: none;
+  color: #0f766e;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.calc-back:hover { text-decoration: underline; }
+
+.calc-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 6px;
+}
+.calc-desc {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+
+.calc-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 12px;
+}
+.calc-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.calc-tab:hover { border-color: #0f766e; color: #0f766e; }
+.calc-tab.is-active {
+  background: #0f766e;
+  color: #fff;
+  border-color: #0f766e;
+}
+.calc-tab-icon { font-weight: 700; }
+
+.calc-body {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+/* 입력 패널 */
+.calc-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.calc-field { display: flex; flex-direction: column; gap: 6px; }
+.calc-field-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.calc-input-row {
+  display: flex;
+  align-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+  transition: border-color 150ms ease;
+}
+.calc-input-row:focus-within {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.10);
+}
+
+.calc-input {
+  flex: 1;
+  border: none;
+  padding: 10px 14px;
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  background: transparent;
+  min-width: 0;
+}
+
+.calc-input-suffix {
+  flex-shrink: 0;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: #f8fafc;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  border-left: 1px solid #e2e8f0;
+}
+
+.calc-input:not(.calc-input-row .calc-input) {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 150ms ease;
+}
+.calc-input:not(.calc-input-row .calc-input):focus {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.10);
+}
+
+.calc-submit {
+  margin-top: 8px;
+  width: 100%;
+}
+
+.calc-error {
+  font-size: 13px;
+  color: #dc2626;
+  margin: 0;
+}
+
+/* 결과 패널 */
+.calc-result {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.calc-result-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: #94a3b8;
+  font-size: 14px;
+  text-align: center;
+}
+
+.calc-result-highlights {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.calc-highlight-card {
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  text-align: center;
+}
+.calc-highlight-card--primary {
+  border-color: #99f6e4;
+  background: linear-gradient(135deg, #f0fdfa 0%, #fff 100%);
+}
+
+.calc-highlight-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+.calc-highlight-value {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.calc-highlight-card--primary .calc-highlight-value {
+  color: #0f766e;
+}
+.calc-highlight-sub {
+  display: block;
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+/* 비중 바 차트 */
+.calc-breakdown-section { margin-top: 4px; }
+.calc-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+  margin: 0 0 12px;
+}
+
+.calc-bar-chart { display: flex; flex-direction: column; gap: 8px; }
+.calc-bar-item { display: flex; align-items: center; gap: 10px; }
+.calc-bar-track {
+  flex: 1;
+  height: 8px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.calc-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 300ms ease;
+}
+.calc-bar-fill[data-index="0"] { background: #0f766e; }
+.calc-bar-fill[data-index="1"] { background: #14b8a6; }
+.calc-bar-fill[data-index="2"] { background: #2dd4bf; }
+.calc-bar-fill[data-index="3"] { background: #5eead4; }
+.calc-bar-fill[data-index="4"] { background: #99f6e4; }
+
+.calc-bar-label {
+  flex-shrink: 0;
+  width: 140px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* 단계별 분해표 */
+.calc-stages-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.calc-stages-table td {
+  padding: 8px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.calc-stages-table tr.is-stage td {
+  font-weight: 700;
+  color: #0f766e;
+  border-bottom: 2px solid #0f766e;
+  padding-top: 10px;
+}
+.calc-stage-label { color: #334155; }
+.calc-stage-formula { color: #94a3b8; font-size: 12px; text-align: right; }
+.calc-stage-amount { text-align: right; color: #64748b; }
+.calc-stage-cumulative { text-align: right; font-weight: 600; color: #0f172a; }
+.calc-stage-krw { text-align: right; color: #64748b; }
+
+/* 면책 문구 */
+.calc-note-inline {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.5;
+  margin: 0;
+  padding: 12px 0;
+  border-top: 1px solid #f1f5f9;
+}
+
+.calc-disclaimer {
+  font-size: 12px;
+  color: #94a3b8;
+  text-align: center;
+  margin: 0;
+  padding: 16px 0;
+}
+
+/* CTA */
+.calc-cta {
+  text-align: center;
+  padding: 24px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f0fdfa 0%, #ecfeff 100%);
+  border: 1px solid #99f6e4;
+}
+.calc-cta-text {
+  font-size: 14px;
+  color: #0f172a;
+  font-weight: 500;
+  margin: 0 0 12px;
+}
+.calc-cta-button { font-size: 14px; }
+
+/* 하단 */
+.calc-footer {
+  margin-top: 24px;
+}
+
+/* 컨테이너 적재 카드 */
+.calc-container-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.calc-container-card {
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+.calc-container-card--over { border-color: #fca5a5; background: #fef2f2; }
+.calc-container-card--near { border-color: #fcd34d; background: #fffbeb; }
+.calc-container-card--ok { border-color: #86efac; background: #f0fdf4; }
+
+.calc-container-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.calc-container-type { font-size: 13px; font-weight: 600; color: #0f172a; }
+.calc-container-eff { font-size: 11px; color: #94a3b8; }
+
+.calc-container-bar-track {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.calc-container-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: #0f766e;
+  transition: width 300ms ease;
+}
+.calc-container-card--over .calc-container-bar-fill { background: #dc2626; }
+.calc-container-card--near .calc-container-bar-fill { background: #f59e0b; }
+
+.calc-container-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.calc-container-pct { font-size: 14px; font-weight: 700; color: #0f172a; }
+.calc-container-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.calc-container-status--ok { background: #dcfce7; color: #16a34a; }
+.calc-container-status--near { background: #fef3c7; color: #d97706; }
+.calc-container-status--over { background: #fee2e2; color: #dc2626; }
+
+.calc-recommendation {
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.5;
+  padding: 14px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.calc-recommendation p { margin: 0; }
+
+/* 도착원가 */
+.calc-landed-breakdown { margin-top: 4px; }
+
+.calc-fta-section { margin-top: 4px; }
+.calc-fta-card {
+  padding: 14px;
+  border-radius: 10px;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+}
+.calc-fta-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 4px 0;
+  color: #334155;
+}
+.calc-fta-row--saving {
+  font-weight: 700;
+  color: #16a34a;
+  border-top: 1px solid #bbf7d0;
+  margin-top: 6px;
+  padding-top: 8px;
+}
+
+.calc-warning {
+  font-size: 13px;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+/* 도착국 카드 */
+.calc-country-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+.calc-country-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  cursor: pointer;
+  transition: all 150ms ease;
+  font-size: 12px;
+}
+.calc-country-card:hover { border-color: #0f766e; }
+.calc-country-card.is-selected {
+  border-color: #0f766e;
+  background: #f0fdfa;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.15);
+}
+.calc-country-flag { font-size: 20px; }
+.calc-country-name { font-weight: 500; color: #334155; }
+
+/* 모바일 반응형 */
+@media (max-width: 768px) {
+  .calc-hub-grid {
+    grid-template-columns: 1fr;
+  }
+  .calc-body {
+    grid-template-columns: 1fr;
+  }
+  .calc-result-highlights {
+    grid-template-columns: 1fr;
+  }
+  .calc-container-grid {
+    grid-template-columns: 1fr;
+  }
+  .calc-country-grid {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 

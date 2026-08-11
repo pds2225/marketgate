@@ -77,8 +77,12 @@ def login(payload: Dict[str, Any] = Body(...)):
 @router.post("/refresh")
 def refresh(payload: Dict[str, Any] = Body(...)):
     # Single-use refresh: atomically consume the presented jti, then rotate.
+    # MUST return both tokens — client stores the new refresh_token and uses it
+    # for the next rotation. Without it, the next silent refresh fails and
+    # forces logout (L024).
     # decode→add_to_blacklist was racy under concurrent tabs (L025): both
     # callers passed is_blacklisted before either wrote, minting N live chains.
+    # consume_jti must also hit Postgres when DATABASE_URL is set (L026).
     token = str(payload.get("refresh_token", ""))
     decoded = decode_refresh_claims(token)
     if not consume_jti(decoded.get("jti", "")):
@@ -118,3 +122,5 @@ def me(user: dict = Depends(get_current_user)):
         # 가산 필드 — 관리자 메뉴 노출 여부 판단용 (기존 키 불변)
         "role": "admin" if is_admin(user) else "user",
     }
+
+# redeploy trigger after PR #108 merge 2026-08-11T04:56:47Z

@@ -116,12 +116,15 @@ const quickStartItems = [
 ];
 
 export default function LandingPage({
+  onOpenLogin,
+  onOpenRegister,
   onStartAnalysis,
   onStartFlow,
   onStartBuyerSearch,
   onStartOpportunities,
   onStartCompare,
   onStartMyInquiries,
+  onStartCalculators,
 }) {
   const [query, setQuery] = useState("");
 
@@ -207,6 +210,20 @@ export default function LandingPage({
           >
             <Search size={17} aria-hidden="true" />
             바이어 검색
+          </button>
+          <button
+            type="button"
+            className="landing-nav-link"
+            onClick={() => onOpenLogin?.()}
+          >
+            로그인
+          </button>
+          <button
+            type="button"
+            className="landing-nav-auth"
+            onClick={() => onOpenRegister?.()}
+          >
+            무료로 시작
           </button>
         </nav>
       </header>
@@ -432,6 +449,12 @@ export default function LandingPage({
             onClick={() => onStartFlow?.()}
           >
             수출 플로우
+          </button>
+          <button
+            className="landing-cta-link"
+            onClick={() => onStartCalculators?.()}
+          >
+            수출 계산기
           </button>
           <button
             className="landing-cta-button landing-cta-button--primary"
