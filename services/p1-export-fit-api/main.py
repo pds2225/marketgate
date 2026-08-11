@@ -24,6 +24,7 @@ from app.routers import readiness as readiness_router
 from app.routers import action_plan as action_plan_router
 from app.routers import inquiries as inquiries_router
 from app.routers import calculators as calculators_router
+from app.routers import company_verification as company_verification_router
 
 app = FastAPI(title="Export Fit Score API(P1)", version="0.0.1")
 app.include_router(auth_router.router)
@@ -34,6 +35,7 @@ app.include_router(readiness_router.router)
 app.include_router(action_plan_router.router)
 app.include_router(inquiries_router.router)
 app.include_router(calculators_router.router)
+app.include_router(company_verification_router.router)
 if os.getenv("APP_ENV", "").strip().lower() == "e2e":
     from app.routers import e2e as e2e_router
 
@@ -117,7 +119,7 @@ def project_snapshot(user: dict = Depends(get_current_user)):
 
 
 @app.get("/v1/demo/snapshot")
-def demo_snapshot(limit: int = Query(default=60, ge=1, le=200)):
+def demo_snapshot(limit: int = Query(default=200, ge=1, le=200)):
     """Public (no-auth) showcase of the aggregated real buyer DB.
 
     Returns the aggregation shape MarketGateDemo consumes:
@@ -134,7 +136,7 @@ def demo_summary():
 
 
 @app.get("/v1/demo/buyers")
-def demo_buyers(limit: int = Query(default=60, ge=1, le=200)):
+def demo_buyers(limit: int = Query(default=200, ge=1, le=200)):
     """Public (no-auth) masked buyer samples only."""
     return get_demo_buyers(limit)
 
