@@ -22,6 +22,16 @@
 
 ## Active
 
+### 🏢 CV — 해외기업 기본검증
+
+> 무료 기본검증은 법인 실체·등록상태·입력정보 일치 여부까지만 제공한다. `fitScore`, 기존 `creditStatus`, `core.buyers.verification_status`와 신규 `registryCheckStatus`를 혼합하지 않는다. OpenCorporates는 Mock Adapter부터 구현하고 D&B·K-SURE는 공식 외부 링크만 제공한다.
+
+- [ ] **[CV-01] 해외기업 기본검증 DB 마이그레이션** — `db/migrations/0005_company_registry_checks.sql` 추가. 재실행 가능한 SQL, 5개 `registry_check_status`, 선택값 NULL, 기존 인증·결제·크레딧 테이블 비변경. `run_migrations.py`를 `0004→0005` 순차 실행으로 수정. 완료 기준: 최초 실행·재실행·제약조건 테스트 통과.
+- [ ] **[CV-02] OpenCorporates Mock 기본검증 API** — `POST /v1/company-verifications`, `GET /v1/company-verifications/{verification_id}` 구현. 정상·일부정보·불일치·비활성·신용조사 필요·결과없음·Provider 오류·타임아웃의 결정적 Mock 시나리오 제공. `get_current_user` 인증 적용. 완료 기준: 400·404·502·504·500 및 DB 저장 테스트 통과.
+- [ ] **[CV-03] BuyerSearch 기본검증 카드** — 새 전역 페이지나 Router를 만들지 않고 `apps/frontend-react/src/pages/BuyerSearch/index.tsx` 상세 단계에 `CompanyBasicVerificationCard` 추가. 기존 바이어명·국가 자동입력, 빈값·로딩·결과없음·오류·타임아웃 처리, D&B·K-SURE 외부 링크 제공. 완료 기준: 기존 바이어 검색 흐름과 `contactStatus / tradeStatus / creditStatus` 회귀 없음.
+- [ ] **[CV-04] 기본검증 테스트·회귀검증** — DB·Adapter·API·화면 단위테스트와 로그인→바이어검색→상세→기본검증 E2E 작성. 신용점수·안전점수·지급능력 판정·임의 데이터 미노출 확인. 완료 기준: 백엔드 pytest, 프론트 unit·lint·build·E2E smoke 통과.
+- [ ] **[CV-05] K-SURE·D&B PRD 정정** — `PRD_C1_ksure_api.md`, `PRD_C3_dnb_api.md`에서 검증되지 않은 API·등급 자동조회 가정을 제거하고 현재 MVP를 외부 공식 조회 링크로 한정. 실제 API 연동은 계약·비용·저장·표시·재이용 권한 확인 후 별도 PRD로 진행. 완료 기준: 문서 간 상태·용어·범위 일치.
+
 ### 🧭 A-MVP — Landing 진입 경로
 
 - [x] **[A-001] Landing CTA 연결** — `LandingPage.jsx` 하단 CTA에서 유망국 분석(`AnalysisPage`), 수출 플로우(`ExportFlowPage`), 바이어 검색(`BuyerSearchPage`)으로 진입 가능. 기존 `App.jsx` 상태 라우팅 재사용, 새 라이브러리·백엔드 변경 없음. 검증: CTA/라우트 6/6 정적 연결 확인, `npm run build` 통과.
