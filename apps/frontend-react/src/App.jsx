@@ -65,6 +65,12 @@ function App() {
   // 세션이 본인 의사와 무관하게(토큰 만료 → 재발급 실패) 끊겼을 때만 true.
   // 직접 누른 로그아웃과 구분해, 로그인 화면에서 "다시 로그인" 안내를 띄운다.
   const [sessionExpired, setSessionExpired] = useState(false)
+  const [authMode, setAuthMode] = useState('login')
+
+  const openAuth = (mode = 'login', nextPage = 'buyerSearch', preset = null) => {
+    setAuthMode(mode)
+    navigate(nextPage, preset)
+  }
 
   const navigate = (nextPage, preset = null) => {
     // 결제 콜백 경로(/payment/callback?status=...)에서 다른 화면으로 이동할 때
@@ -175,6 +181,7 @@ function App() {
     return (
       <Suspense fallback={<PageFallback />}>
         <AuthPage
+          initialMode={authMode}
           sessionExpired={sessionExpired}
           duringPayment={page === 'paymentCallback'}
           onSuccess={() => { setSessionExpired(false); setAuthed(true) }}
@@ -241,6 +248,8 @@ function App() {
       <Suspense fallback={<PageFallback />}>
       {page === 'landing' && (
         <LandingPage
+          onOpenLogin={() => openAuth('login', 'buyerSearch')}
+          onOpenRegister={() => openAuth('register', 'buyerSearch')}
           onStartFlow={() => navigate('exportFlow')}
           onStartBuyerSearch={() => navigate('buyerSearch')}
           onStartAnalysis={(preset) => navigate('analysis', preset || null)}

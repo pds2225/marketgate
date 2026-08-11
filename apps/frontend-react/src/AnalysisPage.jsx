@@ -1213,7 +1213,38 @@ export default function AnalysisPage({ onBack, preset }) {
     }
     setInquiryLoading(true);
     setInquiryError("");
+    setDraftPlanBlocked(false);
     try {
+      const hasEmail =
+        !!inquiryBuyer?.contact_email && String(inquiryBuyer.contact_email).includes("@");
+
+      // Basic 가입자도 초안을 받을 수 있게, 이메일이 있으면 /v1/inquiries(로그인만 필요)를 우선 사용한다.
+      // 이메일 없는 바이어만 레거시 /v1/inquiry 경로로 간다.
+      if (hasEmail) {
+        const created = await api.post("/v1/inquiries", {
+          buyer_name: inquiryBuyer.buyer_name || "Unknown",
+          buyer_id: inquiryBuyer.buyer_name || "unknown",
+          recipient_email: inquiryBuyer.contact_email,
+          hs_code: inquiryBuyer.hs_code_norm || hsCode || "",
+          sender_company: inquiryForm.sender_company.trim(),
+          sender_name: inquiryForm.sender_name.trim(),
+          sender_email: inquiryForm.sender_email.trim(),
+          message: inquiryForm.message.trim(),
+          country: inquiryBuyer.source_target_country_name || inquiryBuyer.country_norm || "",
+          match_relevance: inquiryBuyer.match_relevance,
+          recommendation_lines: inquiryBuyer.recommendation_lines,
+        });
+        const record = created.data;
+        setQueueRecord(record);
+        setInquiryResult({
+          inquiry_id: record.inquiry_id,
+          draft_ko: record.draft_ko,
+          draft_en: record.draft_en,
+          status: record.status || "draft_ready",
+        });
+        return;
+      }
+
       const inquiryToken = localStorage.getItem("access_token");
       const inquiryHeaders = { "Content-Type": "application/json" };
       if (inquiryToken) inquiryHeaders["Authorization"] = `Bearer ${inquiryToken}`;
@@ -1252,7 +1283,12 @@ export default function AnalysisPage({ onBack, preset }) {
       }
       setInquiryResult(data);
     } catch (err) {
-      setInquiryError(err.message || "잠시 후 다시 시도해 주세요.");
+      const detail = err.response?.data?.detail;
+      setInquiryError(
+        detail === "contact_missing"
+          ? "이메일이 있는 바이어만 초안을 저장할 수 있습니다."
+          : detail || err.message || "잠시 후 다시 시도해 주세요."
+      );
     } finally {
       setInquiryLoading(false);
     }
@@ -1740,7 +1776,10 @@ export default function AnalysisPage({ onBack, preset }) {
                       {draftPlanBlocked ? (
                         <div className="analysis-inline-alert" style={{ marginBottom: 12 }}>
                           <CircleAlert size={16} />
-                          <span>AI 초안 작성은 Advanced 플랜 기능입니다. 발송 검토 요청은 바로 이용하실 수 있습니다.</span>
+                          <span>
+                            이 바이어는 이메일이 없어 레거시 초안 API가 제한될 수 있습니다. 이메일이 있는 후보를 선택하거나,
+                            아래 발송 검토 요청을 이용해 주세요.
+                          </span>
                         </div>
                       ) : null}
 
