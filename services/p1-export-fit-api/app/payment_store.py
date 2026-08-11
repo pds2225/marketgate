@@ -7,6 +7,8 @@ import tempfile
 import threading
 from datetime import datetime, timezone
 
+from app.db_conn import get_conn, put_conn, is_available, transaction
+
 logger = logging.getLogger(__name__)
 
 PAYMENTS_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "payments.json")
@@ -83,6 +85,124 @@ def _save(data: list) -> None:
         raise
 
 
+def _row_to_dict(row) -> dict:
+    return {
+        "order_id": row[0],
+        "user_id": row[1],
+        "product_type": row[2],
+        "package": row[3],
+        "plan": row[4],
+        "amount": row[5],
+        "status": row[6],
+        "timestamp": row[7].isoformat() if row[7] else None,
+    }
+
+
+def _db_fulfill_payment_once(
+    *,
+    order_id: str,
+    user_id: str,
+    product_type: str,
+    package: str | None,
+    plan: str | None,
+    amount: int,
+    status: str,
+    apply_fn,
+) -> dict:
+    """Postgres ledger + side effects in one transaction (L027)."""
+    now = datetime.now(timezone.utc)
+    with transaction() as conn:
+        if conn is None:
+            # Pool vanished mid-flight — fail closed rather than file-fallback
+            # which would reintroduce wipe/double-fulfill on Render.
+            raise RuntimeError("postgres_unavailable")
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT order_id, user_id, product_type, package, plan, amount, "
+                "status, updated_at FROM payment_ledger WHERE order_id = %s "
+                "FOR UPDATE",
+                (order_id,),
+            )
+            existing = cur.fetchone()
+            if existing is not None:
+                existing_status = existing[6]
+                if existing_status != "NEEDS_REVIEW":
+                    return {"status": "ok", "duplicate": True}
+                if status != "DONE":
+                    logger.warning(
+                        f"[payment] NEEDS_REVIEW replay blocked order_id={order_id!r} "
+                        f"— 검토 대기 중인 주문이라 이행하지 않는다"
+                    )
+                    return {
+                        "status": "ok",
+                        "duplicate": True,
+                        "blocked_by": "NEEDS_REVIEW",
+                    }
+                apply_fn()
+                cur.execute(
+                    "UPDATE payment_ledger SET user_id=%s, product_type=%s, "
+                    "package=%s, plan=%s, amount=%s, status=%s, updated_at=%s "
+                    "WHERE order_id=%s",
+                    (
+                        user_id,
+                        product_type,
+                        package,
+                        plan,
+                        amount,
+                        "DONE",
+                        now,
+                        order_id,
+                    ),
+                )
+                logger.warning(
+                    f"[payment] NEEDS_REVIEW recovered → DONE order_id={order_id!r}"
+                )
+                return {"status": "ok", "duplicate": False, "recovered": True}
+
+            apply_fn()
+            cur.execute(
+                "INSERT INTO payment_ledger "
+                "(order_id, user_id, product_type, package, plan, amount, status, "
+                "created_at, updated_at) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                (
+                    order_id,
+                    user_id,
+                    product_type,
+                    package,
+                    plan,
+                    amount,
+                    status,
+                    now,
+                    now,
+                ),
+            )
+            return {"status": "ok", "duplicate": False}
+
+
+def _db_get_payment_history(user_id: str | None) -> list:
+    conn = get_conn()
+    if conn is None:
+        return []
+    try:
+        with conn.cursor() as cur:
+            if user_id is None:
+                cur.execute(
+                    "SELECT order_id, user_id, product_type, package, plan, amount, "
+                    "status, updated_at FROM payment_ledger ORDER BY updated_at"
+                )
+            else:
+                cur.execute(
+                    "SELECT order_id, user_id, product_type, package, plan, amount, "
+                    "status, updated_at FROM payment_ledger WHERE user_id = %s "
+                    "ORDER BY updated_at",
+                    (user_id,),
+                )
+            return [_row_to_dict(r) for r in cur.fetchall()]
+    finally:
+        put_conn(conn)
+
+
 def fulfill_payment_once(
     *,
     order_id: str,
@@ -103,9 +223,24 @@ def fulfill_payment_once(
     종결이 아니다: 검증을 통과한 재전송(status="DONE")이 오면 그때 이행하고
     같은 행을 DONE으로 승격한다. 그러지 않으면 값이 틀렸다가 정정된 정상
     결제가 영원히 미이행 상태로 남는다.
+
+    When DATABASE_URL is set, the ledger lives in Postgres so a Render cold
+    start cannot wipe order_id records and allow confirm retries to
+    double-fulfill (L027).
     """
     if not order_id:
         raise ValueError("order_id_required")
+    if is_available():
+        return _db_fulfill_payment_once(
+            order_id=order_id,
+            user_id=user_id,
+            product_type=product_type,
+            package=package,
+            plan=plan,
+            amount=amount,
+            status=status,
+            apply_fn=apply_fn,
+        )
     with _lock:
         data = _load()
         existing = next((r for r in data if r.get("order_id") == order_id), None)
@@ -159,6 +294,8 @@ def fulfill_payment_once(
 
 
 def get_payment_history(user_id: str | None = None) -> list:
+    if is_available():
+        return _db_get_payment_history(user_id)
     with _lock:
         data = _load()
     if user_id is None:
