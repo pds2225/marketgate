@@ -248,13 +248,9 @@ def _keyword_terms(record: Mapping[str, Any], keys: Iterable[str]) -> set[str]:
     return tokens
 
 
-def _keyword_overlap(
-    buyer: Mapping[str, Any],
-    target: Mapping[str, Any],
-    _cached_target_terms: set[str] | None = None,
-) -> list[str]:
+def _keyword_overlap(buyer: Mapping[str, Any], target: Mapping[str, Any]) -> list[str]:
     buyer_terms = _keyword_terms(buyer, ("keywords_norm", "normalized_name", "title"))
-    target_terms = _cached_target_terms if _cached_target_terms is not None else _keyword_terms(target, ("keywords_norm", "product_name_norm", "title"))
+    target_terms = _keyword_terms(target, ("keywords_norm", "product_name_norm", "title"))
     return sorted(buyer_terms & target_terms)
 
 
@@ -629,52 +625,17 @@ def fit_score_v0(
     opportunity: Mapping[str, Any] | None = None,
     gate_result: Mapping[str, Any] | None = None,
     reference_date: date | None = None,
-    _cached_target: dict[str, str] | None = None,
-    _cached_normalized_opportunity: dict[str, Any] | None = None,
-    _cached_banned_countries: list[str] | None = None,
-    _cached_required_capacity: float | None = None,
-    _cached_target_terms: set[str] | None = None,
 ) -> dict[str, Any]:
-    if _cached_target is not None:
-        target = _cached_target
-        normalized_opportunity = _cached_normalized_opportunity
-        required_capacity = _cached_required_capacity
-        banned_countries = _cached_banned_countries
-        buyer_gate_input = (gate_result or {}).get("buyer_gate") if gate_result else None
-        opportunity_gate_input = (gate_result or {}).get("opportunity_gate") if gate_result else None
-        if buyer_gate_input is None and gate_result and "buyer_gate" not in gate_result:
-            buyer_gate_input = gate_result
-        buyer_gate = dict(
-            buyer_gate_input
-            or buyer_hard_gate(
-                buyer,
-                normalized_opportunity,
-                target_country_norm=target["country_norm"],
-                target_hs_code_norm=target["hs_code_norm"],
-                target_keywords_norm=target["keywords_norm"],
-                target_product_name_norm=target["product_name_norm"],
-                target_title=target["title"],
-                banned_countries=banned_countries,
-                required_capacity=required_capacity,
-            )
-        )
-        opportunity_gate = None
-        if normalized_opportunity is not None:
-            opportunity_gate = dict(
-                opportunity_gate_input
-                or opportunity_hard_gate(normalized_opportunity, reference_date=reference_date)
-            )
-    else:
-        normalized_opportunity = _normalized_opportunity(opportunity, reference_date=reference_date)
-        target, buyer_gate, opportunity_gate = _build_gate_bundle(
-            buyer=buyer,
-            supplier_profile=supplier_profile,
-            opportunity=normalized_opportunity,
-            gate_result=gate_result,
-            reference_date=reference_date,
-        )
+    normalized_opportunity = _normalized_opportunity(opportunity, reference_date=reference_date)
+    target, buyer_gate, opportunity_gate = _build_gate_bundle(
+        buyer=buyer,
+        supplier_profile=supplier_profile,
+        opportunity=normalized_opportunity,
+        gate_result=gate_result,
+        reference_date=reference_date,
+    )
     match_result = match_hs_or_keywords(buyer, target)
-    overlap_terms = _keyword_overlap(buyer, target, _cached_target_terms=_cached_target_terms)
+    overlap_terms = _keyword_overlap(buyer, target)
     required_capacity = _required_capacity(supplier_profile)
     gate_classification = _classify_gate_reasons(
         buyer=buyer,
@@ -755,101 +716,17 @@ def score_buyers(
     opportunity: Mapping[str, Any] | None = None,
     reference_date: date | None = None,
 ) -> list[dict[str, Any]]:
-    # Pre-compute buyer-independent values ONCE (huge savings on 10K+ rows)
-    cached_normalized_opportunity = _normalized_opportunity(opportunity, reference_date=reference_date)
-    cached_target = _target_context(supplier_profile, cached_normalized_opportunity)
-    cached_required_capacity = _required_capacity(supplier_profile)
-    cached_banned_countries = _parse_banned_countries((supplier_profile or {}).get("banned_countries"))
-    # Pre-compute target keyword terms ONCE (was recomputed per buyer)
-    cached_target_terms = _keyword_terms(cached_target, ("keywords_norm", "product_name_norm", "title"))
-
-    target_hs = normalize_hs_code(cached_target.get("hs_code_norm"))
-    target_hs4 = target_hs[:4] if len(target_hs) >= 4 else ""
-    target_hs2 = target_hs[:2] if len(target_hs) >= 2 else ""
-    target_country = cached_target.get("country_norm", "")
-
-    # Vectorized pre-filter: cheap pandas checks to skip expensive fit_score_v0
-    buyers_list = list(buyers)
-    if not buyers_list:
-        return []
-    df = pd.DataFrame(buyers_list)
-    if df.empty:
-        return []
-
-    # Normalize columns vectorized
-    hs_col = df.get("hs_code_norm", pd.Series(dtype=str)).fillna("").astype(str)
-    country_col = df.get("country_norm", pd.Series(dtype=str)).fillna("").astype(str)
-
-    # HS prefix match (vectorized)
-    hs_prefix_ok = pd.Series(False, index=df.index)
-    if target_hs4:
-        hs_prefix_ok = hs_prefix_ok | hs_col.str[:4].eq(target_hs4)
-    if target_hs2:
-        hs_prefix_ok = hs_prefix_ok | hs_col.str[:2].eq(target_hs2)
-
-    # Country match (vectorized)
-    country_ok = pd.Series(True, index=df.index)
-    if target_country:
-        country_ok = country_col.eq(target_country)
-
-    # Keyword overlap (vectorized string contains)
-    kw_ok = pd.Series(False, index=df.index)
-    if cached_target_terms:
-        searchable_cols = ["keywords_norm", "normalized_name", "title"]
-        for col_name in searchable_cols:
-            if col_name in df.columns:
-                col = df[col_name].fillna("").astype(str).str.casefold()
-                for term in cached_target_terms:
-                    kw_ok = kw_ok | col.str.contains(term, na=False, regex=False)
-
-    # Buyers that match at least one signal → run full scoring
-    should_score = hs_prefix_ok | kw_ok
-    # Country mismatch buyers still need scoring (for country_match_score component)
-    # but they'll get lower scores naturally
-
     results: list[dict[str, Any]] = []
-    for idx, buyer_row in enumerate(buyers_list):
-        if not should_score.iloc[idx]:
-            # No HS/keyword signal → assign low candidate score without expensive scoring
-            enriched = {
-                "final_score": 10.0,
-                "score_breakdown": {
-                    "country_match_score": 20.0 if country_ok.iloc[idx] else 0.0,
-                    "hs_match_score": 0.0,
-                    "contact_score": 0.0,
-                    "activity_score": 0.0,
-                    "opportunity_signal_score": 0.0,
-                    "soft_penalty_score": 0.0,
-                    "final_weighted_score": 10.0,
-                    "hs_match_type": "",
-                    "matched_terms": [],
-                },
-                "explanation_reasons": ["HS/키워드 매칭 없음"],
-                "explanation": ["HS/키워드 매칭 없음"],
-                "recommendation_lines": ["HS/키워드 매칭 없음"],
-                "decision": "candidate" if country_ok.iloc[idx] else "rejected",
-                "matched_by": "",
-                "matched_terms": [],
-                "gate_classification": {"hard_fail": [], "soft_penalty": []},
-                "gate_result": {"buyer_gate": None, "opportunity_gate": None},
-                "buyer": buyer_row,
-            }
-            results.append(enriched)
-            continue
-
+    for buyer in buyers:
         result = fit_score_v0(
-            buyer=buyer_row,
+            buyer=buyer,
             supplier_profile=supplier_profile,
             opportunity=opportunity,
             reference_date=reference_date,
-            _cached_target=cached_target,
-            _cached_normalized_opportunity=cached_normalized_opportunity,
-            _cached_banned_countries=cached_banned_countries,
-            _cached_required_capacity=cached_required_capacity,
-            _cached_target_terms=cached_target_terms,
         )
-        result["buyer"] = buyer_row
-        results.append(result)
+        enriched = dict(result)
+        enriched["buyer"] = dict(buyer)
+        results.append(enriched)
     results.sort(
         key=lambda item: (
             {"shortlist": 2, "candidate": 1, "rejected": 0}.get(item["decision"], 0),
