@@ -23,6 +23,7 @@ from app.routers import payment as payment_router
 from app.routers import readiness as readiness_router
 from app.routers import action_plan as action_plan_router
 from app.routers import inquiries as inquiries_router
+from app.routers import calculators as calculators_router
 
 app = FastAPI(title="Export Fit Score API(P1)", version="0.0.1")
 app.include_router(auth_router.router)
@@ -32,6 +33,7 @@ app.include_router(payment_router.router)
 app.include_router(readiness_router.router)
 app.include_router(action_plan_router.router)
 app.include_router(inquiries_router.router)
+app.include_router(calculators_router.router)
 if os.getenv("APP_ENV", "").strip().lower() == "e2e":
     from app.routers import e2e as e2e_router
 
@@ -227,7 +229,8 @@ def credits_history(user: dict = Depends(get_current_user)):
 
 
 @app.post("/v1/inquiry", response_model=InquiryResponse)
-def create_inquiry(req: InquiryRequest, _: dict = Depends(require_plan("Advanced"))):
+def create_inquiry(req: InquiryRequest, _: dict = Depends(require_plan("Basic"))):
+    # 초안 생성은 가입(Basic)부터 허용. 실제 발송/추적은 Advanced·크레딧 경로를 유지한다.
     result = build_draft(
         buyer_name=req.buyer_name,
         contact_email=req.contact_email,
@@ -297,7 +300,7 @@ def predict_legacy(payload: Dict[str, Any] = Body(...), user: dict = Depends(get
         or normalized_payload.get("exporter_country")
         or "KOR"
     )
-    normalized_payload["top_n"] = normalized_payload.get("top_n", 3)
+    normalized_payload["top_n"] = normalized_payload.get("top_n", 10)
     normalized_payload["year"] = normalized_payload.get("year", 2023)
 
     req = PredictRequest(**normalized_payload)
