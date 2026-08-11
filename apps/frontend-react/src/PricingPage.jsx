@@ -141,7 +141,7 @@ export default function PricingPage({ onBack }) {
           min-height: 100vh;
           background: #f7f9fc;
           color: #07152f;
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'DM Sans', sans-serif;
           overflow-x: hidden;
           position: relative;
         }
@@ -194,14 +194,14 @@ export default function PricingPage({ onBack }) {
           border-radius: 4px;
           padding: 7px 14px;
           cursor: pointer;
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'DM Mono', monospace;
           font-size: 0.75rem;
           letter-spacing: 0.05em;
           transition: border-color 0.2s, color 0.2s;
         }
         .pg-back:hover { border-color: #1463f3; color: #1463f3; }
         .pg-nav-tag {
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'DM Mono', monospace;
           font-size: 0.7rem;
           color: #59677d;
           letter-spacing: 0.12em;
@@ -216,7 +216,7 @@ export default function PricingPage({ onBack }) {
         }
         .pg-hero.in { opacity: 1; transform: translateY(0); }
         .pg-eyebrow {
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'DM Mono', monospace;
           font-size: 0.7rem;
           letter-spacing: 0.2em;
           color: #1463f3;
@@ -224,7 +224,7 @@ export default function PricingPage({ onBack }) {
           text-transform: uppercase;
         }
         .pg-title {
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'Bebas Neue', sans-serif;
           font-size: clamp(3.5rem, 8vw, 7rem);
           line-height: 0.92;
           letter-spacing: 0.02em;
@@ -242,7 +242,7 @@ export default function PricingPage({ onBack }) {
 
         /* PLANS */
         .pg-section-label {
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'DM Mono', monospace;
           font-size: 0.65rem;
           letter-spacing: 0.18em;
           color: #59677d;
@@ -294,7 +294,7 @@ export default function PricingPage({ onBack }) {
         .plan-card.featured { background: #f2f7ff; border-color: rgba(20,99,243,0.18); }
 
         .plan-tag {
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'DM Mono', monospace;
           font-size: 0.62rem;
           letter-spacing: 0.12em;
           color: var(--accent);
@@ -302,7 +302,7 @@ export default function PricingPage({ onBack }) {
           margin-bottom: 20px;
         }
         .plan-name {
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'Bebas Neue', sans-serif;
           font-size: 2.2rem;
           letter-spacing: 0.05em;
           color: #07152f;
@@ -316,13 +316,13 @@ export default function PricingPage({ onBack }) {
           margin-bottom: 28px;
         }
         .plan-price {
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'DM Mono', monospace;
           font-size: 1.8rem;
           font-weight: 500;
           color: var(--accent);
         }
         .plan-unit {
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'DM Mono', monospace;
           font-size: 0.72rem;
           color: #59677d;
         }
@@ -360,7 +360,7 @@ export default function PricingPage({ onBack }) {
           color: var(--accent);
           border-radius: 3px;
           cursor: pointer;
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'DM Mono', monospace;
           font-size: 0.72rem;
           letter-spacing: 0.1em;
           text-transform: uppercase;
@@ -402,7 +402,7 @@ export default function PricingPage({ onBack }) {
         .best-badge {
           position: absolute;
           top: 16px; right: 16px;
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'DM Mono', monospace;
           font-size: 0.58rem;
           letter-spacing: 0.1em;
           background: #1463f3;
@@ -413,14 +413,14 @@ export default function PricingPage({ onBack }) {
           font-weight: 500;
         }
         .credit-amount {
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'Bebas Neue', sans-serif;
           font-size: 3.5rem;
           line-height: 1;
           color: #07152f;
           margin-bottom: 4px;
         }
         .credit-sub {
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'DM Mono', monospace;
           font-size: 0.65rem;
           color: #59677d;
           letter-spacing: 0.1em;
@@ -428,14 +428,14 @@ export default function PricingPage({ onBack }) {
           margin-bottom: 20px;
         }
         .credit-price {
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'DM Mono', monospace;
           font-size: 1.2rem;
           color: #1463f3;
           margin-bottom: 4px;
         }
         .credit-price::before { content: '₩ '; font-size: 0.75rem; }
         .credit-per {
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'DM Mono', monospace;
           font-size: 0.65rem;
           color: #8fa0b8;
           margin-bottom: 22px;
@@ -448,7 +448,7 @@ export default function PricingPage({ onBack }) {
           color: #1463f3;
           border-radius: 3px;
           cursor: pointer;
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'DM Mono', monospace;
           font-size: 0.7rem;
           letter-spacing: 0.1em;
           text-transform: uppercase;
@@ -464,7 +464,7 @@ export default function PricingPage({ onBack }) {
           color: #b91c1c;
           border-radius: 4px;
           padding: 12px 16px;
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'DM Mono', monospace;
           font-size: 0.75rem;
           margin-bottom: 28px;
         }
@@ -484,7 +484,7 @@ export default function PricingPage({ onBack }) {
           gap: 8px;
           align-items: center;
           flex-shrink: 0;
-          font-family: 'Pretendard', 'SUIT', 'Noto Sans KR', sans-serif;
+          font-family: 'DM Mono', monospace;
           font-size: 0.7rem;
           color: #8fa0b8;
           letter-spacing: 0.06em;

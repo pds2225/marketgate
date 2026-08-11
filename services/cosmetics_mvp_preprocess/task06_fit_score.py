@@ -248,13 +248,9 @@ def _keyword_terms(record: Mapping[str, Any], keys: Iterable[str]) -> set[str]:
     return tokens
 
 
-def _keyword_overlap(
-    buyer: Mapping[str, Any],
-    target: Mapping[str, Any],
-    _cached_target_terms: set[str] | None = None,
-) -> list[str]:
+def _keyword_overlap(buyer: Mapping[str, Any], target: Mapping[str, Any]) -> list[str]:
     buyer_terms = _keyword_terms(buyer, ("keywords_norm", "normalized_name", "title"))
-    target_terms = _cached_target_terms if _cached_target_terms is not None else _keyword_terms(target, ("keywords_norm", "product_name_norm", "title"))
+    target_terms = _keyword_terms(target, ("keywords_norm", "product_name_norm", "title"))
     return sorted(buyer_terms & target_terms)
 
 
@@ -629,52 +625,17 @@ def fit_score_v0(
     opportunity: Mapping[str, Any] | None = None,
     gate_result: Mapping[str, Any] | None = None,
     reference_date: date | None = None,
-    _cached_target: dict[str, str] | None = None,
-    _cached_normalized_opportunity: dict[str, Any] | None = None,
-    _cached_banned_countries: list[str] | None = None,
-    _cached_required_capacity: float | None = None,
-    _cached_target_terms: set[str] | None = None,
 ) -> dict[str, Any]:
-    if _cached_target is not None:
-        target = _cached_target
-        normalized_opportunity = _cached_normalized_opportunity
-        required_capacity = _cached_required_capacity
-        banned_countries = _cached_banned_countries
-        buyer_gate_input = (gate_result or {}).get("buyer_gate") if gate_result else None
-        opportunity_gate_input = (gate_result or {}).get("opportunity_gate") if gate_result else None
-        if buyer_gate_input is None and gate_result and "buyer_gate" not in gate_result:
-            buyer_gate_input = gate_result
-        buyer_gate = dict(
-            buyer_gate_input
-            or buyer_hard_gate(
-                buyer,
-                normalized_opportunity,
-                target_country_norm=target["country_norm"],
-                target_hs_code_norm=target["hs_code_norm"],
-                target_keywords_norm=target["keywords_norm"],
-                target_product_name_norm=target["product_name_norm"],
-                target_title=target["title"],
-                banned_countries=banned_countries,
-                required_capacity=required_capacity,
-            )
-        )
-        opportunity_gate = None
-        if normalized_opportunity is not None:
-            opportunity_gate = dict(
-                opportunity_gate_input
-                or opportunity_hard_gate(normalized_opportunity, reference_date=reference_date)
-            )
-    else:
-        normalized_opportunity = _normalized_opportunity(opportunity, reference_date=reference_date)
-        target, buyer_gate, opportunity_gate = _build_gate_bundle(
-            buyer=buyer,
-            supplier_profile=supplier_profile,
-            opportunity=normalized_opportunity,
-            gate_result=gate_result,
-            reference_date=reference_date,
-        )
+    normalized_opportunity = _normalized_opportunity(opportunity, reference_date=reference_date)
+    target, buyer_gate, opportunity_gate = _build_gate_bundle(
+        buyer=buyer,
+        supplier_profile=supplier_profile,
+        opportunity=normalized_opportunity,
+        gate_result=gate_result,
+        reference_date=reference_date,
+    )
     match_result = match_hs_or_keywords(buyer, target)
-    overlap_terms = _keyword_overlap(buyer, target, _cached_target_terms=_cached_target_terms)
+    overlap_terms = _keyword_overlap(buyer, target)
     required_capacity = _required_capacity(supplier_profile)
     gate_classification = _classify_gate_reasons(
         buyer=buyer,
@@ -755,33 +716,17 @@ def score_buyers(
     opportunity: Mapping[str, Any] | None = None,
     reference_date: date | None = None,
 ) -> list[dict[str, Any]]:
-    # Pre-compute buyer-independent values ONCE (huge savings on 10K+ rows)
-    cached_normalized_opportunity = _normalized_opportunity(opportunity, reference_date=reference_date)
-    cached_target = _target_context(supplier_profile, cached_normalized_opportunity)
-    cached_required_capacity = _required_capacity(supplier_profile)
-    cached_banned_countries = _parse_banned_countries((supplier_profile or {}).get("banned_countries"))
-    # Pre-compute target keyword terms ONCE (was recomputed per buyer)
-    cached_target_terms = _keyword_terms(cached_target, ("keywords_norm", "product_name_norm", "title"))
-
-    buyers_list = list(buyers)
-    if not buyers_list:
-        return []
-
     results: list[dict[str, Any]] = []
-    for buyer_row in buyers_list:
+    for buyer in buyers:
         result = fit_score_v0(
-            buyer=buyer_row,
+            buyer=buyer,
             supplier_profile=supplier_profile,
             opportunity=opportunity,
             reference_date=reference_date,
-            _cached_target=cached_target,
-            _cached_normalized_opportunity=cached_normalized_opportunity,
-            _cached_banned_countries=cached_banned_countries,
-            _cached_required_capacity=cached_required_capacity,
-            _cached_target_terms=cached_target_terms,
         )
-        result["buyer"] = buyer_row
-        results.append(result)
+        enriched = dict(result)
+        enriched["buyer"] = dict(buyer)
+        results.append(enriched)
     results.sort(
         key=lambda item: (
             {"shortlist": 2, "candidate": 1, "rejected": 0}.get(item["decision"], 0),
