@@ -38,9 +38,15 @@ def _load_blacklist_file() -> list:
 
 
 def _save_blacklist_file(data: list) -> None:
+    # Atomic replace — a torn in-place write can make concurrent readers hit
+    # JSONDecodeError and fail-open to an empty blacklist (L016/L025).
     os.makedirs(os.path.dirname(BLACKLIST_PATH), exist_ok=True)
-    with open(BLACKLIST_PATH, "w", encoding="utf-8") as f:
+    tmp_path = f"{BLACKLIST_PATH}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, BLACKLIST_PATH)
 
 
 # ── PostgreSQL operations ──
@@ -114,6 +120,12 @@ def _db_create_user(email: str, hashed_pw: str) -> dict:
         put_conn(conn)
 
 
+_ALLOWED_UPDATE_COLS = frozenset({
+    "email", "hashed_pw", "role", "plan",
+    "login_fail_count", "locked_until",
+})
+
+
 def _db_update_user(user_id: str, updates: dict) -> None:
     conn = get_conn()
     if conn is None:
@@ -122,8 +134,12 @@ def _db_update_user(user_id: str, updates: dict) -> None:
         sets = []
         vals = []
         for k, v in updates.items():
+            if k not in _ALLOWED_UPDATE_COLS:
+                raise ValueError(f"disallowed column: {k}")
             sets.append(f"{k} = %s")
             vals.append(v)
+        if not sets:
+            return
         sets.append("updated_at = %s")
         vals.append(datetime.now(timezone.utc))
         vals.append(user_id)
@@ -176,6 +192,29 @@ def _db_is_blacklisted(jti: str) -> bool:
         with conn.cursor() as cur:
             cur.execute("SELECT 1 FROM auth_token_blacklist WHERE jti = %s", (jti,))
             return cur.fetchone() is not None
+    finally:
+        put_conn(conn)
+
+
+def _db_consume_jti(jti: str) -> bool:
+    """Atomically insert jti into Postgres blacklist. True = first consumer.
+
+    Fail closed if the pool cannot hand out a connection: returning True here
+    would mint a rotated refresh without a durable revoke record (L026).
+    """
+    conn = get_conn()
+    if conn is None:
+        return False
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO auth_token_blacklist (jti) VALUES (%s) "
+                "ON CONFLICT DO NOTHING RETURNING jti",
+                (jti,),
+            )
+            row = cur.fetchone()
+        conn.commit()
+        return row is not None
     finally:
         put_conn(conn)
 
@@ -252,7 +291,31 @@ def add_to_blacklist(jti: str) -> None:
             _save_blacklist_file(bl)
 
 
+def consume_jti(jti: str) -> bool:
+    """Atomically blacklist a jti. True = first consumer; False = already used.
+
+    Refresh rotation must use this instead of is_blacklisted()+add_to_blacklist()
+    so concurrent /refresh calls cannot mint multiple live refresh chains (L025).
+
+    When Postgres is configured, must write the same durable blacklist that
+    is_blacklisted()/add_to_blacklist() use — file-only consume is wiped on
+    Render ephemeral disk / multi-instance and allows refresh reuse (L026).
+    """
+    if not jti:
+        return False
+    if is_available():
+        return _db_consume_jti(jti)
+    with _blacklist_lock:
+        bl = _load_blacklist_file()
+        if jti in bl:
+            return False
+        bl.append(jti)
+        _save_blacklist_file(bl)
+        return True
+
+
 def is_blacklisted(jti: str) -> bool:
     if is_available():
         return _db_is_blacklisted(jti)
-    return jti in _load_blacklist_file()
+    with _blacklist_lock:
+        return jti in _load_blacklist_file()
