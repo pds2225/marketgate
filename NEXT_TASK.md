@@ -1,161 +1,184 @@
-# MarketGate NIGHT QUEUE — CV-02 → CV-05
+# MarketGate NIGHT PARALLEL TASKS
 
-## 실행 조건
+## 목적
+오늘 밤 사용자 승인 없이 서로 독립 가능한 작업을 병렬 개발한다.
+각 작업은 별도 branch/worktree에서 구현·테스트·commit·push까지만 수행하고 **main에는 병합하지 않는다.**
+내일 사용자가 한 번에 검수·병합한다.
 
-- 시작 전 원격 `main` 최신화
-- CV-01이 실제 코드/테스트 기준으로 완료되고 원격에 push된 경우에만 시작
-- 각 작업은 **1기능 = 1작업 = 1검증 = 1커밋 = 1push**
-- 각 단계가 `DONE`일 때만 다음 단계 진행
-- `BLOCKED` / `FAILED` / 테스트 실패 / push 실패가 하나라도 발생하면 즉시 중단
-- 사용자 승인이나 추가 결정이 필요한 상황에서는 추측하지 말고 중단
+## 공통 원칙
+- 시작 전 `origin/main` 최신 상태를 기준점으로 사용
+- 가능하면 subagent/worktree로 병렬 실행
+- 각 작업 = 별도 branch
+- 한 작업 실패가 다른 독립 작업을 중단시키지 않음
+- 해당 작업 테스트 실패 시 DONE 처리 금지
 - 기존 구조 최대 유지, 최소 변경
-- Windows 기준
+- 입력검증·빈상태·오류상태·로딩상태 유지
+- unrelated refactor 금지
+- 임의 데이터·합성 지표 금지
+- `main` merge/push 금지
+- 각 작업 완료 시 branch + commit SHA + test 결과 기록
+- 여러 branch가 `TASKS.md`를 각각 수정해 충돌시키지 말 것. 야간 branch에서는 `TASKS.md` 체크 변경을 생략하고 최종 보고에 상태만 기록
 
 ---
 
-# CV-02 — OpenCorporates Mock 기본검증 API
+# A — CV-02 OpenCorporates Mock 기본검증 API
+branch: `night/cv02-opencorporates-mock`
 
-`TASKS.md`의 CV-02 정의를 source of truth로 사용한다.
-
-구현:
 - `POST /v1/company-verifications`
 - `GET /v1/company-verifications/{verification_id}`
-- 실제 OpenCorporates API 호출 금지, deterministic Mock Adapter 사용
-- 상태값은 아래 5개만 사용
-  - `BASIC_CONFIRMED`
-  - `BASIC_PARTIAL`
-  - `DATA_MISMATCH`
-  - `INACTIVE_ENTITY`
-  - `CREDIT_CHECK_REQUIRED`
-- `get_current_user` 인증 적용
-- `core.company_registry_checks` 저장
-- 정상/일부정보/불일치/비활성/신용조사 필요/결과없음/provider 오류/timeout 처리
-- 400/404/502/504/500 및 DB 저장/사용자 격리 테스트
-- 신용점수·자체 위험점수 생성 금지
-
-완료 시:
-- 관련 테스트 + 전체 backend regression 실행
-- `TASKS.md` CV-02 `[x]`
-- 커밋 + push
-- 전부 성공해야 `CV-02 = DONE`
+- 실제 OpenCorporates 호출 금지, deterministic Mock Adapter
+- CV-01의 `core.company_registry_checks` 사용
+- `get_current_user` 인증 및 사용자 격리
+- 상태값은 `BASIC_CONFIRMED`, `BASIC_PARTIAL`, `DATA_MISMATCH`, `INACTIVE_ENTITY`, `CREDIT_CHECK_REQUIRED` 5개만 사용
+- 정상/일부일치/불일치/inactive/신용조사필요/결과없음/provider error/timeout/DB실패/무인증/잘못된입력 처리
+- 자체 신용점수·위험점수 생성 금지
+- 관련 신규 테스트 + backend 전체 regression
+- 성공 시 commit + push
 
 ---
 
-# CV-03 — BuyerSearch 기본검증 카드
+# B — CV-03 BuyerSearch 기본검증 카드
+branch: `night/cv03-company-verification-ui`
 
-CV-02가 `DONE`일 때만 실행.
-`TASKS.md`의 CV-03 정의를 source of truth로 사용한다.
+CV-02의 확정 API contract와 현재 `TASKS.md` 명세만 기준으로 frontend를 독립 구현한다.
 
-구현:
-- 새 전역 페이지/Router 생성 금지
+- 새 전역 페이지/Router 금지
 - `apps/frontend-react/src/pages/BuyerSearch/index.tsx` 상세 단계에 `CompanyBasicVerificationCard` 추가
-- 기존 바이어명·국가 자동입력
-- CV-02 API 연결
-- 상태 5종을 사용자에게 신용등급처럼 오인되지 않게 표시
-- 빈값/로딩/결과없음/API 오류/timeout 처리
-- D&B·K-SURE는 **공식 외부 조회 링크만 제공**
-- 기존 `contactStatus / tradeStatus / creditStatus`와 `registryCheckStatus` 혼합 금지
-- 기존 바이어 검색 흐름 회귀 금지
-
-완료 시:
-- 관련 frontend test/lint/build 실행
-- 기존 바이어 검색 회귀 확인
-- `TASKS.md` CV-03 `[x]`
-- 커밋 + push
-- 전부 성공해야 `CV-03 = DONE`
+- 바이어명·국가 자동입력
+- loading / empty / no-result / error / timeout 처리
+- 상태 5종을 신용등급처럼 오인되지 않게 표시
+- D&B/K-SURE는 공식 외부 조회 링크 UI만 제공
+- 기존 `contactStatus`, `tradeStatus`, `creditStatus`와 혼합 금지
+- frontend unit/lint/build 및 BuyerSearch 회귀 확인
+- 성공 시 commit + push
 
 ---
 
-# CV-04 — 기본검증 테스트·회귀검증
+# C — CV-05 K-SURE·D&B PRD 정정
+branch: `night/cv05-prd-correction`
 
-CV-03이 `DONE`일 때만 실행.
-`TASKS.md`의 CV-04 정의를 source of truth로 사용한다.
-
-검증/보강:
-- DB migration
-- Mock Adapter
-- API
-- 화면 단위테스트
-- 로그인 → 바이어검색 → 상세 → 기본검증 E2E
-- 신용점수/안전점수/지급능력 판정/임의 데이터가 노출되지 않는지 확인
-- 인증·사용자 격리 회귀
-- 기존 결제·크레딧·바이어 검색 회귀
-
-완료 기준:
-- backend pytest 통과
-- frontend unit 통과
-- lint 통과
-- build 통과
-- E2E smoke 통과
-- `TASKS.md` CV-04 `[x]`
-- 커밋 + push
-- 하나라도 실패하면 `BLOCKED` 후 중단
-
----
-
-# CV-05 — K-SURE·D&B PRD 정정
-
-CV-04가 `DONE`일 때만 실행.
-`TASKS.md`의 CV-05 정의를 source of truth로 사용한다.
-
-문서만 수정:
+대상 문서를 찾아 다음만 수정한다.
 - `PRD_C1_ksure_api.md`
 - `PRD_C3_dnb_api.md`
-- 검증되지 않은 API/자동 등급조회 가정 제거
-- 현재 MVP는 공식 외부 조회 링크로 한정
-- 실제 API 연동은 계약·비용·저장·표시·재이용 권한 확인 후 별도 PRD로 명시
-- 코드 기능 확장 금지
-
-완료 기준:
-- 관련 문서 간 상태/용어/범위 일치
-- `TASKS.md` CV-05 `[x]`
-- 커밋 + push
-- `CV-05 = DONE`
+- 검증되지 않은 API 자동조회 가정 제거
+- 신용등급 자동수집/자동판정 가정 제거
+- 현재 MVP는 공식 외부 조회 링크까지만으로 한정
+- 실제 API 연동은 계약·비용·저장·표시·재이용 권한 확인 후 별도 단계로 명시
+- CV 상태명/용어를 `TASKS.md`와 일치
+- 코드 수정 금지
+- 성공 시 commit + push
 
 ---
 
-# 절대 금지
+# D — demo/buyers 60명 제한 원인 규명·최소 수정
+branch: `night/buyer-60-limit`
 
-야간 큐 동안 아래 작업은 하지 않는다.
+목표: `demo/buyers`가 최대 60건만 반환되는 직접 원인을 찾고, 불필요한 고정 limit인 경우에만 최소 수정한다.
 
-- CSS deslop
-- 코드스플리팅
+추적:
+HTTP endpoint → service → query/repository → CSV/data loader → normalization → dedupe → filter → pagination/limit → response
+
+검색:
+`limit=60`, `LIMIT 60`, `head(60)`, `[:60]`, `page_size`, `max_results`, `default_limit`
+
+수정 전 실제 건수 기록:
+원본 → country → HS/product → dedupe → hard gate → API 직전 → response
+
+금지:
+- 단순 60→500/1000 변경
+- 실제 데이터가 60 이하인데 억지 수정
+- 기존 pagination 계약 파괴
+
+검증:
+- 60 이하
+- 60 초과
+- 0건
+- 잘못된 filter
+- explicit limit
+- 기존 endpoint regression
+
+성공 시 commit + push
+
+---
+
+# E — 페이지 코드스플리팅
+branch: `night/page-code-splitting`
+
+- `App.jsx`의 정적 page import를 `React.lazy()` + `Suspense` 기반 page-level code splitting으로 최소 변경
+- 기존 라우팅/상태 라우팅 유지
+- 새 라우터 라이브러리 도입 금지
+- loading fallback 제공
+- 페이지 기능 변경 금지
+- `npm run build`
+- build chunk 결과와 초기 main bundle 전/후 수치 보고
+- 주요 진입 경로 smoke 가능한 범위 확인
+- 성공 시 commit + push
+
+---
+
+# F — CSS deslop Pass 3
+branch: `night/css-deslop-pass3`
+
+- Pass 1/2 이후 남은 명백한 dead/zombie CSS만 제거
+- 시각 디자인 재설계 금지
+- class rename 금지
+- 사용 여부 불확실 selector 삭제 금지
+- JS/JSX 기능 변경 금지
+- 기존 CSS 변수 체계 유지
+- 중복 선언/도달 불가 selector/완전 미사용 selector 위주
+- 삭제 후보마다 실제 참조 검색
+- `npm run build`
+- 가능하면 주요 화면 smoke
+- 제거 selector/라인 수 보고
+- 성공 시 commit + push
+
+---
+
+# 야간 병렬 작업에서 제외
+통합 의존성이 크므로 오늘 밤에는 실행하지 않는다.
+
+- CV-04 통합 E2E/회귀검증
 - Campaign Orchestrator
-- Matching & Slot
-- Credit Ledger 신규개발
-- Send Adapter
-- 실제 이메일 발송
-- 실제 OpenCorporates/D&B/K-SURE API 계약 없는 연동
-- DB migration 기존 파일 임의 수정
-- 임의 데이터/합성 점수 추가
-- CV-05 이후 다른 작업 자동 시작
+- Matching & Slot Service
+- Credit Ledger 확장
+- Compliance Engine
+- 실제 Send Adapter
+- 실제 OpenCorporates/D&B/K-SURE API
+- 실제 결제/에스크로
+- main 병합
 
 ---
 
-# 최종 보고
-
-각 작업마다 아래를 기록한다.
+# 최종 보고 형식
 
 ```text
-[STEP] CV-0X
-[STATUS] DONE / BLOCKED
-[CHANGED]
-[TEST]
-[COMMIT]
-[PUSH]
-```
+[NIGHT-A CV-02]
+STATUS: DONE / BLOCKED
+BRANCH:
+COMMIT:
+PUSH:
+FILES:
+TEST:
+RISKS:
 
-마지막에는 전체를 요약한다.
+[NIGHT-B CV-03]
+...
+[NIGHT-C CV-05]
+...
+[NIGHT-D BUYER-60]
+...
+[NIGHT-E CODE-SPLIT]
+...
+[NIGHT-F CSS-PASS3]
+...
 
-```text
-[NIGHT RESULT]
-CV-02: DONE/BLOCKED/NOT_STARTED
-CV-03: DONE/BLOCKED/NOT_STARTED
-CV-04: DONE/BLOCKED/NOT_STARTED
-CV-05: DONE/BLOCKED/NOT_STARTED
-STOPPED_AT: ...
+[MERGE]
+main 병합: 0건
+내일 검수 필요 branch 목록:
+충돌 예상 파일:
+권장 병합 순서:
 ```
 
 # MiMo 실행 지시
 
-**CV-01 완료 확인 후 이 파일을 처음부터 끝까지 읽고 CV-02→CV-05를 순서대로 수행한다. 각 단계가 DONE일 때만 다음 단계로 진행하고, 실패·BLOCKED·push 실패가 발생하면 즉시 중단한다. CV-05 후 종료한다.**
+**원격 main 최신화 후 이 `NEXT_TASK.md`를 읽고 A~F 독립 작업을 가능한 한 병렬 실행해라. 각 작업은 별도 branch/worktree에서 테스트·commit·push까지만 하고 main에는 병합하지 마라. 실패한 작업만 BLOCKED로 남기고 다른 독립 작업은 계속 진행한 뒤 최종 보고하고 종료해라.**
