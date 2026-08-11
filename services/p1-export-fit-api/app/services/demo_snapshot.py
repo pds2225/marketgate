@@ -40,7 +40,7 @@ _SOURCE_META: dict[str, dict[str, Any]] = {
 }
 
 # How many buyer samples the demo grid renders / scores at most.
-_DEFAULT_BUYER_LIMIT = 60
+_DEFAULT_BUYER_LIMIT = 200
 _MAX_BUYER_LIMIT = 200
 
 
