@@ -55,56 +55,97 @@ Google Tasks는 이 개발 TASK 시스템과 무관하다.
 
 ---
 
-# 3. GIT 안전 동기화 — 작업 시작 전
+# 3. GIT 안전 동기화
 
-작업 시작 전에 반드시 현재 Git 상태부터 확인한다.
+원칙: 작업은 로컬에서 한다. 기준과 병합은 원격이다.
+로컬이 원격보다 **앞서기만** 하면(갈라지지 않음) 막지 않는다. 커밋된 내용을 **push한 뒤 원격에서 머지**해서 로컬=원격을 맞춘다.
 
-순서:
+작업 시작 전 반드시:
 
 1. `git fetch --all --prune`
-2. `git remote get-url origin`
-3. 현재 repo가 REPO와 일치하는지 확인
-4. `git branch --show-current`
-5. `git status --short`
-6. local/base와 origin/base의 ahead / behind 확인
-7. diverged 여부 확인
-
-예:
+2. `git remote get-url origin` — 이 파일 `# 1. REPOSITORY`의 REPO와 일치하는지 확인
+3. `git branch --show-current`
+4. `git status --short`
+5. ahead / behind / diverged 확인:
 
 `git rev-list --left-right --count HEAD...origin/main`
 
-## 자동 최신화 허용
+왼쪽 숫자 = 로컬이 앞선 커밋(ahead). 오른쪽 = 로컬이 뒤처진 커밋(behind).
+둘 다 0보다 크면 diverged(갈라짐). 둘 다 0이면 동기화됨.
 
-다음 조건을 모두 만족할 때만:
+쉬운 말:
 
-- 현재 branch = BASE
-- working tree clean
-- ahead = 0
-- behind > 0
+- 나만 앞이면 → 올려서 맞춘다. 막지 않는다.
+- 나만 뒤면 → 받아서 맞춘다.
+- 서로 갈라졌으면 → 강제로 덮지 말고 합친다. 못 합치면 멈춘다.
+- 저장 안 한 수정이 있으면 → 지우지 않는다.
+- 남이 같은 브랜치에 올렸으면 → 덮어쓰지 말고 먼저 받고 합친다.
 
-아래와 같이 fast-forward만 허용:
+## 판정 (fetch 후, AI가 그대로 실행)
 
-`git merge --ff-only origin/main`
+`<BASE>`는 `# 1. REPOSITORY`의 BASE다. 이 레포는 `main`.
 
-## 로컬 변경이 있는 경우
+동기화됨(ahead=0, behind=0, clean)이면 그대로 작업을 시작한다.
 
-dirty / ahead / diverged 상태의 로컬 변경은 반드시 보존한다.
+### 1. behind only
 
-최신 `origin/main` 기준의 별도 branch/worktree에서 새 작업을 시작한다.
+조건: 현재 브랜치가 BASE, working tree clean, ahead=0, behind>0.
 
-안전하게 분리할 수 없으면:
+실행: `git merge --ff-only origin/main`
 
-`BLOCKED`
+실패하면 `BLOCKED`. `reset --hard`로 맞추지 않는다.
+
+### 2. ahead only
+
+조건: ahead>0, behind=0 (diverged 아님). **ahead only는 BLOCKED가 아니다.**
+
+실행:
+
+1. 미커밋 변경이 있으면 **이번 작업 파일만** 커밋한다. `git add -A` 금지. 사용자 쓰레기 파일을 올리지 않는다.
+2. `git push` (force 금지).
+3. 현재가 작업 브랜치면 PR을 만든다. 충돌 없음 + GitHub Checks 통과 시 머지한다. 실패면 merge 명령 금지.
+4. 이미 BASE면 push로 원격을 로컬에 맞춘다. 보호 규칙으로 push가 거절되면 PR로 올린다.
+5. 이후 `git fetch`로 로컬=원격을 확인한다.
+
+### 3. diverged
+
+조건: ahead>0 그리고 behind>0. 양쪽이 다 앞선 상태다.
+
+force push 금지.
+
+`git fetch` 후 안전하게 합칠 수 있으면 합친다 (`git merge origin/<현재브랜치>` 또는 해당 원격 브랜치). 충돌을 무조건 ours/theirs로 해결하지 않는다.
+
+합친 뒤 `git push` (force 금지).
+
+안전하게 합칠 수 없으면 `BLOCKED`.
+
+### 4. dirty uncommitted
+
+사용자 변경 삭제 금지. `git reset --hard` / `git clean -fd` / stash drop 금지.
+
+선택:
+
+- 이번 작업 파일이면 커밋한 뒤 **2. ahead only** 경로로 간다.
+- 이번 작업이 아니거나 BASE를 더럽히면, 별도 worktree에서 `origin/main` 최신으로 작업한다.
+
+안전하게 분리하지 못하면 `BLOCKED`.
+
+### 5. 남이 같은 브랜치에 올린 뒤
+
+로컬 push 전에 다시 `git fetch`.
+
+behind가 생겼으면 force로 덮지 말고 먼저 받고 합친다. 그다음 push.
 
 ## 절대 금지
 
 - `git reset --hard`
-- force push
+- force push (`--force`, `--force-with-lease` 포함)
 - `git clean -fd`
 - 사용자 변경 삭제
 - 임의 stash/drop
 - 충돌을 무조건 ours/theirs로 해결
 - 로컬 파일을 원격 상태에 강제로 덮어쓰기
+- `git add -A`
 
 ---
 
