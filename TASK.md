@@ -103,7 +103,7 @@ Google Tasks는 이 개발 TASK 시스템과 무관하다.
 
 1. 미커밋 변경이 있으면 **이번 작업 파일만** 커밋한다. `git add -A` 금지. 사용자 쓰레기 파일을 올리지 않는다.
 2. `git push` (force 금지).
-3. 현재가 작업 브랜치면 PR을 만든다. 충돌 없음 + GitHub Checks 통과 시 머지한다. 실패면 merge 명령 금지.
+3. 현재가 작업 브랜치면 PR을 만든다. 충돌 없음 + GitHub Checks 초록일 때만 머지한다. 실패 체크를 무시하는 `gh pr merge --admin`은 금지한다.
 4. 이미 BASE면 push로 원격을 로컬에 맞춘다. 보호 규칙으로 push가 거절되면 PR로 올린다.
 5. 이후 `git fetch`로 로컬=원격을 확인한다.
 
@@ -1023,7 +1023,10 @@ WORK_BRANCH_PUSHED: YES | NO
 
 실패면 merge 명령 실행 금지.
 
-예외: 문서만(`TASK.md` 등) 변경이고, CI 빨강이 이번 diff와 무관한 기존 기본브랜치 실패이면 문서 PR은 머지 가능. 근거를 최종 보고에 적는다.
+문제: 머지 규칙이 TASK 글뿐이라 `gh pr merge`로 문서 PR을 Checks 빨강인데도 머지할 수 있었다. 예외 머지는 폐지한다.
+
+머지는 GitHub Checks가 초록일 때만 한다. 문서만(`TASK.md`, `*.md`, `docs/**`) 바뀌면 무거운 테스트 대신 `docs-gate`가 초록이면 된다. `gh pr merge --admin` 및 실패 체크를 무시하는 머지는 금지한다.
+
 
 merge 후:
 
