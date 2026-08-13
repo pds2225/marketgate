@@ -34,8 +34,9 @@ REMOTE: https://github.com/pds2225/marketgate
 실행 기준은 이 파일 하나뿐이다.
 
 - `TASK.md`만 작업지시 파일로 사용한다.
-- 별도의 CURRENT_TASK.md / NEW_TASK.md를 만들지 않는다.
-- NEXT_TASK.md, 다른 레포 TASK, Google Tasks, 과거 채팅 내용을 임의 실행하지 않는다.
+- `NEXT_TASK.md`는 없다. 실행 기준은 TASK.md만.
+- 별도의 CURRENT_TASK.md / NEW_TASK.md / NEXT_TASK.md를 만들지 않는다.
+- 다른 레포 TASK, Google Tasks, 과거 채팅 내용을 임의 실행하지 않는다.
 - 사용자의 새 요청은 이 TASK.md에 새로운 TASK 항목으로 등록한다.
 
 ---
@@ -265,6 +266,7 @@ TASK-A
 TASK LIST 한 줄 요약과 아래 상세 TASK는 TASK_ID로 연결한다.
 새 사용자 요청을 TASK로 만들 때 반드시 MUST / KEEP / REMOVE / FORBIDDEN / VERIFY / DONE 관점으로 변환한다.
 MG-003은 MG-001 API 계약 이후. MG-004는 선별병합 후 통합 E2E.
+NEXT_TASK.md 이관(2026-08-13): A→MG-001, B→MG-003, C→MG-003(CV-05), D→MG-002. E/F(code-split/css)는 빈 브랜치라 LIST 미등록. ACTIVE(MG-001)에 내용 합치지 않음. 파일 삭제.
 -->
 
 ## MG-001
