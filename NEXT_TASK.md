@@ -1,3 +1,12 @@
+# 실행 금지 — 이 파일은 큐/참고다
+
+```text
+실행 기준은 TASK.md 뿐이다.
+이 파일만 읽고 구현을 시작하면 STOP.
+TASK.md가 이 파일을 읽으라고 명시하지 않으면 열지 마라.
+
+---
+
 # MarketGate NIGHT PARALLEL TASKS
 
 ## 목적
