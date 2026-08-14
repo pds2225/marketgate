@@ -15,10 +15,11 @@ TASK 1개 = 반드시 1줄. LIST의 TASK_ID와 DETAILS의 TASK_ID는 반드시 1
 REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 -->
 
-[~] MG-001 | 해외기업 기본검증 상태값을 맞추고 다른 사용자 결과가 보이지 않게 한다
+[ ] MG-001 | 해외기업 기본검증 상태값을 맞추고 다른 사용자 결과가 보이지 않게 한다
 [ ] MG-002 | 바이어가 60개까지만 보이는 원인을 찾아 고친다
 [ ] MG-003 | 기업검증 화면을 실제 조회 결과와 연결한다
 [ ] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
+[~] T-20260814-01 | 코드 머지 전에 제품 테스트가 통과해야 한다
 
 
 ---
@@ -268,6 +269,39 @@ TASK LIST 한 줄 요약과 아래 상세 TASK는 TASK_ID로 연결한다.
 MG-003은 MG-001 API 계약 이후. MG-004는 선별병합 후 통합 E2E.
 NEXT_TASK.md 이관(2026-08-13): A→MG-001, B→MG-003, C→MG-003(CV-05), D→MG-002. E/F(code-split/css)는 빈 브랜치라 LIST 미등록. ACTIVE(MG-001)에 내용 합치지 않음. 파일 삭제.
 -->
+
+## T-20260814-01
+
+### 8-1. 사용자 원문
+marketgate main: required에 제품 test job 추가 (docs-gate만 두지 말 것). 존재하는 job 이름만. mail 건드리지 마. MAIL-002 금지. --admin 금지.
+
+### 최종 결과
+marketgate main 머지에 docs-gate뿐 아니라 제품 테스트 job이 필수라서, 코드 테스트가 실패하면 머지되지 않는다.
+
+### MUST
+- 기존 CI에 실제로 있는 job 이름만 required에 넣는다
+- docs-gate는 유지한다
+- docs-gate.yml을 “코드인데 테스트 없으면 fail”로 바꾸지 않는다
+
+### KEEP
+- 기존 MG-001~MG-004 과업 내용은 합치지 않는다
+- mail은 건드리지 않는다
+
+### REMOVE
+- required가 docs-gate만인 상태
+
+### FORBIDDEN
+- .env / 비밀값
+- 없는 job 이름 만들기
+- `gh pr merge --admin`
+- mail / MAIL-002
+
+### VERIFY
+- required contexts에 docs-gate와 `W-020 / PostgreSQL 16 + pgcrypto`가 함께 있다
+- enforce_admins=true, allow_force_pushes=false
+
+### DONE
+- REQUEST_SOLVED=YES: 코드 PR은 제품 테스트 job이 실패하면 머지 불가
 
 ## MG-001
 
