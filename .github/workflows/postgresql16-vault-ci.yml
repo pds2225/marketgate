@@ -56,19 +56,18 @@ jobs:
           set -euo pipefail
           docs_only=false
           if [ "${EVENT_NAME}" = "pull_request" ] && [ -n "${PR_BASE}" ] && [ -n "${PR_HEAD}" ]; then
+            git fetch --no-tags origin "${PR_BASE}" "${PR_HEAD}" || true
             FILES="$(git diff --name-only --diff-filter=ACMR "${PR_BASE}...${PR_HEAD}" || true)"
             echo "Changed files:"
             printf '%s\n' "${FILES}"
             docs_only=true
-            while IFS= read -r f; do
+            while IFS= read -r f || [ -n "${f}" ]; do
               [ -z "${f}" ] && continue
               case "${f}" in
-                TASK.md|*.md|docs|docs/*) ;;
+                TASK.md|*.md|docs|docs/*|.github/workflows|.github/workflows/*) ;;
                 *) docs_only=false ;;
               esac
-            done <<EOF
-            ${FILES}
-            EOF
+            done <<< "${FILES}"
           fi
           echo "docs_only=${docs_only}" >> "${GITHUB_OUTPUT}"
           echo "docs_only=${docs_only}"
