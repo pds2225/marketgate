@@ -2,10 +2,6 @@ name: PostgreSQL 16 Vault Migration Test
 
 on:
   pull_request:
-    paths:
-      - "db/migrations/**"
-      - "db/tests/**"
-      - ".github/workflows/postgresql16-vault-ci.yml"
   workflow_dispatch:
 
 permissions:
@@ -46,13 +42,49 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Classify docs-only
+        id: classify
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          docs_only=false
+          if [ "${EVENT_NAME}" = "pull_request" ] && [ -n "${PR_BASE}" ] && [ -n "${PR_HEAD}" ]; then
+            FILES="$(git diff --name-only --diff-filter=ACMR "${PR_BASE}...${PR_HEAD}" || true)"
+            echo "Changed files:"
+            printf '%s\n' "${FILES}"
+            docs_only=true
+            while IFS= read -r f; do
+              [ -z "${f}" ] && continue
+              case "${f}" in
+                TASK.md|*.md|docs|docs/*) ;;
+                *) docs_only=false ;;
+              esac
+            done <<EOF
+            ${FILES}
+            EOF
+          fi
+          echo "docs_only=${docs_only}" >> "${GITHUB_OUTPUT}"
+          echo "docs_only=${docs_only}"
+
+      - name: Docs-only skip
+        if: steps.classify.outputs.docs_only == 'true'
+        run: echo "docs-only change; product postgres tests skipped"
 
       - name: Install PostgreSQL client
+        if: steps.classify.outputs.docs_only != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install --yes postgresql-client
 
       - name: Verify native PostgreSQL 16 server
+        if: steps.classify.outputs.docs_only != 'true'
         run: |
           server_version="$(psql -Atqc "SHOW server_version")"
           echo "PostgreSQL server: ${server_version}"
@@ -65,12 +97,14 @@ jobs:
           esac
 
       - name: Apply migrations 0001 through 0003
+        if: steps.classify.outputs.docs_only != 'true'
         run: |
           psql -v ON_ERROR_STOP=1 -f db/migrations/0001_init_phase0.sql
           psql -v ON_ERROR_STOP=1 -f db/migrations/0002_vault_access_broker.sql
           psql -v ON_ERROR_STOP=1 -f db/migrations/0003_vault_key_rotation.sql
 
       - name: Verify pgcrypto installation
+        if: steps.classify.outputs.docs_only != 'true'
         run: |
           ext_schema="$(psql -Atqc "
             SELECT n.nspname
@@ -84,9 +118,11 @@ jobs:
           }
 
       - name: Run W-020 key rotation regression
+        if: steps.classify.outputs.docs_only != 'true'
         run: psql -v ON_ERROR_STOP=1 -f db/tests/key_rotation_test.sql
 
       - name: Verify rollback and privilege boundary
+        if: steps.classify.outputs.docs_only != 'true'
         run: |
           psql -v ON_ERROR_STOP=1 <<'SQL'
           DO $check$
