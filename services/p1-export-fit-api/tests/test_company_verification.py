@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -217,3 +218,32 @@ def test_db_storage_calls_store(monkeypatch):
     assert call["provider"] == "opencorporates"
     assert call["registry_check_status"] == _expected_status("DBCheckCorp")
     assert call["result_json"]["mock"] is True
+
+
+# -- Schema alignment (L025) --------------------------------------------------
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_REGISTRY_SQL = _REPO_ROOT / "db" / "migrations" / "0006_company_registry_checks.sql"
+
+
+def test_registry_migration_is_0006_not_0005():
+    """origin/main already owns 0005_payment_credits.sql."""
+    assert _REGISTRY_SQL.is_file()
+    assert not (_REPO_ROOT / "db" / "migrations" / "0005_company_registry_checks.sql").exists()
+    assert (_REPO_ROOT / "db" / "migrations" / "0005_payment_credits.sql").is_file()
+
+
+def test_sql_enum_matches_mock_statuses():
+    sql = _REGISTRY_SQL.read_text(encoding="utf-8")
+    for status in cv_router.MOCK_STATUSES:
+        assert f"'{status}'" in sql
+    for banned in ("VERIFIED", "PARTIAL_MATCH", "MISMATCH"):
+        assert f"'{banned}'" not in sql
+    assert "'INACTIVE'" not in sql
+
+
+def test_run_migrations_lists_0006():
+    text = (
+        _REPO_ROOT / "services" / "p1-export-fit-api" / "app" / "run_migrations.py"
+    ).read_text(encoding="utf-8")
+    assert "0006_company_registry_checks.sql" in text

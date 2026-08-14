@@ -13,11 +13,11 @@ DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'registry_check_status') THEN
     CREATE TYPE core.registry_check_status AS ENUM (
-      'VERIFIED',          -- 법인 실체 확인, 정보 일치
-      'PARTIAL_MATCH',     -- 일부 정보만 일치
-      'MISMATCH',          -- 입력 정보 불일치
-      'INACTIVE',          -- 비활성/해산 법인
-      'CREDIT_CHECK_REQUIRED'  -- 신용조사 필요 (추가 확인)
+      'BASIC_CONFIRMED',       -- 기본 확인 완료
+      'BASIC_PARTIAL',         -- 부분 확인
+      'DATA_MISMATCH',         -- 데이터 불일치
+      'INACTIVE_ENTITY',       -- 비활성 법인
+      'CREDIT_CHECK_REQUIRED'  -- 신용조사 필요
     );
   END IF;
 END $$;

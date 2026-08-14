@@ -13,6 +13,7 @@ _MIGRATIONS_DIR = os.path.join(
 _MIGRATION_FILES = (
     "0004_auth_users.sql",
     "0005_payment_credits.sql",
+    "0006_company_registry_checks.sql",
 )
 
 
