@@ -117,7 +117,7 @@ def project_snapshot(user: dict = Depends(get_current_user)):
 
 
 @app.get("/v1/demo/snapshot")
-def demo_snapshot(limit: int = Query(default=60, ge=1, le=200)):
+def demo_snapshot(limit: int = Query(default=200, ge=1, le=200)):
     """Public (no-auth) showcase of the aggregated real buyer DB.
 
     Returns the aggregation shape MarketGateDemo consumes:
@@ -134,7 +134,7 @@ def demo_summary():
 
 
 @app.get("/v1/demo/buyers")
-def demo_buyers(limit: int = Query(default=60, ge=1, le=200)):
+def demo_buyers(limit: int = Query(default=200, ge=1, le=200)):
     """Public (no-auth) masked buyer samples only."""
     return get_demo_buyers(limit)
 
