@@ -61,7 +61,7 @@ def get_company_verification(
     verification_id: str,
     user: dict = Depends(get_current_user),
 ):
-    record = get_verification(verification_id)
+    record = get_verification(verification_id, user["user_id"])
     if record is None:
         raise HTTPException(status_code=404, detail="verification_not_found")
     return record

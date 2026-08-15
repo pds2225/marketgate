@@ -65,8 +65,8 @@ def create_verification(
     }
 
 
-def get_verification(check_id: str) -> dict | None:
-    """Fetch a verification record by check_id."""
+def get_verification(check_id: str, user_id: str) -> dict | None:
+    """Fetch a verification record owned by user_id."""
     conn = get_conn()
     if conn is None:
         return None
@@ -78,9 +78,9 @@ def get_verification(check_id: str) -> dict | None:
                        registry_check_status, result_json, provider,
                        requested_at, completed_at
                 FROM core.company_registry_checks
-                WHERE check_id = %s
+                WHERE check_id = %s AND user_id = %s
                 """,
-                (check_id,),
+                (check_id, user_id),
             )
             row = cur.fetchone()
             if not row:

@@ -45,7 +45,7 @@ def _fake_create(**kwargs):
     }
 
 
-def _fake_get(check_id: str):
+def _fake_get(check_id: str, user_id: str):
     return None
 
 
@@ -142,7 +142,9 @@ def test_post_then_get_roundtrip(monkeypatch):
         store[rec["verification_id"]] = rec
         return rec
 
-    def mock_get(check_id: str):
+    def mock_get(check_id: str, user_id: str):
+        if user_id != "test-user":
+            return None
         return store.get(check_id)
 
     monkeypatch.setattr(cv_router, "create_verification", mock_create)
@@ -163,6 +165,66 @@ def test_post_then_get_roundtrip(monkeypatch):
     assert body["country_iso3"] == "DEU"
     assert body["registry_check_status"] == post_res.json()["registry_check_status"]
     assert body["result_json"]["mock"] is True
+
+
+def test_get_passes_authenticated_user_id(monkeypatch):
+    rec = _fake_create(
+        company_name="OwnCo",
+        country_iso3="KOR",
+        registry_check_status="BASIC_CONFIRMED",
+        result_json={"mock": True},
+        provider="opencorporates",
+    )
+    calls = []
+
+    def mock_get(check_id: str, user_id: str):
+        calls.append((check_id, user_id))
+        return rec
+
+    monkeypatch.setattr(cv_router, "get_verification", mock_get)
+    res = client.get(f"/v1/company-verifications/{rec['verification_id']}")
+    assert res.status_code == 200
+    assert calls == [(rec["verification_id"], "test-user")]
+
+
+def test_get_other_users_record_returns_404(monkeypatch):
+    store: dict[str, dict] = {}
+
+    def mock_create(**kwargs):
+        rec = _fake_create(**kwargs)
+        store[rec["verification_id"]] = {**rec, "user_id": kwargs["user_id"]}
+        return rec
+
+    def mock_get(check_id: str, user_id: str):
+        rec = store.get(check_id)
+        if rec is None or rec["user_id"] != user_id:
+            return None
+        return rec
+
+    monkeypatch.setattr(cv_router, "create_verification", mock_create)
+    monkeypatch.setattr(cv_router, "get_verification", mock_get)
+
+    post_res = client.post(
+        "/v1/company-verifications",
+        json={"company_name": "SecretCo", "country_iso3": "KOR"},
+    )
+    assert post_res.status_code == 200
+    vid = post_res.json()["verification_id"]
+
+    saved = app.dependency_overrides[get_current_user]
+    app.dependency_overrides[get_current_user] = lambda: {
+        "user_id": "other-user",
+        "email": "other@example.com",
+        "plan": "Advanced",
+        "login_fail_count": 0,
+        "locked_until": None,
+    }
+    try:
+        res = client.get(f"/v1/company-verifications/{vid}")
+        assert res.status_code == 404
+        assert res.json()["detail"] == "verification_not_found"
+    finally:
+        app.dependency_overrides[get_current_user] = saved
 
 
 # -- Auth guard ---------------------------------------------------------------
@@ -240,6 +302,13 @@ def test_sql_enum_matches_mock_statuses():
     for banned in ("VERIFIED", "PARTIAL_MATCH", "MISMATCH"):
         assert f"'{banned}'" not in sql
     assert "'INACTIVE'" not in sql
+
+
+def test_store_get_verification_filters_by_user_id():
+    src = (
+        _REPO_ROOT / "services" / "p1-export-fit-api" / "app" / "company_verification_store.py"
+    ).read_text(encoding="utf-8")
+    assert "WHERE check_id = %s AND user_id = %s" in src
 
 
 def test_run_migrations_lists_0006():
