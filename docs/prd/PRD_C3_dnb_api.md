@@ -42,6 +42,18 @@ D-U-N-S Number 존재만으로 신용도나 지급능력이 확인되는 것은 
 - D-U-N-S 존재 여부를 `신용 우수`, `안전한 바이어`로 변환하지 않음
 - D&B 유료 보고서의 내용을 계약 없이 재표시하지 않음
 
+법인등록 기본검증 상태(`registry_check_status`)는 정확히 아래 5개 enum 값만 사용한다:
+
+| 값 | 의미 |
+|---|---|
+| `BASIC_CONFIRMED` | 기본 확인 완료 |
+| `BASIC_PARTIAL` | 부분 확인 |
+| `DATA_MISMATCH` | 데이터 불일치 |
+| `INACTIVE_ENTITY` | 비활성 법인 |
+| `CREDIT_CHECK_REQUIRED` | 신용조사 필요 |
+
+`fitScore`, 기존 `creditStatus`, `core.buyers.verification_status`와 혼합하지 않는다.
+
 ## 6. 예외처리
 - 외부 링크 설정 누락: 버튼 비활성화 + `외부 조회 링크 준비 중` 표시
 - 새 창 차단: 링크 복사 가능 처리
@@ -65,7 +77,12 @@ D-U-N-S Number 존재만으로 신용도나 지급능력이 확인되는 것은 
 ## 9. 우선순위
 **현재 MVP 포함:** 외부 D-U-N-S 조회 링크
 
-**후순위:** 공식 API 계약 완료 후 자동연동 검토
+**후순위:** 실제 API 연동은 아래 5가지가 모두 확인된 후 별도 PRD로 진행한다:
+1. D&B 공식 API 제공 여부 및 상품계약
+2. 호출비용 및 과금구조 확인
+3. 데이터 저장 권리
+4. 화면 표시 권리
+5. 재이용(재판매) 권리
 
 ## 10. PR 제목 추천
 `docs(dnb): scope MVP to external D-U-N-S lookup`

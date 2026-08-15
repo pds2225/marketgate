@@ -1,0 +1,59 @@
+name: docs-gate
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  docs-gate:
+    name: docs-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Classify paths
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" = "pull_request" ] && [ -n "${PR_BASE}" ] && [ -n "${PR_HEAD}" ]; then
+            FILES="$(git diff --name-only --diff-filter=ACMR "${PR_BASE}...${PR_HEAD}" || true)"
+          elif [ -n "${BEFORE_SHA}" ] && [ "${BEFORE_SHA}" != "0000000000000000000000000000000000000000" ]; then
+            FILES="$(git diff --name-only --diff-filter=ACMR "${BEFORE_SHA}" "${GITHUB_SHA}" || true)"
+          else
+            FILES="$(git diff --name-only --diff-filter=ACMR HEAD~1 "${GITHUB_SHA}" 2>/dev/null || git ls-files)"
+          fi
+          echo "Changed files:"
+          printf '%s\n' "${FILES}"
+          docs_only=true
+          code_changed=false
+          while IFS= read -r f; do
+            [ -z "${f}" ] && continue
+            case "${f}" in
+              TASK.md|*.md|docs|docs/*|.github/workflows|.github/workflows/*) ;;
+              *)
+                docs_only=false
+                code_changed=true
+                ;;
+            esac
+          done <<EOF
+          ${FILES}
+          EOF
+          if [ "${docs_only}" = "true" ]; then
+            echo "docs-only: docs-gate pass"
+          else
+            echo "code-changed: docs-gate pass (product tests stay on their own job if present)"
+          fi
+          echo "code_changed=${code_changed}"
