@@ -1,15 +1,28 @@
 # -*- coding: utf-8 -*-
 """
-Auto-run auth migrations on deploy.
+Auto-run DB migrations on deploy.
 Called from buildCommand: python -m app.run_migrations
 Skips silently if DATABASE_URL is not set (file fallback mode).
 """
 import os
 import sys
 
-MIGRATION_SQL = os.path.join(
-    os.path.dirname(__file__), "..", "..", "..", "db", "migrations", "0004_auth_users.sql"
+_MIGRATIONS_DIR = os.path.join(
+    os.path.dirname(__file__), "..", "..", "..", "db", "migrations"
 )
+_MIGRATION_FILES = (
+    "0004_auth_users.sql",
+    "0005_payment_credits.sql",
+    "0006_company_registry_checks.sql",
+)
+
+
+def _run_file(conn, path: str) -> None:
+    sql = open(path, "r", encoding="utf-8").read()
+    with conn.cursor() as cur:
+        cur.execute(sql)
+    conn.commit()
+    print(f"[migrate] applied {os.path.basename(path)}")
 
 
 def run():
@@ -24,24 +37,21 @@ def run():
         print("[migrate] psycopg2 not installed, skipping")
         return
 
-    if not os.path.isfile(MIGRATION_SQL):
-        print(f"[migrate] migration file not found: {MIGRATION_SQL}, skipping")
-        return
-
-    sql = open(MIGRATION_SQL, "r", encoding="utf-8").read()
     conn = psycopg2.connect(dsn)
     try:
-        with conn.cursor() as cur:
-            cur.execute(sql)
-        conn.commit()
-        print("[migrate] auth tables created/verified")
-    except Exception as e:
-        conn.rollback()
-        # Table already exists is fine
-        if "already exists" in str(e):
-            print(f"[migrate] tables already exist: {e}")
-        else:
-            print(f"[migrate] WARNING: {e}")
+        for name in _MIGRATION_FILES:
+            path = os.path.join(_MIGRATIONS_DIR, name)
+            if not os.path.isfile(path):
+                print(f"[migrate] migration file not found: {path}, skipping")
+                continue
+            try:
+                _run_file(conn, path)
+            except Exception as e:
+                conn.rollback()
+                if "already exists" in str(e):
+                    print(f"[migrate] {name}: tables already exist ({e})")
+                else:
+                    print(f"[migrate] WARNING {name}: {e}")
     finally:
         conn.close()
 

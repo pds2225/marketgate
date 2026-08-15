@@ -1,93 +1,320 @@
-# MarketGate TASK — CV-01 재검증 및 수정
+# marketgate
 
-## 작업 원칙
-
-- 이번 작업은 **CV-01 하나만** 수행한다.
-- **1기능 = 1작업 = 1검증** 원칙을 지킨다.
-- 기존 구조를 최대한 유지하고 최소 변경만 한다.
-- CV-02 OpenCorporates Mock 구현으로 넘어가지 않는다.
-- 다른 기능, CSS, 리팩터링, 결제, 크레딧, 캠페인, 컴플라이언스 확장 작업을 하지 않는다.
-- 기존 migration 파일 `0001~0004`는 수정하지 않는다.
-- 작업 종료 후 다음 작업을 자동 실행하지 않는다.
+> 이 파일은 이 GitHub 레포의 유일한 AI 작업지시 기준이다.
+> Google Tasks와는 완전히 별개이며 Google Tasks의 항목을 조회·복사·동기화하지 않는다.
 
 ---
 
-## 배경
+# 0. TASK LIST
 
-CV-01 완료 보고에는 다음 변경이 있다고 되어 있었다.
+<!--
+비개발자가 이 부분만 보고도 현재 작업을 이해·수정·삭제할 수 있어야 한다.
+상태: 대기 / 진행 중 / 완료 / 막힘 / 취소 는 아래 기호만 사용한다.
+TASK 1개 = 반드시 1줄. LIST의 TASK_ID와 DETAILS의 TASK_ID는 반드시 1:1.
+사용자가 "삭제"하면 LIST + DETAILS 모두 삭제. "취소"하면 취소 상태로 보존 가능.
+REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
+-->
 
-- `db/migrations/0005_company_registry_checks.sql` 신규 생성
-- `services/p1-export-fit-api/app/run_migrations.py` 수정
-- pytest `224 passed`
-- frontend build 통과
+[ ] MG-001 | 해외기업 기본검증 상태값을 맞추고 다른 사용자 결과가 보이지 않게 한다
+[ ] MG-002 | 바이어가 60개까지만 보이는 원인을 찾아 고친다
+[ ] MG-003 | 기업검증 화면을 실제 조회 결과와 연결한다
+[ ] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
+[~] T-20260814-01 | 코드 머지 전에 제품 테스트가 통과해야 한다
 
-하지만 원격 `main` 기준으로는 해당 CV-01 변경을 확인할 수 없었고, 보고된 ENUM 값도 기존 확정 상태값과 불일치했다.
-
-따라서 이번 작업의 목표는 **CV-01을 원격 기준으로 재현 가능하고 검증 가능한 상태로 바로잡는 것**이다.
-
----
-
-# 목표
-
-1. 현재 로컬 작업과 원격 `pds2225/marketgate` 최신 `main`을 비교한다.
-2. CV-01 변경사항이 실제 어느 브랜치/커밋/로컬 변경에 있는지 확인한다.
-3. `0005_company_registry_checks.sql`의 상태 ENUM을 확정값으로 맞춘다.
-4. `run_migrations.py`가 기존 책임범위를 유지하면서 `0005`를 정상 실행하도록 검증한다.
-5. 실제 PostgreSQL에서 migration chain과 재실행 동작을 검증한다.
-6. 관련 backend 테스트 및 frontend build를 다시 수행한다.
-7. 모든 검증이 통과한 경우에만 commit + push 한다.
 
 ---
 
-# STEP 1 — Git 기준점 확인
+# 1. REPOSITORY
 
-작업 시작 시 반드시 아래를 확인하고 기록한다.
+REPO: pds2225/marketgate
+BASE: main
+REMOTE: https://github.com/pds2225/marketgate
 
-```text
-git status
-git branch --show-current
-git rev-parse HEAD
-git fetch origin
-git rev-parse origin/main
-```
+## 작업지시 파일
 
-그리고 아래를 명확히 판정한다.
+실행 기준은 이 파일 하나뿐이다.
 
-- 현재 브랜치
-- 현재 HEAD
-- origin/main HEAD
-- working tree dirty 여부
-- CV-01 변경파일 존재 여부
-- CV-01 변경이 아직 미커밋인지, 다른 브랜치에 커밋됐는지, 이미 원격에 있는지
-
-원격 최신 기준을 확인하기 전 코드를 수정하지 않는다.
+- `TASK.md`만 작업지시 파일로 사용한다.
+- `NEXT_TASK.md`는 없다. 실행 기준은 TASK.md만.
+- 별도의 CURRENT_TASK.md / NEW_TASK.md / NEXT_TASK.md를 만들지 않는다.
+- 다른 레포 TASK, Google Tasks, 과거 채팅 내용을 임의 실행하지 않는다.
+- 사용자의 새 요청은 이 TASK.md에 새로운 TASK 항목으로 등록한다.
 
 ---
 
-# STEP 2 — CV-01 변경파일 확인
+# 2. GOOGLE TASKS 완전 분리
 
-대상 파일:
+Google Tasks는 이 개발 TASK 시스템과 무관하다.
 
-```text
-db/migrations/0005_company_registry_checks.sql
-services/p1-export-fit-api/app/run_migrations.py
-```
+금지:
 
-`0005_company_registry_checks.sql`이 없다면 기존 작업 흔적을 먼저 확인한다.
-
-무작정 새로 만들기 전에 다음을 확인한다.
-
-- git log
-- 다른 현재 작업 브랜치
-- git status의 untracked/modified 파일
-
-기존 CV-01 작업이 발견되면 그것을 기준으로 최소 수정한다.
+- Google Tasks 조회
+- Google Tasks 항목 가져오기
+- Google Tasks → TASK.md 자동등록
+- TASK.md → Google Tasks 등록
+- 상태/제목/완료 여부 동기화
+- Google Tasks 내용을 개발 우선순위 판단에 사용
 
 ---
 
-# STEP 3 — ENUM 확정값 수정
+# 3. GIT 안전 동기화
 
-`core.registry_check_status`의 값은 정확히 아래 5개를 사용한다.
+원칙: 작업은 로컬에서 한다. 기준과 병합은 원격이다.
+로컬이 원격보다 **앞서기만** 하면(갈라지지 않음) 막지 않는다. 커밋된 내용을 **push한 뒤 원격에서 머지**해서 로컬=원격을 맞춘다.
+
+작업 시작 전 반드시:
+
+1. `git fetch --all --prune`
+2. `git remote get-url origin` — 이 파일 `# 1. REPOSITORY`의 REPO와 일치하는지 확인
+3. `git branch --show-current`
+4. `git status --short`
+5. ahead / behind / diverged 확인:
+
+`git rev-list --left-right --count HEAD...origin/main`
+
+왼쪽 숫자 = 로컬이 앞선 커밋(ahead). 오른쪽 = 로컬이 뒤처진 커밋(behind).
+둘 다 0보다 크면 diverged(갈라짐). 둘 다 0이면 동기화됨.
+
+쉬운 말:
+
+- 나만 앞이면 → 올려서 맞춘다. 막지 않는다.
+- 나만 뒤면 → 받아서 맞춘다.
+- 서로 갈라졌으면 → 강제로 덮지 말고 합친다. 못 합치면 멈춘다.
+- 저장 안 한 수정이 있으면 → 지우지 않는다.
+- 남이 같은 브랜치에 올렸으면 → 덮어쓰지 말고 먼저 받고 합친다.
+
+## 판정 (fetch 후, AI가 그대로 실행)
+
+`<BASE>`는 `# 1. REPOSITORY`의 BASE다. 이 레포는 `main`.
+
+동기화됨(ahead=0, behind=0, clean)이면 그대로 작업을 시작한다.
+
+### 1. behind only
+
+조건: 현재 브랜치가 BASE, working tree clean, ahead=0, behind>0.
+
+실행: `git merge --ff-only origin/main`
+
+실패하면 `BLOCKED`. `reset --hard`로 맞추지 않는다.
+
+### 2. ahead only
+
+조건: ahead>0, behind=0 (diverged 아님). **ahead only는 BLOCKED가 아니다.**
+
+실행:
+
+1. 미커밋 변경이 있으면 **이번 작업 파일만** 커밋한다. `git add -A` 금지. 사용자 쓰레기 파일을 올리지 않는다.
+2. `git push` (force 금지).
+3. 현재가 작업 브랜치면 PR을 만든다. 충돌 없음 + GitHub Checks 초록일 때만 머지한다. 실패 체크를 무시하는 `gh pr merge --admin`은 금지한다.
+4. 이미 BASE면 push로 원격을 로컬에 맞춘다. 보호 규칙으로 push가 거절되면 PR로 올린다.
+5. 이후 `git fetch`로 로컬=원격을 확인한다.
+
+### 3. diverged
+
+조건: ahead>0 그리고 behind>0. 양쪽이 다 앞선 상태다.
+
+force push 금지.
+
+`git fetch` 후 안전하게 합칠 수 있으면 합친다 (`git merge origin/<현재브랜치>` 또는 해당 원격 브랜치). 충돌을 무조건 ours/theirs로 해결하지 않는다.
+
+합친 뒤 `git push` (force 금지).
+
+안전하게 합칠 수 없으면 `BLOCKED`.
+
+### 4. dirty uncommitted
+
+사용자 변경 삭제 금지. `git reset --hard` / `git clean -fd` / stash drop 금지.
+
+선택:
+
+- 이번 작업 파일이면 커밋한 뒤 **2. ahead only** 경로로 간다.
+- 이번 작업이 아니거나 BASE를 더럽히면, 별도 worktree에서 `origin/main` 최신으로 작업한다.
+
+안전하게 분리하지 못하면 `BLOCKED`.
+
+### 5. 남이 같은 브랜치에 올린 뒤
+
+로컬 push 전에 다시 `git fetch`.
+
+behind가 생겼으면 force로 덮지 말고 먼저 받고 합친다. 그다음 push.
+
+## 절대 금지
+
+- `git reset --hard`
+- force push (`--force`, `--force-with-lease` 포함)
+- `git clean -fd`
+- 사용자 변경 삭제
+- 임의 stash/drop
+- 충돌을 무조건 ours/theirs로 해결
+- 로컬 파일을 원격 상태에 강제로 덮어쓰기
+- `git add -A`
+
+---
+
+# 4. TASK 실행 계약 고정 — TASK PINNING
+
+AI가 TASK를 시작할 때 반드시 아래 값을 기록한다.
+
+TASK_ID: <현재 [~] TASK ID>
+TASK_START_SHA: <작업 시작 시 origin/base commit SHA>
+TASK_BLOB_SHA: <그 시점 TASK.md blob SHA>
+WORK_BRANCH: <task/TASK-ID 등>
+
+## 목적
+
+작업 도중 `TASK.md`가 새 요청으로 변경되더라도,
+이미 시작한 일반 TASK는 최초 실행 계약을 기준으로 완료한다.
+
+필요하면 최초 TASK는:
+
+`git show <TASK_START_SHA>:TASK.md`
+
+로 다시 확인한다.
+
+## 작업 중 TASK.md 변경 감지
+
+새 TASK가 일반적인 후속 요청:
+
+- 현재 ACTIVE TASK에 섞지 않는다.
+- 현재 TASK를 최초 TASK_ID 기준으로 계속 수행한다.
+- 새 TASK는 다음 실행에서 수행한다.
+
+새 TASK가 아래에 해당:
+
+- STOP
+- CANCEL
+- 기존 작업 즉시 중단 요청
+- 보안 긴급지시
+- 데이터 손실 방지 지시
+
+→ 현재 TASK를 즉시 중단하고 상태를 기록한다.
+
+---
+
+# 5. TASK 선택 규칙
+
+기본적으로 `[~]` 상태의 TASK 1개를 ACTIVE TASK로 실행한다.
+
+`[~]`가 없으면 실행 가능한 `[ ]` TASK 중 우선순위가 가장 높은 작업을 선택한다.
+
+## TASK 상태
+
+- `[ ]` READY / 대기
+- `[~]` ACTIVE / 진행 중
+- `[x]` DONE / 실제 요청 해결 완료
+- `[!]` BLOCKED / 현재 진행 불가능
+- `[-]` CANCELLED / 사용자 취소
+
+## 동시에 ACTIVE
+
+같은 파일·API·DB·entrypoint를 수정하지 않는 독립 작업만 여러 `[~]` 허용.
+
+---
+
+# 6. TASK 우선순위
+
+상충 시 아래 순서로 판단한다.
+
+1. 데이터 손실 방지 / 보안 / Git 안전규칙
+2. 가장 최신 사용자의 명시적 요청
+3. 현재 ACTIVE TASK
+4. ACTIVE TASK 수행에 필수인 선행조건
+5. repo의 필수 보호규칙 / architecture contract
+6. 기존 대기 TASK
+7. backlog
+8. 리팩터링 / 고도화 / 미관 개선
+
+판단할 수 없는 충돌은 임의 선택하지 않는다.
+
+→ `BLOCKED`
+
+---
+
+# 7. TASK 간 충돌·의존성
+
+## 병렬 가능
+
+다음을 모두 만족하면 병렬 가능:
+
+- 수정 파일군이 다름
+- 같은 public API를 변경하지 않음
+- 같은 DB schema/migration을 변경하지 않음
+- 같은 runtime entrypoint를 변경하지 않음
+- TASK A 결과가 TASK B의 입력이 아님
+
+## 순차 필수
+
+하나라도 해당하면 순차:
+
+- 같은 파일 수정
+- 같은 API contract 변경
+- 같은 DB migration 변경
+- 같은 entrypoint 변경
+- 한 TASK가 다른 TASK의 선행조건
+
+순차 예:
+
+TASK-A
+→ 실사용 검증
+→ 최신 코드 기준 TASK-B
+→ 통합 E2E
+
+---
+
+# 8. TASK DETAILS
+
+<!--
+TASK LIST 한 줄 요약과 아래 상세 TASK는 TASK_ID로 연결한다.
+새 사용자 요청을 TASK로 만들 때 반드시 MUST / KEEP / REMOVE / FORBIDDEN / VERIFY / DONE 관점으로 변환한다.
+MG-003은 MG-001 API 계약 이후. MG-004는 선별병합 후 통합 E2E.
+NEXT_TASK.md 이관(2026-08-13): A→MG-001, B→MG-003, C→MG-003(CV-05), D→MG-002. E/F(code-split/css)는 빈 브랜치라 LIST 미등록. ACTIVE(MG-001)에 내용 합치지 않음. 파일 삭제.
+-->
+
+## T-20260814-01
+
+### 8-1. 사용자 원문
+marketgate main: required에 제품 test job 추가 (docs-gate만 두지 말 것). 존재하는 job 이름만. mail 건드리지 마. MAIL-002 금지. --admin 금지.
+
+### 최종 결과
+marketgate main 머지에 docs-gate뿐 아니라 제품 테스트 job이 필수라서, 코드 테스트가 실패하면 머지되지 않는다.
+
+### MUST
+- 기존 CI에 실제로 있는 job 이름만 required에 넣는다
+- docs-gate는 유지한다
+- docs-gate.yml을 “코드인데 테스트 없으면 fail”로 바꾸지 않는다
+
+### KEEP
+- 기존 MG-001~MG-004 과업 내용은 합치지 않는다
+- mail은 건드리지 않는다
+
+### REMOVE
+- required가 docs-gate만인 상태
+
+### FORBIDDEN
+- .env / 비밀값
+- 없는 job 이름 만들기
+- `gh pr merge --admin`
+- mail / MAIL-002
+
+### VERIFY
+- required contexts에 docs-gate와 `W-020 / PostgreSQL 16 + pgcrypto`가 함께 있다
+- enforce_admins=true, allow_force_pushes=false
+
+### DONE
+- REQUEST_SOLVED=YES: 코드 PR은 제품 테스트 job이 실패하면 머지 불가
+
+## MG-001
+
+### 8-1. 사용자 원문 요청
+
+> 해외기업 기본검증 상태값을 DB·API에서 동일하게 맞추고, 다른 사용자의 검증 결과가 보이지 않게 한다.
+
+확인된 CV-02 BLOCKER (원문 보존):
+
+1. `0005_company_registry_checks.sql` ENUM이 구형 값(`VERIFIED/PARTIAL_MATCH/MISMATCH/INACTIVE/...`)으로 API 계약과 불일치.
+2. GET 조회가 `check_id`만 사용하여 `user_id` 격리가 되지 않음.
+
+확정 상태값은 아래 5개만 허용:
 
 ```text
 BASIC_CONFIRMED
@@ -97,283 +324,895 @@ INACTIVE_ENTITY
 CREDIT_CHECK_REQUIRED
 ```
 
-다음 값은 사용하지 않는다.
+원문의 의미를 축약 과정에서 변경하지 않는다.
 
-```text
-VERIFIED
-PARTIAL_MATCH
-MISMATCH
-INACTIVE
-```
+### 8-2. 비개발자용 1줄 요약
 
-`registry_check_status` 컬럼은 **NULL 허용**을 유지한다.
+해외기업 기본검증 상태값을 맞추고 다른 사용자 결과가 보이지 않게 한다
 
-이유:
-- 요청 직후 아직 검증 결과가 없는 상태를 표현할 수 있어야 한다.
-- API/Frontend/DB 상태명을 하나의 계약으로 유지한다.
+이 문장이 상단 TASK LIST에 그대로 표시된다.
 
----
+### 8-3. 사용자가 원하는 최종 결과
 
-# STEP 4 — 테이블 스키마 검증
+사용자가 실제로 사용했을 때:
 
-`core.company_registry_checks`가 최소 아래 필드를 유지하는지 확인한다.
+- 기본검증 상태가 DB·API·화면에서 같은 5개 값만 사용됨
+- 로그인한 사용자는 자기 검증 결과만 볼 수 있음
+- 다른 사용자 ID는 정보 노출 없이 404
 
-```text
-check_id uuid PK
-user_id
-company_name
-country_iso3
-registration_number
-provider
-registry_check_status
-result_json jsonb
-provider_ref
-requested_at
-completed_at
-error_code
-error_message
-```
+이 결과가 달성되지 않으면 DONE이 아니다.
 
-필수 인덱스:
+### 8-4. 현재상태
 
-```text
-(user_id, requested_at DESC)
-(company_name, country_iso3)
-```
+- 현재 구현: 야간 브랜치 `night/cv02-opencorporates-mock` commit `cbb049e`
+- 현재 문제: ENUM 불일치, GET user_id 미적용
+- 이미 구현된 부분: POST/GET 인증, Mock Adapter 골격
+- 확인 필요한 부분: 실제 PostgreSQL에서 0005 적용/재실행, 결과없음/provider 오류/timeout/DB 오류
 
-기존 인증·결제·크레딧·Vault 관련 테이블은 변경하지 않는다.
+문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
----
+### 8-5. MUST — 반드시 구현
 
-# STEP 5 — migration runner 검증
+- [ ] DB enum을 확정 5개 값으로 통일
+- [ ] API/store/test fixture 상태값도 동일 계약 사용
+- [ ] `GET /v1/company-verifications/{verification_id}`는 현재 로그인 사용자 소유 record만 조회 (`user_id` 조건)
+- [ ] 타 사용자 ID는 정보 노출 없이 404
+- [ ] POST/GET 인증 유지
+- [ ] 결과없음/provider 오류/timeout/DB 오류 등 기존 요구가 구현됐는지 확인하고 누락만 최소 보완
+- [ ] 실제 PostgreSQL에서 0005 적용/재실행 정책 검증
 
-`services/p1-export-fit-api/app/run_migrations.py`의 기존 책임범위를 먼저 확인한다.
+### 8-6. KEEP — 유지
 
-주의:
+- [ ] 기존 0001~0004 migration
+- [ ] POST/GET 인증
+- [ ] 기존 buyer 검색·상세 흐름
+- [ ] 사용자가 변경 요청하지 않은 기존 동작
 
-- 신규 DB 전체 `0001→0005`를 원래 이 runner가 담당하는 구조인지 확인한다.
-- 원래 특정 migration부터 실행하는 runner였다면 책임범위를 임의로 확대하지 않는다.
-- 단순히 배열에 `0005`를 넣었다는 이유만으로 완료 처리하지 않는다.
-- 파일 실행 순서가 deterministic 해야 한다.
-- 파일 누락 시 조용히 성공 처리하지 않는다.
+### 8-7. REMOVE — 제거
 
-확인할 것:
+- [ ] 구형 ENUM 값(`VERIFIED/PARTIAL_MATCH/MISMATCH/INACTIVE/...`)을 계약에서 제거
 
-```text
-기존 실행 시작 migration
-실행 순서
-실패 시 exit 동작
-중간 migration 실패 시 후속 실행 여부
-재실행 시 기대 동작
-```
+### 8-8. FORBIDDEN — 금지
 
----
+- 사용자 요청에 없는 기능 임의 추가 금지
+- 불필요한 대규모 리팩터링 금지
+- 관련 없는 DB/API/UI 변경 금지
+- 테스트를 통과시키기 위한 기능 삭제 금지
+- 기존 실패 테스트 skip 금지
+- 근거 없는 값/데이터 생성 금지
 
-# STEP 6 — 실제 PostgreSQL migration 검증
+TASK별 추가 금지사항:
 
-SQL 문자열 검사만으로 완료 처리하지 않는다.
+- 실제 OpenCorporates/D&B/K-SURE 유료·계약 API 호출
+- 신용점수/안전점수/지급능력 점수 생성
+- 기존 0001~0004 migration 임의 수정
 
-가능한 실제 PostgreSQL에서 아래를 수행한다.
+### 8-9. 선행조건·의존성
 
-## A. 기존 DB 업그레이드 경로
+DEPENDS_ON:
 
-```text
-0004까지 적용된 상태
-→ 0005 적용
-→ 성공
-```
+- NONE
 
-## B. 신규 DB 정상 migration chain
+### 8-10. 구현범위
 
-현재 프로젝트의 공식 migration 실행 경로를 사용하여 새 DB에서 `0005`까지 정상 도달하는지 확인한다.
+수정 가능 범위:
 
-예상 경로가 `0001→0005`라면 전부 실행한다.
+- company verification API/store
+- `0005_company_registry_checks.sql` enum
+- 관련 test fixture
+- 사용자 격리 조회
 
-## C. 재실행 검증
+기존 구조를 최대한 유지하고 최소 변경한다.
 
-migration runner 또는 공식 재실행 경로를 한 번 더 실행해 예상한 동작인지 확인한다.
+검수 대상 브랜치: `night/cv02-opencorporates-mock` (`cbb049e`)
 
-특히 PostgreSQL ENUM의 `CREATE TYPE` 재실행 충돌 여부를 실제로 확인한다.
+### 8-11. 입력검증
 
-재실행이 "성공해야 하는 구조"인지 "이미 적용된 migration을 건너뛰는 구조"인지 기존 migration 정책을 기준으로 판단한다.
+반드시 확인:
 
-억지로 모든 SQL을 idempotent하게 바꾸지 않는다.
+- company_name 공백 금지
+- country ISO3 3자리 검증·정규화
+- verification_id 형식/존재 여부
+- 모든 조회에서 현재 user 소유권
+- 정상 입력 / 필수값 없음 / 잘못된 형식 / 허용범위 밖 값 / 중복 입력 / 비정상 문자열
 
----
+해당되지 않는 항목은 N/A 근거를 남긴다.
 
-# STEP 7 — DB 결과 검증
+### 8-12. 빈상태
 
-실제 DB에서 다음을 확인한다.
+검증:
 
-### ENUM 값
+- registry 결과 없음 → `확인 결과 없음` 계열 명시 상태
+- 빈 결과를 임의 점수/추정값으로 채우지 않는다
+- 데이터 0건 / 결과 없음 / 일부 필드 없음 / 최초 사용 상태
 
-정확히 5개:
+### 8-13. 로딩상태
 
-```text
-BASIC_CONFIRMED
-BASIC_PARTIAL
-DATA_MISMATCH
-INACTIVE_ENTITY
-CREDIT_CHECK_REQUIRED
-```
+- 기본검증 요청 중 중복 제출 방지
+- 비동기 처리/UI 작업인 경우 처리 중 상태, 완료 후 전환, 오래 걸릴 때 기존 화면 손상 방지
 
-### 테이블
+### 8-14. 오류상태
 
-```text
-core.company_registry_checks
-```
+필요한 경우:
 
-### 인덱스
-
-```text
-user_id + requested_at DESC
-company_name + country_iso3
-```
-
-### NULL
-
-`registry_check_status IS NULL`인 row가 스키마상 허용되는지 확인한다.
+- 400/404/401·403/500/502/504를 구분
+- provider timeout과 내부 DB 오류를 같은 성공/빈값으로 처리하지 않는다
+- 외부 API 실패 / DB 실패 / timeout / 네트워크 실패 / 일부 데이터 실패 / 권한 오류 / 잘못된 요청 / 재시도 가능 상태
 
 ---
 
-# STEP 8 — 테스트
+## MG-002
 
-최소 다음을 실행한다.
+### 8-1. 사용자 원문 요청
 
-## Backend
+> 바이어가 60개까지만 보이는 원인을 찾아 정상화한다.
 
-기존 p1-export-fit-api 전체 pytest.
+원문 보존:
 
-완료 기준:
+- main: `_DEFAULT_BUYER_LIMIT = 60`, `_MAX_BUYER_LIMIT = 200`
+- night branch는 기본값을 200으로 올림
+- 단순 숫자 변경이 아니라 60 제한의 실제 원인/의도가 demo sample limit인지 실제 검색 제한인지 확인해야 함
 
-```text
-0 failed
-```
+원문의 의미를 축약 과정에서 변경하지 않는다.
 
-기존 보고의 `224 passed`와 숫자가 달라도, 테스트 추가/삭제가 있었으면 실제 현재 개수를 보고한다.
+### 8-2. 비개발자용 1줄 요약
 
-## Frontend
+바이어가 60개까지만 보이는 원인을 찾아 고친다
 
-```text
-npm run build
-```
+이 문장이 상단 TASK LIST에 그대로 표시된다.
 
-통과해야 한다.
+### 8-3. 사용자가 원하는 최종 결과
 
-## Migration 검증
+사용자가 실제로 사용했을 때:
 
-별도로 다음 결과를 보고한다.
+- 60개 제한의 실제 원인이 기록됨
+- demo 샘플 수 제한과 실제 검색 제한을 혼동하지 않음
+- 제품 의도에 맞게 검색 결과가 보이며, 단순 `60 → 200` 하드코딩만으로 끝난 것처럼 처리하지 않음
 
-- 기존 DB `0004→0005`
-- 신규 DB 공식 migration chain
-- 재실행
+이 결과가 달성되지 않으면 DONE이 아니다.
 
----
+### 8-4. 현재상태
 
-# STEP 9 — Commit / Push
+- 현재 구현: `night/buyer-60-limit` commit `2292305`
+- 현재 문제: 60 제한 원인 미확정
+- 이미 구현된 부분: main 상수 60/200
+- 확인 필요한 부분: demo snapshot, API query, frontend caller
 
-다음 조건을 모두 만족할 때만 commit + push 한다.
+문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
-- ENUM 확정값 일치
-- PostgreSQL migration 성공
-- migration runner 정상
-- backend pytest 0 failed
-- frontend build 성공
-- 기존 핵심 테이블 비침범
+### 8-5. MUST — 반드시 구현
 
-가능하면 현재 CV-01 작업 브랜치를 사용한다.
+- [ ] demo snapshot, API query, frontend caller를 추적하여 60개의 실제 원인을 기록
+- [ ] 공개 demo 샘플 수 제한과 실제 buyer 검색 결과 제한을 혼동하지 않는다
+- [ ] 제품 의도상 200이 맞으면 상수/기본값/호출 계약을 일관되게 수정하고 테스트
+- [ ] 단순 `60 → 200` 하드코딩만으로 root cause 해결 처리 금지
 
-`main`에 직접 push하지 말고, 이미 사용 중인 안전한 작업 브랜치가 있다면 해당 브랜치에 push한다.
+### 8-6. KEEP — 유지
 
-현재 작업 방식이 main 직접 push가 명시적으로 허용된 구조라면 기존 저장소 관행을 확인하고 따른다.
+- [ ] 기존 buyer 검색/상세 흐름
+- [ ] demo snapshot API의 공개 샘플 의도가 별도라면 그 의도
+- [ ] 사용자가 변경 요청하지 않은 기존 동작
 
-새 브랜치를 임의로 여러 개 만들지 않는다.
+### 8-7. REMOVE — 제거
 
----
+없음 (원인 확인 후 잘못된 제한만 제거)
 
-# 수정 금지
+### 8-8. FORBIDDEN — 금지
 
-- CV-02 OpenCorporates Mock adapter/API 구현
-- UI 구현
-- D&B/K-SURE 외부 링크 구현
-- CSS
-- code splitting
-- Campaign Orchestrator
-- Credit Ledger
-- Send Adapter
-- Response Relay
-- 다른 migration 수정
-- unrelated cleanup/refactor
-- 기존 인증/결제/크레딧/Vault 스키마 변경
+- 사용자 요청에 없는 기능 임의 추가 금지
+- 불필요한 대규모 리팩터링 금지
+- 관련 없는 DB/API/UI 변경 금지
+- 테스트를 통과시키기 위한 기능 삭제 금지
+- 기존 실패 테스트 skip 금지
+- 근거 없는 값/데이터 생성 금지
 
----
+TASK별 추가 금지사항:
 
-# 최종 출력 형식
+- 근거 없는 buyer/trade/import 수치 생성
+- 단순 상수 변경만으로 DONE 처리
 
-## [BRANCH]
+### 8-9. 선행조건·의존성
 
-작업 브랜치와 origin/main 기준 상태
+DEPENDS_ON:
 
-## [COMMIT]
+- NONE
 
-커밋 SHA. 커밋하지 않았다면 이유.
+MG-001과 파일군이 겹치지 않으면 병렬 가능.
 
-## [PUSH]
+### 8-10. 구현범위
 
-원격 push 여부와 원격 브랜치명
+수정 가능 범위:
 
-## [FILES]
+- buyer limit 상수/쿼리/프론트 호출 계약
+- 관련 regression test
 
-실제 수정 파일
+검수 대상 브랜치: `night/buyer-60-limit` (`2292305`)
 
-## [ENUM]
+기존 구조를 최대한 유지하고 최소 변경한다.
 
-최종 ENUM 5개
+### 8-11. 입력검증
 
-## [MIGRATION TEST]
+반드시 확인:
 
-```text
-0004 → 0005: PASS/FAIL
-신규 DB 공식 migration chain: PASS/FAIL
-재실행: PASS/FAIL
-```
+- 정상 입력 / 필수값 없음 / 잘못된 형식 / 허용범위 밖 값 / 중복 입력
+- limit 호출이 demo와 실검색 중 어디에 적용되는지
 
-실제 PostgreSQL을 실행하지 못했다면 PASS라고 쓰지 말고 `NOT RUN`과 이유를 명시한다.
+해당되지 않는 항목은 N/A 근거를 남긴다.
 
-## [TEST]
+### 8-12. 빈상태
 
-```text
-backend pytest: N passed / N failed
-frontend build: PASS/FAIL
-```
+검증:
 
-## [REGRESSION]
+- 검색 0건
+- 일부 필드 없음
+- buyer 정보/API에 없는 값 → `자료 내 확인 불가` 또는 기존 정책의 명시적 빈값
 
-기존 인증·결제·크레딧·Vault 등에 영향 여부
+### 8-13. 로딩상태
 
-## [CV-01 STATUS]
+BuyerSearch 기존 로딩 흐름을 깨지 않는다. 정적 기능이면 N/A 가능.
 
-모든 필수 검증 통과 시에만:
+### 8-14. 오류상태
 
-```text
-DONE
-```
+필요한 경우:
 
-하나라도 확인하지 못했거나 실패하면:
+- 외부 API 실패 / DB 실패 / timeout / 잘못된 요청 / 재시도 가능 상태
 
-```text
-BLOCKED
-```
-
-그리고 정확한 blocker를 적는다.
-
-## [NEXT]
-
-다음 작업은 1개만 제안한다.
-실행하지 않는다.
+오류가 없다는 사실 자체는 DONE 기준이 아니다.
 
 ---
 
-# MiMo 실행 지시
+## MG-003
 
-**원격 `main`을 기준점으로 확인한 뒤 이 `TASK.md`를 처음부터 끝까지 읽고, CV-01 재검증/수정 작업 1개만 수행해라. CV-02는 실행하지 말고 결과 보고 후 멈춰라.**
+### 8-1. 사용자 원문 요청
+
+> 기업검증 화면을 실제 조회 결과와 연결한다.
+
+원문 보존 (CV-03 UI + CV-05 문서):
+
+- TRACK A API 계약이 확정된 뒤 검수/보완
+- 기존 `BuyerSearch/index.tsx` 상세 흐름 안에 유지
+- 새 Router/전역 페이지 금지
+- `registryCheckStatus`를 `contactStatus/tradeStatus/creditStatus`와 혼합 금지
+- K-SURE/D&B는 현재 MVP에서 공식 외부 조회 링크만 제공
+- 검증되지 않은 API·신용등급 자동조회 가정 제거 여부 확인
+
+원문의 의미를 축약 과정에서 변경하지 않는다.
+
+### 8-2. 비개발자용 1줄 요약
+
+기업검증 화면을 실제 조회 결과와 연결한다
+
+이 문장이 상단 TASK LIST에 그대로 표시된다.
+
+### 8-3. 사용자가 원하는 최종 결과
+
+사용자가 실제로 사용했을 때:
+
+- 바이어 상세에서 기본검증 결과가 실제 API와 연결됨
+- D&B·K-SURE는 공식 외부 조회 링크로만 제공됨
+- 신용등급 자동조회처럼 검증되지 않은 가정이 화면에 없음
+
+이 결과가 달성되지 않으면 DONE이 아니다.
+
+### 8-4. 현재상태
+
+- 현재 구현: `night/cv03-company-verification-ui` (`a8dc892`), `night/cv05-prd-correction` (`54bb709`)
+- 현재 문제: API 계약 확정 전 UI 검수, 외부조회 가정 정리
+- 이미 구현된 부분: BuyerSearch 상세 흐름
+- 확인 필요한 부분: registryCheckStatus 혼합 여부, PRD 용어
+
+문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
+
+### 8-5. MUST — 반드시 구현
+
+- [ ] MG-001 API 계약이 확정된 뒤 UI 검수/보완
+- [ ] 기존 `BuyerSearch/index.tsx` 상세 흐름 안에 유지
+- [ ] 새 Router/전역 페이지 금지
+- [ ] `registryCheckStatus`를 `contactStatus/tradeStatus/creditStatus`와 혼합 금지
+- [ ] K-SURE/D&B는 공식 외부 조회 링크만 제공
+- [ ] 검증되지 않은 API·신용등급 자동조회 가정 제거 여부 확인
+
+### 8-6. KEEP — 유지
+
+- [ ] 기존 BuyerSearch 상세 흐름
+- [ ] 기존 contact/trade/credit 상태
+- [ ] 사용자가 변경 요청하지 않은 기존 동작
+
+### 8-7. REMOVE — 제거
+
+- [ ] 검증되지 않은 API·신용등급 자동조회 가정 (확인 후)
+
+### 8-8. FORBIDDEN — 금지
+
+- 사용자 요청에 없는 기능 임의 추가 금지
+- 불필요한 대규모 리팩터링 금지
+- 관련 없는 DB/API/UI 변경 금지
+- 테스트를 통과시키기 위한 기능 삭제 금지
+- 기존 실패 테스트 skip 금지
+- 근거 없는 값/데이터 생성 금지
+
+TASK별 추가 금지사항:
+
+- 실제 OpenCorporates/D&B/K-SURE 유료·계약 API 호출
+- 신용점수 생성
+- 새 Router/전역 페이지
+
+### 8-9. 선행조건·의존성
+
+DEPENDS_ON:
+
+- MG-001
+
+선행 TASK가 실제로 DONE이 아니면 후속 작업을 완료 처리하지 않는다.
+
+### 8-10. 구현범위
+
+수정 가능 범위:
+
+- BuyerSearch 기업검증 UI
+- CV-05 PRD/용어/외부 링크
+- 관련 frontend unit/build
+
+기존 구조를 최대한 유지하고 최소 변경한다.
+
+### 8-11. 입력검증
+
+반드시 확인:
+
+- 정상 입력 / 필수값 없음 / 잘못된 형식
+- verification_id / 사용자 소유권은 API 계약을 따름
+
+해당되지 않는 항목은 N/A 근거를 남긴다.
+
+### 8-12. 빈상태
+
+검증:
+
+- registry 결과 없음 → 명시 상태
+- buyer 정보/API에 없는 값 → `자료 내 확인 불가` 또는 기존 정책
+- 빈 결과를 임의 점수로 채우지 않는다
+
+### 8-13. 로딩상태
+
+- BuyerSearch 기존 로딩 흐름을 깨지 않고 verification loading을 분리
+- 처리 중 상태, 중복 실행 방지, 완료 후 전환
+
+### 8-14. 오류상태
+
+필요한 경우:
+
+- 화면은 재시도 가능 상태를 제공하고 기존 검색 결과를 날리지 않는다
+- 400/404/401·403/500/502/504를 구분
+- 외부 API 실패 / timeout / 권한 오류 / 잘못된 요청
+
+---
+
+## MG-004
+
+### 8-1. 사용자 원문 요청
+
+> 로그인부터 기업검증까지 실제 사용 흐름으로 확인하고, 통과한 야간 브랜치만 골라 합친다.
+
+원문 보존 (선별병합 + CV-04):
+
+권장 병합 순서:
+
+```text
+CV-05 → BUYER-60 → CV-02 → CV-03
+```
+
+각 브랜치는 merge 전 자체 테스트 통과 필수. `main.py` 충돌은 ours/theirs로 기계 처리하지 말고 양쪽 의도를 수동 합성 후 재테스트.
+
+병합 후 main에서:
+
+- DB migration
+- Mock Adapter/API
+- 로그인→바이어검색→상세→기본검증 E2E/smoke
+- 사용자 격리
+- 기존 buyer 검색
+- 인증
+- 결제/크레딧 회귀
+- frontend unit/lint/build
+- backend pytest
+
+를 검증하고 `TASKS.md` CV 상태를 실제 결과에 맞게 갱신.
+
+병합 불필요: `night/page-code-splitting`(main과 동일), `night/css-deslop-pass3`(실질 변경 없음)
+
+원문의 의미를 축약 과정에서 변경하지 않는다.
+
+### 8-2. 비개발자용 1줄 요약
+
+로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
+
+이 문장이 상단 TASK LIST에 그대로 표시된다.
+
+### 8-3. 사용자가 원하는 최종 결과
+
+사용자가 실제로 사용했을 때:
+
+- 로그인 → 바이어 검색 → 상세 → 기본검증이 실제로 동작
+- 통과한 브랜치만 main에 합쳐짐
+- 기존 검색·인증·결제가 깨지지 않음
+
+이 결과가 달성되지 않으면 DONE이 아니다.
+
+### 8-4. 현재상태
+
+- 현재 구현: 야간 브랜치 4개가 검수 대상
+- 현재 문제: 선별병합·통합 E2E 미완료
+- 이미 구현된 부분: 각 night 브랜치 작업물
+- 확인 필요한 부분: 충돌 합성, PostgreSQL, CV-04 smoke
+
+문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
+
+### 8-5. MUST — 반드시 구현
+
+- [ ] 필요한 브랜치만 선별병합 (CODE-SPLIT/CSS empty/identical 제외)
+- [ ] 권장 순서 `CV-05 → BUYER-60 → CV-02 → CV-03`
+- [ ] 각 브랜치 merge 전 자체 테스트 통과
+- [ ] `main.py` 충돌은 기계 ours/theirs 금지, 수동 합성 후 재테스트
+- [ ] 병합 후 CV-04 통합검증 (migration, Mock Adapter/API, E2E/smoke, 격리, buyer 검색, 인증, 결제/크레딧, frontend lint/build, backend pytest)
+- [ ] `TASKS.md` CV 상태를 실제 결과에 맞게 갱신
+
+### 8-6. KEEP — 유지
+
+- [ ] 기존 buyer 검색/상세
+- [ ] 인증
+- [ ] 결제/크레딧
+- [ ] 기존 contact/trade/credit 상태
+- [ ] demo snapshot API
+- [ ] 기존 migration chain
+
+### 8-7. REMOVE — 제거
+
+없음 (병합하지 않을 브랜치는 합치지 않음)
+
+### 8-8. FORBIDDEN — 금지
+
+- 사용자 요청에 없는 기능 임의 추가 금지
+- 불필요한 대규모 리팩터링 금지
+- 관련 없는 DB/API/UI 변경 금지
+- 테스트를 통과시키기 위한 기능 삭제 금지
+- 기존 실패 테스트 skip 금지
+- 근거 없는 값/데이터 생성 금지
+
+TASK별 추가 금지사항:
+
+- CODE-SPLIT/CSS empty/identical branch 병합
+- unrelated refactor, Campaign/Send Adapter/Credit Ledger 신규 확장
+- 충돌을 무조건 ours/theirs로 해결
+- 실제 유료 외부 API 호출
+
+### 8-9. 선행조건·의존성
+
+DEPENDS_ON:
+
+- MG-001
+- MG-002
+- MG-003
+
+선행 TASK가 실제로 DONE이 아니면 후속 작업을 완료 처리하지 않는다.
+
+### 8-10. 구현범위
+
+수정 가능 범위:
+
+- 선별병합
+- 충돌 합성
+- CV-04 E2E/smoke
+- TASKS.md 상태 동기화
+
+기존 구조를 최대한 유지하고 최소 변경한다.
+
+### 8-11. 입력검증
+
+반드시 확인:
+
+- 정상 로그인·검색·검증 입력
+- 필수값 없음 / 잘못된 형식 / 권한 없는 조회
+
+해당되지 않는 항목은 N/A 근거를 남긴다.
+
+### 8-12. 빈상태
+
+검증:
+
+- 검색 0건
+- 검증 결과 없음
+- 일부 필드 없음
+
+### 8-13. 로딩상태
+
+실사용 흐름의 기존 로딩을 깨지 않는다.
+
+### 8-14. 오류상태
+
+필요한 경우:
+
+- 인증 실패 / 권한 오류 / DB 실패 / timeout / 재시도 가능 상태
+
+병합 후 main 전체 회귀검증 실패 시 추가 기능 진행 금지.
+
+---
+
+# 9. 실제사용 시나리오
+
+TASK 완료 전에 반드시 실제 사용자 관점으로 검증한다.
+
+해당 TASK DETAILS의 최종 결과·구현범위와 함께 적용한다.
+
+## USER FLOW
+
+사용자 시작점:
+화면 / CLI / 이메일 / API / 파일 등 실제 진입점
+
+사용자 행동:
+1. 사용자가 실제로 하는 행동
+2. 다음 행동
+3. 다음 행동
+
+시스템 처리:
+실제 production 경로 (mock-only로 대체하지 않음)
+
+사용자 최종 결과:
+사용자가 실제 보게 되는 것
+
+## 핵심 질문
+
+`이 결과가 사용자의 최초 요청을 실제로 해결했는가?`
+
+YES가 아니면 DONE 금지.
+
+---
+
+# 10. VERIFY — 해결 여부 검증
+
+사용자 요청과 결과를 1:1로 대조한다.
+
+| 사용자 요구 | 실제 결과 | 판정 |
+|---|---|---|
+| DETAILS의 MUST 항목 | 실제 결과 | PASS/FAIL |
+
+하나라도 필수 요구가 FAIL이면:
+
+`REQUEST_SOLVED = NO`
+
+---
+
+# 11. 실사용 E2E
+
+최소 1개의 실제 사용자 흐름을 처음부터 끝까지 실행한다.
+
+원칙:
+
+- 단위 테스트만으로 대체 금지
+- mock-only 검증만으로 DONE 금지
+- 가능한 실제 runtime/production entrypoint 사용
+- 실제 외부 유료 호출이나 위험 작업은 안전한 staging/dry-run/preview 사용
+
+E2E 결과:
+
+USER_E2E: PASS | FAIL | BLOCKED
+
+근거:
+명령 / 화면 / 산출물 / preview / API 결과
+
+---
+
+# 12. 테스트
+
+실사용 검증을 보조하는 테스트를 수행한다.
+
+최소:
+
+- 정상경로
+- 주요 경계값
+- 입력검증
+- 빈상태
+- 주요 오류
+- 변경한 기능 단위 테스트
+- 관련 integration test
+
+테스트 PASS만으로 DONE 처리하지 않는다.
+
+---
+
+# 13. 회귀검증
+
+이번 변경 때문에 기존 핵심 기능이 깨지지 않았는지 확인한다.
+
+- [ ] 기존 핵심 사용자 흐름
+- [ ] 관련 API
+- [ ] 인증/권한
+- [ ] DB 계약
+- [ ] 기존 사용자 데이터
+- [ ] 기존 자동화
+- [ ] 기존 주요 테스트
+
+관련 없는 전체 제품 고도화는 하지 않는다.
+
+---
+
+# 14. 문서동기화
+
+실제 구현과 문서가 달라진 경우에만 최소 수정:
+
+- README
+- TASK 관련 문서
+- ARCHITECTURE
+- 운영문서
+- 테스트/사용법 문서
+
+거짓 DONE 기록을 남기지 않는다.
+
+---
+
+# 15. DONE 기준 — 실제 사용자 요청 해결 기준
+
+## 절대 원칙
+
+다음은 단독으로 DONE 근거가 아니다.
+
+- 코드 작성 완료
+- 테스트 PASS
+- build PASS
+- 오류 없음
+- commit 존재
+- PR 생성
+- 화면이 열림
+
+## DONE
+
+다음을 모두 만족해야 한다.
+
+- [ ] 사용자의 필수 요청사항 전부 해결
+- [ ] `REQUEST_SOLVED = YES`
+- [ ] 실제 사용자 E2E PASS
+- [ ] 사용자가 원하는 최종 결과 확인
+- [ ] 필요한 입력/빈/로딩/오류상태 사용 가능
+- [ ] 기존 핵심 기능 회귀 없음
+- [ ] 금지사항 위반 없음
+- [ ] 필요한 문서 동기화
+- [ ] commit 완료
+- [ ] push 완료
+
+## ALREADY_DONE
+
+새 코드를 만들지 않아도 이미 요청사항이 해결되어 있고
+실제사용 E2E로 이를 확인한 경우.
+
+## PARTIAL
+
+일부 구현했지만:
+
+`REQUEST_SOLVED = NO`
+
+인 경우.
+
+작업량이 많아도 DONE 금지.
+
+## BLOCKED
+
+외부 의존성/권한/정책/Git 충돌/검증환경 때문에
+안전하게 사용자의 요청을 해결할 수 없는 경우.
+
+## FAIL
+
+구현을 시도했으나 사용자 요청 해결에 실패한 경우.
+
+---
+
+# 16. 작업 종료 전 Git 최신 상태 재확인
+
+작업 완료 직전 다시:
+
+1. `git fetch --all --prune`
+2. 현재 `origin/main` 확인
+3. `TASK_START_SHA`와 최신 base 비교
+
+## base가 작업 중 변경된 경우
+
+코드를 최신 base와 안전하게 통합한다.
+
+필요하면:
+
+- conflict 해결
+- 관련 test 재실행
+- USER E2E 재실행
+- regression 재실행
+
+단:
+
+최신 TASK.md의 새로운 일반 작업을 현재 ACTIVE TASK에 섞지 않는다.
+
+코드는 최신화할 수 있지만,
+ACTIVE TASK의 목적과 DONE 조건은 최초 TASK snapshot을 유지한다.
+
+---
+
+# 17. 작업 완료 후 Git 동기화
+
+TASK 구현 완료:
+
+1. 변경 파일 확인
+2. 필요한 파일만 stage (`git add -A` 금지)
+3. commit
+4. remote work branch에 push
+
+확인:
+
+WORK_BRANCH_PUSHED: YES | NO
+
+## PR/merge가 TASK 범위인 경우
+
+- 필요한 검사 통과
+- PR
+- merge
+
+머지는 이 TASK가 허용한 경우만 한다. 명시가 없으면 기본 브랜치 병합 금지.
+
+조건:
+
+- 충돌 없음
+- GitHub Checks 초록
+
+실패면 merge 명령 실행 금지.
+
+문제: 머지 규칙이 TASK 글뿐이라 `gh pr merge`로 문서 PR을 Checks 빨강인데도 머지할 수 있었다. 예외 머지는 폐지한다.
+
+머지는 GitHub Checks가 초록일 때만 한다. 문서만(`TASK.md`, `*.md`, `docs/**`) 바뀌면 무거운 테스트 대신 `docs-gate`가 초록이면 된다. `gh pr merge --admin` 및 실패 체크를 무시하는 머지는 금지한다.
+
+
+merge 후:
+
+1. `git fetch`
+2. local base clean 확인
+3. `git merge --ff-only origin/main`
+4. local base와 remote base 일치 확인
+
+절대 reset --hard로 맞추지 않는다.
+
+---
+
+# 18. TASK LIST 상태 갱신 규칙
+
+TASK LIST의 상태는 실제 결과와 반드시 일치한다.
+
+### `[x]`
+
+다음일 때만:
+
+`REQUEST_SOLVED = YES`
+
+### `[~]`
+
+현재 실행 중.
+
+### `[!]`
+
+BLOCKED.
+
+### `[-]`
+
+사용자가 취소.
+
+### `[ ]`
+
+아직 시작하지 않음.
+
+LIST와 DETAILS가 불일치하면 TASK 파일 오류로 간주한다.
+
+---
+
+# 19. TASK 수정/삭제 규칙
+
+## 사용자가 TASK 설명을 수정
+
+TASK LIST 1줄 요약과 해당 DETAILS를 함께 수정한다.
+
+## 사용자가 "삭제"
+
+- TASK LIST 행 삭제
+- TASK DETAILS 전체 삭제
+
+## 사용자가 "취소"
+
+- LIST를 `[-]`로 변경
+- 상세에는 취소 이유 최소 기록 가능
+
+## 완료 TASK
+
+사용자가 목록에서 완료 TASK도 계속 보고 싶다면 `[x]` 유지.
+
+별도 요청으로 정리할 때만 제거한다.
+
+---
+
+# 20. 새 사용자 요청 등록 규칙
+
+새 요청:
+
+1. 기존 TASK와 동일한 요청인지 확인
+2. 이미 해결됐으면 중복 생성 금지
+3. 새 TASK_ID 발급
+4. 사용자 원문 보존
+5. 비개발자용 1줄 요약 생성
+6. TASK LIST에 `[ ]` 추가
+7. TASK DETAILS 생성
+8. MUST/KEEP/REMOVE/FORBIDDEN/VERIFY/DONE 변환
+9. 기존 TASK와 dependency/충돌 검사
+10. 실행 순서 결정
+
+기존 ACTIVE TASK에 새 요청을 임의 합치지 않는다.
+
+---
+
+# 21. TASK 완료 후 다음 TASK
+
+현재 TASK가 DONE된 후:
+
+- TASK LIST에서 다음 READY 작업 확인
+- dependency가 해결된 작업 우선
+- 독립 작업은 병렬 가능
+- BLOCKED 작업은 건너뛰되 이유 유지
+
+새 TASK가 없으면:
+
+`NO_ACTIVE_TASK`
+
+를 보고하고 개발을 중단한다.
+
+---
+
+# 22. 최종보고
+
+반드시 아래 형식으로 보고한다.
+
+REPO:
+TASK_ID:
+
+USER_REQUEST:
+REQUEST_SOLVED: YES | NO
+
+TASK_START_SHA:
+TASK_BLOB_SHA:
+WORK_BRANCH:
+
+USER_E2E: PASS | FAIL | BLOCKED
+USER_RESULT:
+VERIFY_RESULT:
+
+TEST:
+REGRESSION:
+
+COMMIT:
+WORK_BRANCH_PUSHED: YES | NO
+
+PR:
+MAIN_MERGED: YES | NO | N/A
+
+REMOTE_BASE_SYNC:
+LOCAL_BASE_SYNC:
+
+TASK_STATUS:
+DONE | ALREADY_DONE | PARTIAL | BLOCKED | FAIL
+
+NEXT_READY_TASK:
+PENDING_TASKS:
+
+---
+
+# 23. 최종 STOP 조건
+
+아래 중 하나면 임의 개발을 계속하지 않는다.
+
+- ACTIVE TASK 없음
+- 사용자 요청과 TASK 내용이 명백하게 불일치
+- repo/origin 불일치
+- 안전한 Git 작업공간 확보 불가
+- 사용자 데이터를 잃을 위험
+- 최신 CANCEL/STOP 지시 발견
+- 해결방법 선택이 제품정책을 바꾸며 사용자의 결정이 반드시 필요함
+
+상태를 `BLOCKED` 또는 `NO_ACTIVE_TASK`로 보고한다.
