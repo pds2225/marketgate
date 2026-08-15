@@ -18,6 +18,8 @@ import { computeProfitability } from '@/lib/profitability';
 import {
   mapApiBuyersToViewModels,
   groupBuyersByCountry,
+  resolveBuyerCountryIso3,
+  mapCompanyVerificationResponse,
   CONTACT_STATUS_LABELS,
   TRADE_STATUS_LABELS,
   CREDIT_STATUS_LABELS,
@@ -36,7 +38,7 @@ interface ExportConditions {
 }
 interface Buyer {
   id: string; rank: number; name: string; legalName: string; industry: string;
-  country: string; region: string; dataSource: string; dataDate: string | null; csvTrace: string | null;
+  country: string; countryIso3: string; region: string; dataSource: string; dataDate: string | null; csvTrace: string | null;
   contactName: string; email: string; phone: string; website: string;
   contactStatus: 'unavailable' | 'discovered' | 'format_validated' | 'ownership_verified';
   tradeStatus: 'unavailable' | 'source_confirmed' | 'recent_activity_confirmed';
@@ -605,40 +607,45 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
     setError(null);
     setTimedOut(false);
 
+    const countryIso3 = resolveBuyerCountryIso3(buyer);
+    if (!buyer.name?.trim() || !countryIso3) {
+      setError('기업명 또는 국가 코드(ISO3)가 없어 검증할 수 없습니다.');
+      setLoading(false);
+      return;
+    }
+
     const controller = new AbortController();
     const timer = setTimeout(() => { controller.abort(); setTimedOut(true); }, VERIFY_TIMEOUT_MS);
 
     try {
-      const token = localStorage.getItem('access_token');
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch('/v1/company-verifications', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ company_name: buyer.name, country: buyer.country }),
-        signal: controller.signal,
-      });
-
-      if (res.status === 404 || res.status === 500) {
-        setError(res.status === 404
-          ? '검증 API가 아직 준비되지 않았습니다. (CV-02 배포 후 활성화)'
-          : '서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
-        return;
-      }
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.detail || body?.message || `요청 실패 (${res.status})`);
-      }
-
-      const data = await res.json();
-      setResult(data as VerificationResult);
+      // Must use shared api client: baseURL is localhost:8000 (dev) or /api (Vercel).
+      // Raw fetch('/v1/...') hits the SPA host and never reaches FastAPI.
+      const { data } = await api.post(
+        '/v1/company-verifications',
+        { company_name: buyer.name, country_iso3: countryIso3 },
+        { signal: controller.signal },
+      );
+      setResult(mapCompanyVerificationResponse(data) as VerificationResult);
     } catch (err: any) {
-      if (err.name === 'AbortError') {
+      if (err?.name === 'AbortError' || err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') {
         setTimedOut(true);
       } else {
-        setError(err.message || '검증 요청에 실패했습니다.');
+        const status = err?.response?.status;
+        if (status === 404) {
+          setError('검증 API가 아직 준비되지 않았습니다. (CV-02 배포 후 활성화)');
+        } else if (status === 401 || status === 403) {
+          setError('로그인이 필요합니다. 로그인 후 다시 시도해 주세요.');
+        } else if (status === 500) {
+          setError('서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+        } else {
+          const detail = err?.response?.data?.detail;
+          const detailText = typeof detail === 'string'
+            ? detail
+            : Array.isArray(detail)
+              ? detail.map((d: any) => d?.msg || JSON.stringify(d)).join('; ')
+              : err?.message;
+          setError(detailText || '검증 요청에 실패했습니다.');
+        }
       }
     } finally {
       clearTimeout(timer);
@@ -780,7 +787,7 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
       )}
 
       {/* Empty state (no buyer data to verify) */}
-      {!buyer.name && !buyer.country && !loading && !result && !error && (
+      {!buyer.name && !resolveBuyerCountryIso3(buyer) && !loading && !result && !error && (
         <div className="flex flex-col items-center py-6 text-center">
           <Database className="h-6 w-6 text-slate-300 mb-2" />
           <p className="text-xs text-slate-500">기업 정보가 부족하여 검증할 수 없습니다.</p>

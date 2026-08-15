@@ -105,6 +105,12 @@ export function mapApiBuyerToViewModel(item, index, hsCode, categoryLabel) {
     COUNTRY_NAME_MAP[countryCode] || item.source_target_country_name || countryCode;
   const email = item.contact_email || '';
 
+  const countryIso3 = String(
+    item.source_target_country_iso3 || item.country_iso3 || ''
+  )
+    .trim()
+    .toUpperCase();
+
   return {
     id: `MG-${hsCode}-${index + 1}`,
     rank: index + 1,
@@ -112,6 +118,8 @@ export function mapApiBuyerToViewModel(item, index, hsCode, categoryLabel) {
     legalName: (item.buyer_name || '').toLowerCase(),
     industry: item.source_dataset || '유통/바이어',
     country: `${countryCode} ${countryName}`,
+    // CV API requires ISO3; display `country` is a label (norm/name), not the code.
+    countryIso3: /^[A-Z]{3}$/.test(countryIso3) ? countryIso3 : '',
     region: item.source_target_country_name || countryName,
     dataSource: item.source_dataset || '출처 미상',
     // 원본에 수집일이 없으므로 생성하지 않는다 (기존: 오늘 날짜를 수집일로 표기)
@@ -182,6 +190,37 @@ export function mapApiBuyersToViewModels(items, hsCode, categoryLabel) {
   return (items || []).map((item, index) =>
     mapApiBuyerToViewModel(item, index, hsCode, categoryLabel)
   );
+}
+
+/** Resolve ISO3 for company-verification POST (CV-02/CV-03 contract). */
+export function resolveBuyerCountryIso3(buyer) {
+  const direct = String(buyer?.countryIso3 || '')
+    .trim()
+    .toUpperCase();
+  if (/^[A-Z]{3}$/.test(direct)) return direct;
+  return '';
+}
+
+/**
+ * Map CV-02 API record → CV-03 card view model.
+ * API fields: registry_check_status, country_iso3, completed_at
+ * UI fields: status, country, verified_at
+ */
+export function mapCompanyVerificationResponse(data) {
+  const status = data?.registry_check_status;
+  const provider = data?.result_json?.provider;
+  const mock = data?.result_json?.mock === true;
+  let details;
+  if (provider) {
+    details = mock ? `${provider} mock` : `출처: ${provider}`;
+  }
+  return {
+    status,
+    company_name: data?.company_name || '',
+    country: data?.country_iso3 || '',
+    verified_at: data?.completed_at || data?.requested_at || '',
+    details,
+  };
 }
 
 /** 국가별 그룹핑 — 실측 가능한 값(건수·평균점수·연락처 보유 수)만 집계한다. */
