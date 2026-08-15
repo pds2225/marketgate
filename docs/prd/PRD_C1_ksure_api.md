@@ -46,12 +46,19 @@ report_received
 expired
 ```
 
-신규 법인등록 기본검증 상태와 기존 신용조사 상태를 합치지 않는다.
+신규 법인등록 기본검증 상태(`registry_check_status`)와 기존 신용조사 상태(`creditStatus`)를 합치지 않는다.
 
-```text
-registryCheckStatus = 법인등록정보 확인 결과
-creditStatus = 유료 신용조사 신청·진행·수신 상태
-```
+`registry_check_status` enum 값은 정확히 아래 5개만 사용한다:
+
+| 값 | 의미 |
+|---|---|
+| `BASIC_CONFIRMED` | 기본 확인 완료 |
+| `BASIC_PARTIAL` | 부분 확인 |
+| `DATA_MISMATCH` | 데이터 불일치 |
+| `INACTIVE_ENTITY` | 비활성 법인 |
+| `CREDIT_CHECK_REQUIRED` | 신용조사 필요 |
+
+`fitScore`, 기존 `creditStatus`, `core.buyers.verification_status`와 혼합하지 않는다.
 
 ## 6. 예외처리
 - 외부 링크 설정 누락: 버튼 비활성화 + `외부 조회 링크 준비 중` 표시
@@ -76,7 +83,12 @@ creditStatus = 유료 신용조사 신청·진행·수신 상태
 ## 9. 우선순위
 **현재 MVP 포함:** 외부 링크 연계
 
-**후순위:** 공식 API·제휴 조건이 확인된 뒤 자동연동 검토
+**후순위:** 실제 API 연동은 아래 5가지가 모두 확인된 후 별도 PRD로 진행한다:
+1. K-SURE 공식 API 제공 여부 및 상품계약
+2. 호출비용 및 과금구조 확인
+3. 데이터 저장 권리
+4. 화면 표시 권리
+5. 재이용(재판매) 권리
 
 ## 10. PR 제목 추천
 `docs(ksure): scope MVP to external credit-check links`
