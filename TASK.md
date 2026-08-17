@@ -19,7 +19,7 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 [ ] MG-002 | 바이어가 60개까지만 보이는 원인을 찾아 고친다
 [ ] MG-003 | 기업검증 화면을 실제 조회 결과와 연결한다
 [ ] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
-[~] T-20260814-01 | 코드 머지 전에 제품 테스트가 통과해야 한다
+[x] T-20260814-01 | 코드 머지 전에 제품 테스트가 통과해야 한다
 
 
 ---
@@ -302,6 +302,16 @@ marketgate main 머지에 docs-gate뿐 아니라 제품 테스트 job이 필수�
 
 ### DONE
 - REQUEST_SOLVED=YES: 코드 PR은 제품 테스트 job이 실패하면 머지 불가
+
+### 8-4. 현재상태 (ALREADY_DONE 검증 2026-08-17)
+- TASK_START_SHA: fa62050
+- WORK_BRANCH: task/T-20260814-01
+- CI: `.github/workflows/postgresql16-vault-ci.yml` job name `W-020 / PostgreSQL 16 + pgcrypto` (bd8f8c0에서 전 PR 실행)
+- Branch protection (`GET /branches/main`): required contexts = `docs-gate`, `W-020 / PostgreSQL 16 + pgcrypto`; `enforcement_level=everyone`
+- PR #121 status checks에 두 job 모두 SUCCESS 후 머지됨
+- `allow_force_pushes` 상세 API는 integration 토큰 403으로 직접 읽지 못함. required status의 enforcement_level=everyone으로 admin bypass 없는 상태 확인
+- REQUEST_SOLVED=YES
+
 
 ## MG-001
 
