@@ -16,7 +16,7 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 -->
 
 [x] MG-001 | 해외기업 기본검증 상태값을 맞추고 다른 사용자 결과가 보이지 않게 한다
-[ ] MG-002 | 바이어가 60개까지만 보이는 원인을 찾아 고친다
+[x] MG-002 | 바이어가 60개까지만 보이는 원인을 찾아 고친다
 [ ] MG-003 | 기업검증 화면을 실제 조회 결과와 연결한다
 [ ] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
 [x] T-20260814-01 | 코드 머지 전에 제품 테스트가 통과해야 한다
@@ -485,19 +485,19 @@ DEPENDS_ON:
 
 ### 8-4. 현재상태
 
-- 현재 구현: `night/buyer-60-limit` commit `2292305`
-- 현재 문제: 60 제한 원인 미확정
-- 이미 구현된 부분: main 상수 60/200
-- 확인 필요한 부분: demo snapshot, API query, frontend caller
+- DONE 검증 2026-08-17 (TASK_START_SHA b055f70, WORK_BRANCH task/MG-002)
+- 원인: 공개 데모 `/v1/demo/snapshot|buyers`의 `_DEFAULT_BUYER_LIMIT=60` (MAX는 이미 200). BuyerSearch `/v1/predict` top_n(≤10)과는 무관.
+- #118에서 demo default를 200으로 올림. 본 작업에서 원인 기록 + regression 테스트로 demo/search 계약 분리 고정.
+- REQUEST_SOLVED=YES
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
 ### 8-5. MUST — 반드시 구현
 
-- [ ] demo snapshot, API query, frontend caller를 추적하여 60개의 실제 원인을 기록
-- [ ] 공개 demo 샘플 수 제한과 실제 buyer 검색 결과 제한을 혼동하지 않는다
-- [ ] 제품 의도상 200이 맞으면 상수/기본값/호출 계약을 일관되게 수정하고 테스트
-- [ ] 단순 `60 → 200` 하드코딩만으로 root cause 해결 처리 금지
+- [x] demo snapshot, API query, frontend caller를 추적하여 60개의 실제 원인을 기록
+- [x] 공개 demo 샘플 수 제한과 실제 buyer 검색 결과 제한을 혼동하지 않는다
+- [x] 제품 의도상 200이 맞으면 상수/기본값/호출 계약을 일관되게 수정하고 테스트
+- [x] 단순 `60 → 200` 하드코딩만으로 root cause 해결 처리 금지
 
 ### 8-6. KEEP — 유지
 
