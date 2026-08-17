@@ -12,7 +12,9 @@ import {
 
 /*
  * MarketGateDemo — 바이어 매칭 + 바이어 데이터 수집 (실데이터 기반, 로그인 불필요)
- * 데이터: GET /v1/demo/snapshot (공개·무인증) — buyer_candidate.csv 집계
+ * 데이터: GET /v1/demo/snapshot (공개·무인증) — buyer_candidate.csv 데모 샘플
+ *   서버 기본 limit=200 (MG-002: 과거 default 60이 데모 그리드만 잘랐음).
+ *   실검색(BuyerSearch /v1/predict top_n)과는 별개 계약.
  *   연락처는 서버 마스킹. 크레딧 지갑은 본편과 동일한 로컬 creditWallet.
  */
 

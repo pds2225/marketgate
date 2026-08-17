@@ -39,7 +39,11 @@ _SOURCE_META: dict[str, dict[str, Any]] = {
     "ITC_TradeMap_ImportingCompanies": {"name": "ITC TradeMap", "official": True},
 }
 
-# How many buyer samples the demo grid renders / scores at most.
+# Demo showcase sample cap ONLY (/v1/demo/snapshot, /v1/demo/buyers).
+# Root cause of "only 60 buyers" (MG-002): this default was 60 while
+# _MAX_BUYER_LIMIT was already 200, so public demo grids silently truncated.
+# This is NOT the authenticated BuyerSearch path — that uses POST /v1/predict
+# top_n (default 5, max 10) in buyer_shortlist.build_buyer_shortlist.
 _DEFAULT_BUYER_LIMIT = 200
 _MAX_BUYER_LIMIT = 200
 
