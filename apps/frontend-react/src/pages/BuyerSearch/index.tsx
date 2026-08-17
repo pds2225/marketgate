@@ -20,6 +20,8 @@ import {
   groupBuyersByCountry,
   resolveBuyerCountryIso3,
   mapCompanyVerificationResponse,
+  EXTERNAL_CREDIT_LOOKUP_LINKS,
+  COMPANY_VERIFICATION_INTRO,
   CONTACT_STATUS_LABELS,
   TRADE_STATUS_LABELS,
   CREDIT_STATUS_LABELS,
@@ -632,10 +634,12 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
       } else {
         const status = err?.response?.status;
         if (status === 404) {
-          setError('검증 API가 아직 준비되지 않았습니다. (CV-02 배포 후 활성화)');
+          setError('검증 기록을 찾을 수 없습니다.');
         } else if (status === 401 || status === 403) {
           setError('로그인이 필요합니다. 로그인 후 다시 시도해 주세요.');
-        } else if (status === 500) {
+        } else if (status === 503) {
+          setError('검증 저장소에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.');
+        } else if (status === 500 || status === 502 || status === 504) {
           setError('서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
         } else {
           const detail = err?.response?.data?.detail;
@@ -662,7 +666,7 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
         <h3 className="text-sm font-semibold text-slate-800">기업 기본 검증</h3>
       </div>
       <p className="text-xs text-slate-500 mb-4">
-        바이어 기업의 기본 등록 정보를 확인합니다. D&amp;B, K-SURE 등 외부 데이터 소스를 참조합니다.
+        {COMPANY_VERIFICATION_INTRO}
       </p>
 
       {/* Auto-filled buyer info */}
@@ -677,8 +681,8 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
         </div>
       </div>
 
-      {/* Verify button */}
-      {!result && !error && (
+      {/* Verify button — registry check only; never mutates contact/trade/credit axes */}
+      {!result && !error && !timedOut && (
         <Button
           size="sm"
           className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
@@ -726,26 +730,33 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
         </div>
       )}
 
-      {/* Result */}
-      {result && statusMeta && !loading && (
+      {/* Result — registry_check_status badge only (not creditStatus) */}
+      {result && !loading && (
         <div className="mt-4 space-y-3">
-          <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border ${statusMeta.bg} ${statusMeta.color} ${statusMeta.border}`}>
-            {statusMeta.icon}
-            {statusMeta.label}
-          </div>
+          {statusMeta ? (
+            <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border ${statusMeta.bg} ${statusMeta.color} ${statusMeta.border}`}>
+              {statusMeta.icon}
+              {statusMeta.label}
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border bg-slate-50 text-slate-600 border-slate-200">
+              <Info className="h-3.5 w-3.5" />
+              확인 결과 없음
+            </div>
+          )}
 
           <div className="bg-slate-50 rounded-lg p-3 space-y-2 text-xs">
             <div className="flex justify-between">
               <span className="text-slate-500">기업명</span>
-              <span className="font-medium text-slate-800">{result.company_name}</span>
+              <span className="font-medium text-slate-800">{result.company_name || '자료 내 확인 불가'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500">국가</span>
-              <span className="font-medium text-slate-800">{result.country}</span>
+              <span className="text-slate-500">국가(ISO3)</span>
+              <span className="font-medium text-slate-800">{result.country || '자료 내 확인 불가'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">검증 시각</span>
-              <span className="font-medium text-slate-800">{result.verified_at || '—'}</span>
+              <span className="font-medium text-slate-800">{result.verified_at || '자료 내 확인 불가'}</span>
             </div>
             {result.details && (
               <div className="pt-1 border-t border-slate-200">
@@ -754,25 +765,20 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
             )}
           </div>
 
-          {/* External reference links */}
-          <div className="flex items-center gap-3 pt-2">
-            <span className="text-xs text-slate-400">외부 참조:</span>
-            <a
-              href="https://www.dnb.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-            >
-              D&amp;B <ExternalLink className="h-3 w-3" />
-            </a>
-            <a
-              href="https://www.ksure.go.kr"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-            >
-              K-SURE <ExternalLink className="h-3 w-3" />
-            </a>
+          {/* CV-05: official external lookup links only — no auto credit grade fetch */}
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            <span className="text-xs text-slate-400">공식 외부 조회:</span>
+            {EXTERNAL_CREDIT_LOOKUP_LINKS.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+              >
+                {link.label} <ExternalLink className="h-3 w-3" />
+              </a>
+            ))}
           </div>
 
           <Button

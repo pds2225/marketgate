@@ -17,7 +17,7 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 
 [x] MG-001 | 해외기업 기본검증 상태값을 맞추고 다른 사용자 결과가 보이지 않게 한다
 [x] MG-002 | 바이어가 60개까지만 보이는 원인을 찾아 고친다
-[ ] MG-003 | 기업검증 화면을 실제 조회 결과와 연결한다
+[x] MG-003 | 기업검증 화면을 실제 조회 결과와 연결한다
 [ ] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
 [x] T-20260814-01 | 코드 머지 전에 제품 테스트가 통과해야 한다
 
@@ -608,21 +608,22 @@ BuyerSearch 기존 로딩 흐름을 깨지 않는다. 정적 기능이면 N/A �
 
 ### 8-4. 현재상태
 
-- 현재 구현: `night/cv03-company-verification-ui` (`a8dc892`), `night/cv05-prd-correction` (`54bb709`)
-- 현재 문제: API 계약 확정 전 UI 검수, 외부조회 가정 정리
-- 이미 구현된 부분: BuyerSearch 상세 흐름
-- 확인 필요한 부분: registryCheckStatus 혼합 여부, PRD 용어
+- DONE 검증 2026-08-17 (TASK_START_SHA 984e37c, WORK_BRANCH task/MG-003)
+- MG-001 이후 UI는 `api.post(/v1/company-verifications)` + `mapCompanyVerificationResponse`로 연결됨 (#121)
+- D&B/K-SURE “데이터 소스 참조” 문구 제거 → 공식 외부 조회 링크만, 자동 신용등급 조회 아님 명시
+- registry_check_status를 contact/trade/credit와 혼합하지 않음. 미지 enum은 `확인 결과 없음`
+- REQUEST_SOLVED=YES
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
 ### 8-5. MUST — 반드시 구현
 
-- [ ] MG-001 API 계약이 확정된 뒤 UI 검수/보완
-- [ ] 기존 `BuyerSearch/index.tsx` 상세 흐름 안에 유지
-- [ ] 새 Router/전역 페이지 금지
-- [ ] `registryCheckStatus`를 `contactStatus/tradeStatus/creditStatus`와 혼합 금지
-- [ ] K-SURE/D&B는 공식 외부 조회 링크만 제공
-- [ ] 검증되지 않은 API·신용등급 자동조회 가정 제거 여부 확인
+- [x] MG-001 API 계약이 확정된 뒤 UI 검수/보완
+- [x] 기존 `BuyerSearch/index.tsx` 상세 흐름 안에 유지
+- [x] 새 Router/전역 페이지 금지
+- [x] `registryCheckStatus`를 `contactStatus/tradeStatus/creditStatus`와 혼합 금지
+- [x] K-SURE/D&B는 공식 외부 조회 링크만 제공
+- [x] 검증되지 않은 API·신용등급 자동조회 가정 제거 여부 확인
 
 ### 8-6. KEEP — 유지
 
@@ -632,7 +633,7 @@ BuyerSearch 기존 로딩 흐름을 깨지 않는다. 정적 기능이면 N/A �
 
 ### 8-7. REMOVE — 제거
 
-- [ ] 검증되지 않은 API·신용등급 자동조회 가정 (확인 후)
+- [x] 검증되지 않은 API·신용등급 자동조회 가정 (확인 후)
 
 ### 8-8. FORBIDDEN — 금지
 

@@ -8,6 +8,8 @@ import {
   groupBuyersByCountry,
   resolveBuyerCountryIso3,
   mapCompanyVerificationResponse,
+  COMPANY_VERIFICATION_INTRO,
+  EXTERNAL_CREDIT_LOOKUP_LINKS,
   CONTACT_STATUS_LABELS,
 } from '../src/pages/BuyerSearch/buyerViewModel.js';
 
@@ -197,5 +199,31 @@ test('L029: mapCompanyVerificationResponse aligns CV-02 API → CV-03 UI fields'
   assert.equal(view.verified_at, '2026-01-01T01:00:00+00:00');
   assert.equal(view.company_name, 'Acme');
   assert.match(view.details, /opencorporates/);
+  assert.match(view.details, /자동 신용등급 조회 아님/);
   assert.equal(view.status && view.country && view.verified_at ? 'ok' : 'broken', 'ok');
+});
+
+test('MG-003: unknown registry status maps to 확인 결과 없음 (no fake grade)', () => {
+  const view = mapCompanyVerificationResponse({
+    company_name: 'Ghost',
+    country_iso3: 'USA',
+    registry_check_status: 'VERIFIED', // legacy enum — must not pass through
+    result_json: { provider: 'opencorporates', mock: true },
+  });
+  assert.equal(view.status, null);
+  assert.equal(view.details, '확인 결과 없음');
+  assert.ok(!('contactStatus' in view));
+  assert.ok(!('creditStatus' in view));
+});
+
+test('MG-003: D&B/K-SURE are external lookup links only — no auto credit claim in intro', () => {
+  assert.match(COMPANY_VERIFICATION_INTRO, /자동 조회하지 않/);
+  assert.doesNotMatch(COMPANY_VERIFICATION_INTRO, /데이터 소스를 참조/);
+  assert.deepEqual(
+    EXTERNAL_CREDIT_LOOKUP_LINKS.map((l) => l.label),
+    ['D&B', 'K-SURE'],
+  );
+  for (const link of EXTERNAL_CREDIT_LOOKUP_LINKS) {
+    assert.match(link.href, /^https:\/\//);
+  }
 });

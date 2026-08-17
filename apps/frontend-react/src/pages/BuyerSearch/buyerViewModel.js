@@ -207,14 +207,27 @@ export function resolveBuyerCountryIso3(buyer) {
  * UI fields: status, country, verified_at
  */
 export function mapCompanyVerificationResponse(data) {
-  const status = data?.registry_check_status;
-  const provider = data?.result_json?.provider;
+  const ALLOWED = new Set([
+    'BASIC_CONFIRMED',
+    'BASIC_PARTIAL',
+    'DATA_MISMATCH',
+    'INACTIVE_ENTITY',
+    'CREDIT_CHECK_REQUIRED',
+  ]);
+  const rawStatus = data?.registry_check_status;
+  const status = ALLOWED.has(rawStatus) ? rawStatus : null;
+  const provider = data?.result_json?.provider || data?.provider;
   const mock = data?.result_json?.mock === true;
   let details;
-  if (provider) {
-    details = mock ? `${provider} mock` : `출처: ${provider}`;
+  if (!status) {
+    details = '확인 결과 없음';
+  } else if (provider) {
+    details = mock
+      ? `법인 기본검증 제공자: ${provider} (mock · 자동 신용등급 조회 아님)`
+      : `법인 기본검증 제공자: ${provider}`;
   }
   return {
+    // registry_check_status only — never contactStatus/tradeStatus/creditStatus
     status,
     company_name: data?.company_name || '',
     country: data?.country_iso3 || '',
@@ -222,6 +235,15 @@ export function mapCompanyVerificationResponse(data) {
     details,
   };
 }
+
+/** CV-05: D&B/K-SURE are official external lookup links only (no auto credit pull). */
+export const EXTERNAL_CREDIT_LOOKUP_LINKS = [
+  { label: 'D&B', href: 'https://www.dnb.com' },
+  { label: 'K-SURE', href: 'https://www.ksure.go.kr' },
+];
+
+export const COMPANY_VERIFICATION_INTRO =
+  '바이어 기업의 법인 등록·실체 기본검증 결과입니다. D&B·K-SURE 신용등급을 자동 조회하지 않으며, 아래 공식 외부 조회 링크만 제공합니다.';
 
 /** 국가별 그룹핑 — 실측 가능한 값(건수·평균점수·연락처 보유 수)만 집계한다. */
 export function groupBuyersByCountry(buyers) {
