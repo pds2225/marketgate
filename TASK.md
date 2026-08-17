@@ -15,7 +15,7 @@ TASK 1개 = 반드시 1줄. LIST의 TASK_ID와 DETAILS의 TASK_ID는 반드시 1
 REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 -->
 
-[ ] MG-001 | 해외기업 기본검증 상태값을 맞추고 다른 사용자 결과가 보이지 않게 한다
+[x] MG-001 | 해외기업 기본검증 상태값을 맞추고 다른 사용자 결과가 보이지 않게 한다
 [ ] MG-002 | 바이어가 60개까지만 보이는 원인을 찾아 고친다
 [ ] MG-003 | 기업검증 화면을 실제 조회 결과와 연결한다
 [ ] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
@@ -354,22 +354,24 @@ CREDIT_CHECK_REQUIRED
 
 ### 8-4. 현재상태
 
-- 현재 구현: 야간 브랜치 `night/cv02-opencorporates-mock` commit `cbb049e`
-- 현재 문제: ENUM 불일치, GET user_id 미적용
-- 이미 구현된 부분: POST/GET 인증, Mock Adapter 골격
-- 확인 필요한 부분: 실제 PostgreSQL에서 0005 적용/재실행, 결과없음/provider 오류/timeout/DB 오류
+- ALREADY_DONE 검증 2026-08-17 (TASK_START_SHA 3c20abf, WORK_BRANCH task/MG-001)
+- main에 `0006_company_registry_checks.sql` ENUM 5값 + GET `user_id` 격리 반영됨 (#119)
+- 실 PostgreSQL 16에서 0001~0006 적용·0006 재실행 idempotent 확인
+- 실 DB E2E: owner GET 200 / other user GET 404(본문 미노출) / country_iso3 정규화
+- DB unavailable → POST 503 `verification_store_unavailable` 최소 보완
+- REQUEST_SOLVED=YES
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
 ### 8-5. MUST — 반드시 구현
 
-- [ ] DB enum을 확정 5개 값으로 통일
-- [ ] API/store/test fixture 상태값도 동일 계약 사용
-- [ ] `GET /v1/company-verifications/{verification_id}`는 현재 로그인 사용자 소유 record만 조회 (`user_id` 조건)
-- [ ] 타 사용자 ID는 정보 노출 없이 404
-- [ ] POST/GET 인증 유지
-- [ ] 결과없음/provider 오류/timeout/DB 오류 등 기존 요구가 구현됐는지 확인하고 누락만 최소 보완
-- [ ] 실제 PostgreSQL에서 0005 적용/재실행 정책 검증
+- [x] DB enum을 확정 5개 값으로 통일
+- [x] API/store/test fixture 상태값도 동일 계약 사용
+- [x] `GET /v1/company-verifications/{verification_id}`는 현재 로그인 사용자 소유 record만 조회 (`user_id` 조건)
+- [x] 타 사용자 ID는 정보 노출 없이 404
+- [x] POST/GET 인증 유지
+- [x] 결과없음/provider 오류/timeout/DB 오류 등 기존 요구가 구현됐는지 확인하고 누락만 최소 보완
+- [x] 실제 PostgreSQL에서 0005 적용/재실행 정책 검증
 
 ### 8-6. KEEP — 유지
 
