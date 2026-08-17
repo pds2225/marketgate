@@ -216,6 +216,14 @@ def deduct(user_id: str = "default", amount: int = 0, action: str = "", note: st
             if not in_transaction():
                 conn.commit()
             return balance
+        except Exception:
+            # Release FOR UPDATE taken by _db_get_or_create (e.g. insufficient_credits).
+            if not in_transaction():
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            raise
         finally:
             put_conn(conn)
     with _lock:
