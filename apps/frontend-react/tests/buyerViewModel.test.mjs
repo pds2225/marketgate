@@ -6,6 +6,8 @@ import {
   deriveTradeStatus,
   deriveCreditStatus,
   groupBuyersByCountry,
+  resolveBuyerCountryIso3,
+  mapCompanyVerificationResponse,
   CONTACT_STATUS_LABELS,
 } from '../src/pages/BuyerSearch/buyerViewModel.js';
 
@@ -154,4 +156,46 @@ test('국가 그룹핑은 실측값(건수·평균점수·연락처 보유 수)�
   assert.equal(de.avgScore, 91);
   assert.ok(!('totalImportValue' in de), 'no fabricated country import totals');
   assert.ok(!('avgGrowthRate' in de), 'no fabricated growth rates');
+});
+
+test('L029: countryIso3 comes from API ISO3 fields, not display country label', () => {
+  const withIso = mapApiBuyersToViewModels(
+    [{ ...API_ITEMS[0], source_target_country_iso3: 'DEU' }],
+    '330499',
+    'K-뷰티',
+  )[0];
+  assert.equal(withIso.countryIso3, 'DEU');
+  assert.equal(resolveBuyerCountryIso3(withIso), 'DEU');
+
+  const fromCountryIso3 = mapApiBuyersToViewModels(
+    [{ ...API_ITEMS[1], country_iso3: 'vnm' }],
+    '330499',
+    'K-뷰티',
+  )[0];
+  assert.equal(fromCountryIso3.countryIso3, 'VNM');
+
+  const [noIso] = mapApiBuyersToViewModels(API_ITEMS, '330499', 'K-뷰티');
+  assert.equal(noIso.countryIso3, '');
+  assert.equal(resolveBuyerCountryIso3(noIso), '');
+  // Display label must not be treated as ISO3 (would 422 against CV-02)
+  assert.notEqual(resolveBuyerCountryIso3({ country: noIso.country }), 'GERMANY');
+});
+
+test('L029: mapCompanyVerificationResponse aligns CV-02 API → CV-03 UI fields', () => {
+  const view = mapCompanyVerificationResponse({
+    verification_id: 'x',
+    company_name: 'Acme',
+    country_iso3: 'USA',
+    registry_check_status: 'BASIC_CONFIRMED',
+    result_json: { provider: 'opencorporates', match_status: 'BASIC_CONFIRMED', mock: true },
+    provider: 'opencorporates',
+    requested_at: '2026-01-01T00:00:00+00:00',
+    completed_at: '2026-01-01T01:00:00+00:00',
+  });
+  assert.equal(view.status, 'BASIC_CONFIRMED');
+  assert.equal(view.country, 'USA');
+  assert.equal(view.verified_at, '2026-01-01T01:00:00+00:00');
+  assert.equal(view.company_name, 'Acme');
+  assert.match(view.details, /opencorporates/);
+  assert.equal(view.status && view.country && view.verified_at ? 'ok' : 'broken', 'ok');
 });
