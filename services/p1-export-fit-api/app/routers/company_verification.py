@@ -44,15 +44,19 @@ def create_company_verification(
         "match_status": status,
         "mock": True,
     }
-    record = create_verification(
-        user_id=user["user_id"],
-        company_name=req.company_name,
-        country_iso3=req.country_iso3.upper(),
-        registration_number=req.registration_number,
-        provider=PROVIDER,
-        registry_check_status=status,
-        result_json=result_json,
-    )
+    try:
+        record = create_verification(
+            user_id=user["user_id"],
+            company_name=req.company_name,
+            country_iso3=req.country_iso3.upper(),
+            registration_number=req.registration_number,
+            provider=PROVIDER,
+            registry_check_status=status,
+            result_json=result_json,
+        )
+    except RuntimeError as exc:
+        # Store is DB-only; do not collapse provider/DB failure into a fake success.
+        raise HTTPException(status_code=503, detail="verification_store_unavailable") from exc
     return record
 
 

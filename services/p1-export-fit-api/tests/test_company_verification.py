@@ -316,3 +316,15 @@ def test_run_migrations_lists_0006():
         _REPO_ROOT / "services" / "p1-export-fit-api" / "app" / "run_migrations.py"
     ).read_text(encoding="utf-8")
     assert "0006_company_registry_checks.sql" in text
+
+
+def test_post_db_unavailable_returns_503(monkeypatch):
+    def boom(**kwargs):
+        raise RuntimeError("PostgreSQL unavailable")
+    monkeypatch.setattr(cv_router, "create_verification", boom)
+    res = client.post(
+        "/v1/company-verifications",
+        json={"company_name": "NoDbCo", "country_iso3": "KOR"},
+    )
+    assert res.status_code == 503
+    assert res.json()["detail"] == "verification_store_unavailable"
