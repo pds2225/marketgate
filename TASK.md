@@ -19,7 +19,7 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 [x] MG-002 | 바이어가 60개까지만 보이는 원인을 찾아 고친다
 [ ] MG-003 | 기업검증 화면을 실제 조회 결과와 연결한다
 [ ] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
-[~] MG-005 | 랜딩에서 입력한 HS로 구매신호를 바로 보게 한다
+[x] MG-005 | 랜딩에서 입력한 HS로 구매신호를 바로 보게 한다
 [ ] MG-006 | 연락처가 실제 수신자 소유인지 확인하는 절차를 만든다
 [ ] MG-007 | 인콰이어리를 고객이 제출한 뒤 실제 발송까지 이어지게 한다
 [ ] MG-008 | P2 바이어 소스를 CSV로 넣어 실제 검색에 쓰이게 한다
@@ -887,17 +887,18 @@ DEPENDS_ON:
 - TASK_START_SHA: 984e37c1567510fe1e723f99823c57c9d498c9af
 - TASK_BLOB_SHA: 91ce2465aefa3678f470f66c2ff1effd5311ffbc
 - WORK_BRANCH: cursor/incomplete-user-tasks-23f7
-- 기존: `OpportunityExplorePage` + 상단「해외 수요 찾기」는 있음. HS preset 미전달.
-- MG-003 화면은 다른 에이전트가 작업 중이므로 BuyerSearch 미수정
+- localhost:5173: HS 330499 입력 → 구매신호 보기 → 로그인 후 해외 수요 화면에 HS 330499 유지 확인
+- 목록 API는 `opportunity_item.csv` 부재로 500. 가짜 데이터는 만들지 않음 (MG-008)
+- REQUEST_SOLVED=YES (랜딩 HS 진입). 목록 원본 파일은 별도
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
 ### 8-5. MUST — 반드시 구현
 
-- [ ] 과거 미완료 요청을 TASK LIST에 등록 (MG-005~MG-008)
-- [ ] 랜딩 검색어에서 HS를 읽어 `onStartOpportunities({ hsCode })`로 전달
-- [ ] 상단「해외 수요 찾기」와 하단 CTA·검색 보조 버튼이 같은 경로를 탄다
-- [ ] 기존 `App.jsx` 상태 라우팅 재사용, 새 라이브러리·백엔드 변경 없음
+- [x] 과거 미완료 요청을 TASK LIST에 등록 (MG-005~MG-008)
+- [x] 랜딩 검색어에서 HS를 읽어 `onStartOpportunities({ hsCode })`로 전달
+- [x] 상단「해외 수요 찾기」와 하단 CTA·검색 보조 버튼이 같은 경로를 탄다
+- [x] 기존 `App.jsx` 상태 라우팅 재사용, 새 라이브러리·백엔드 변경 없음
 
 ### 8-6. KEEP — 유지
 
