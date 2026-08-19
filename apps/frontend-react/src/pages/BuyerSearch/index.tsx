@@ -22,6 +22,7 @@ import {
   mapCompanyVerificationResponse,
   mapCompanyVerificationHttpError,
   EXTERNAL_LOOKUP_LINKS,
+  COMPANY_VERIFICATION_INTRO,
   CONTACT_STATUS_LABELS,
   TRADE_STATUS_LABELS,
   CREDIT_STATUS_LABELS,
@@ -659,8 +660,7 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
         <h3 className="text-sm font-semibold text-slate-800">기업 기본 검증</h3>
       </div>
       <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-        현재 결과는 법적 실체와 등록정보에 대한 기본확인입니다.
-        재무상태, 결제이력, 신용등급 및 지급능력 확인은 별도의 신용조사가 필요합니다.
+        {COMPANY_VERIFICATION_INTRO}
       </p>
 
       {/* Auto-filled buyer info */}
@@ -675,8 +675,8 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
         </div>
       </div>
 
-      {/* Verify button */}
-      {!result && !error && (
+      {/* Verify button — registry check only; never mutates contact/trade/credit axes */}
+      {!result && !error && !timedOut && (
         <Button
           size="sm"
           className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
@@ -724,26 +724,33 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
         </div>
       )}
 
-      {/* Result */}
-      {result && statusMeta && !loading && (
+      {/* Result — registry_check_status badge only (not creditStatus) */}
+      {result && !loading && (
         <div className="mt-4 space-y-3">
-          <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border ${statusMeta.bg} ${statusMeta.color} ${statusMeta.border}`}>
-            {statusMeta.icon}
-            {statusMeta.label}
-          </div>
+          {statusMeta ? (
+            <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border ${statusMeta.bg} ${statusMeta.color} ${statusMeta.border}`}>
+              {statusMeta.icon}
+              {statusMeta.label}
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border bg-slate-50 text-slate-600 border-slate-200">
+              <Info className="h-3.5 w-3.5" />
+              확인 결과 없음
+            </div>
+          )}
 
           <div className="bg-slate-50 rounded-lg p-3 space-y-2 text-xs">
             <div className="flex justify-between">
               <span className="text-slate-500">기업명</span>
-              <span className="font-medium text-slate-800">{result.company_name}</span>
+              <span className="font-medium text-slate-800">{result.company_name || '자료 내 확인 불가'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500">국가</span>
-              <span className="font-medium text-slate-800">{result.country}</span>
+              <span className="text-slate-500">국가(ISO3)</span>
+              <span className="font-medium text-slate-800">{result.country || '자료 내 확인 불가'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">검증 시각</span>
-              <span className="font-medium text-slate-800">{result.verified_at || '—'}</span>
+              <span className="font-medium text-slate-800">{result.verified_at || '자료 내 확인 불가'}</span>
             </div>
             {result.details && (
               <div className="pt-1 border-t border-slate-200">
@@ -764,15 +771,6 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
             className="h-7 text-xs gap-1"
             onClick={handleVerify}
           >
-            <RefreshCw className="h-3 w-3" /> 재검증
-          </Button>
-        </div>
-      )}
-
-      {result && !statusMeta && !loading && (
-        <div className="mt-4 space-y-3">
-          <p className="text-xs text-slate-600">{result.details || '자료 내 확인 불가'}</p>
-          <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={handleVerify}>
             <RefreshCw className="h-3 w-3" /> 재검증
           </Button>
         </div>

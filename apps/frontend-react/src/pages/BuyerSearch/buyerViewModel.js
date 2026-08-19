@@ -234,7 +234,7 @@ export function resolveBuyerCountryIso3(buyer) {
  * Map CV-02 API record → CV-03 card view model.
  * API fields: registry_check_status, country_iso3, completed_at
  * UI fields: status, country, verified_at
- * Unknown enum → status null (자료 내 확인 불가). Never copies contact/trade/credit.
+ * Unknown enum → status null (확인 결과 없음). Never copies contact/trade/credit.
  */
 export function mapCompanyVerificationResponse(data) {
   const rawStatus = data?.registry_check_status;
@@ -243,9 +243,11 @@ export function mapCompanyVerificationResponse(data) {
   const mock = data?.result_json?.mock === true;
   let details;
   if (!status) {
-    details = '자료 내 확인 불가';
+    details = '확인 결과 없음';
   } else if (provider) {
-    details = mock ? `${provider} mock` : `출처: ${provider}`;
+    details = mock
+      ? `법인 기본검증 제공자: ${provider} (mock · 자동 신용등급 조회 아님)`
+      : `법인 기본검증 제공자: ${provider}`;
   }
   return {
     verification_id: data?.verification_id || '',
@@ -303,6 +305,9 @@ export function mapCompanyVerificationHttpError(err) {
   }
   return { kind: 'unknown', message: detail || '검증 요청에 실패했습니다.' };
 }
+
+export const COMPANY_VERIFICATION_INTRO =
+  '현재 결과는 법적 실체와 등록정보에 대한 기본확인입니다. 재무상태, 결제이력, 신용등급 및 지급능력 확인은 별도의 신용조사가 필요합니다.';
 
 /** 국가별 그룹핑 — 실측 가능한 값(건수·평균점수·연락처 보유 수)만 집계한다. */
 export function groupBuyersByCountry(buyers) {

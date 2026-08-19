@@ -608,21 +608,22 @@ BuyerSearch 기존 로딩 흐름을 깨지 않는다. 정적 기능이면 N/A �
 
 ### 8-4. 현재상태
 
-- 현재 구현: `night/cv03-company-verification-ui` (`a8dc892`), `night/cv05-prd-correction` (`54bb709`)
-- 현재 문제: API 계약 확정 전 UI 검수, 외부조회 가정 정리
-- 이미 구현된 부분: BuyerSearch 상세 흐름
-- 확인 필요한 부분: registryCheckStatus 혼합 여부, PRD 용어
+- TASK_START_SHA 984e37c, WORK_BRANCH task/MG-003
+- #120+#121 wired POST + field mapping, but left gaps: no owner GET, 404 “CV-02 미배포” 문구, D&B/K-SURE homepage/`ksure.go.kr`
+- This branch: POST then GET `/v1/company-verifications/{id}`; official D-U-N-S / K-Sight / K-SURE 신청 links; unknown enum → `확인 결과 없음`
+- LOGIN→검색→상세→검증 USER_E2E는 MG-004
+- REQUEST_SOLVED=NO
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
 ### 8-5. MUST — 반드시 구현
 
-- [ ] MG-001 API 계약이 확정된 뒤 UI 검수/보완
-- [ ] 기존 `BuyerSearch/index.tsx` 상세 흐름 안에 유지
-- [ ] 새 Router/전역 페이지 금지
-- [ ] `registryCheckStatus`를 `contactStatus/tradeStatus/creditStatus`와 혼합 금지
-- [ ] K-SURE/D&B는 공식 외부 조회 링크만 제공
-- [ ] 검증되지 않은 API·신용등급 자동조회 가정 제거 여부 확인
+- [x] MG-001 API 계약이 확정된 뒤 UI 검수/보완
+- [x] 기존 `BuyerSearch/index.tsx` 상세 흐름 안에 유지
+- [x] 새 Router/전역 페이지 금지
+- [x] `registryCheckStatus`를 `contactStatus/tradeStatus/creditStatus`와 혼합 금지
+- [x] K-SURE/D&B는 공식 외부 조회 링크만 제공
+- [x] 검증되지 않은 API·신용등급 자동조회 가정 제거 여부 확인
 
 ### 8-6. KEEP — 유지
 
@@ -632,7 +633,7 @@ BuyerSearch 기존 로딩 흐름을 깨지 않는다. 정적 기능이면 N/A �
 
 ### 8-7. REMOVE — 제거
 
-- [ ] 검증되지 않은 API·신용등급 자동조회 가정 (확인 후)
+- [x] 검증되지 않은 API·신용등급 자동조회 가정 (확인 후)
 
 ### 8-8. FORBIDDEN — 금지
 

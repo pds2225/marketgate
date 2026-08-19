@@ -11,6 +11,7 @@ import {
   mapCompanyVerificationHttpError,
   EXTERNAL_LOOKUP_LINKS,
   REGISTRY_CHECK_STATUSES,
+  COMPANY_VERIFICATION_INTRO,
   CONTACT_STATUS_LABELS,
 } from '../src/pages/BuyerSearch/buyerViewModel.js';
 
@@ -200,6 +201,7 @@ test('L029: mapCompanyVerificationResponse aligns CV-02 API → CV-03 UI fields'
   assert.equal(view.verified_at, '2026-01-01T01:00:00+00:00');
   assert.equal(view.company_name, 'Acme');
   assert.match(view.details, /opencorporates/);
+  assert.match(view.details, /자동 신용등급 조회 아님/);
   assert.equal(view.status && view.country && view.verified_at ? 'ok' : 'broken', 'ok');
 });
 
@@ -232,14 +234,16 @@ test('MG-003: registry_check_status is not mixed with contact/trade/credit', () 
   assert.equal(mixed.credit_grade, undefined);
 });
 
-test('MG-003: unknown registry status and 404 are explicit, not invented scores', () => {
+test('MG-003: unknown registry status maps to 확인 결과 없음 (no fake grade)', () => {
   const unknown = mapCompanyVerificationResponse({
     registry_check_status: 'VERIFIED',
     company_name: 'Ghost',
     country_iso3: 'USA',
   });
   assert.equal(unknown.status, null);
-  assert.equal(unknown.details, '자료 내 확인 불가');
+  assert.equal(unknown.details, '확인 결과 없음');
+  assert.ok(!('contactStatus' in unknown));
+  assert.ok(!('creditStatus' in unknown));
   const notFound = mapCompanyVerificationHttpError({ response: { status: 404, data: { detail: 'verification_not_found' } } });
   assert.equal(notFound.kind, 'not_found');
   assert.doesNotMatch(notFound.message, /CV-02 배포/);
@@ -248,6 +252,8 @@ test('MG-003: unknown registry status and 404 are explicit, not invented scores'
 });
 
 test('MG-003: D&B/K-SURE links are official lookup pages only', () => {
+  assert.match(COMPANY_VERIFICATION_INTRO, /별도/);
+  assert.doesNotMatch(COMPANY_VERIFICATION_INTRO, /데이터 소스를 참조/);
   assert.equal(EXTERNAL_LOOKUP_LINKS.dunsLookup.href, 'https://www.dnb.com/duns-number/lookup.html');
   assert.equal(EXTERNAL_LOOKUP_LINKS.ksureSight.href, 'https://ksight.ksure.or.kr/find-buyer');
   assert.equal(EXTERNAL_LOOKUP_LINKS.ksureCredit.href, 'https://www.ksure.or.kr/rh-kr/cntnts/i-115/web.do');
