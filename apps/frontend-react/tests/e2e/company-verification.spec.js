@@ -144,13 +144,12 @@ test.describe('CV-04 company verification journey', () => {
 
     await page.getByText('독일').first().click()
     await page.getByText('Acme Trading GmbH').first().click()
-    await page.getByRole('button', { name: /기업 검증/ }).click()
-
+    await page.getByRole('button', { name: '기업 검증' }).first().click()
     await expect(page.getByRole('heading', { name: '기업 기본 검증' })).toBeVisible()
     await expect(page.getByText(/법적 실체와 등록정보/)).toBeVisible()
     await expect(page.getByText(/데이터 소스를 참조/)).toHaveCount(0)
 
-    await page.getByRole('button', { name: '기업 검증', exact: true }).click()
+    await page.locator('[data-slot="button"]').filter({ hasText: /^기업 검증$/ }).click()
     await expect(page.getByText(STATUS_LABELS.BASIC_PARTIAL)).toBeVisible()
     expect(calls.postVerify).toBe(1)
     expect(calls.getVerify).toBe(1)
@@ -169,5 +168,6 @@ test.describe('CV-04 company verification journey', () => {
     )
     await expect(page.locator('a[href*="ksure.go.kr"]')).toHaveCount(0)
     expect(BASIC_STATUSES.has('BASIC_PARTIAL')).toBeTruthy()
+    await page.screenshot({ path: test.info().outputPath('cv04-verification-result.png'), fullPage: true })
   })
 })

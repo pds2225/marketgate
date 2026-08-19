@@ -17,7 +17,7 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 
 [x] MG-001 | 해외기업 기본검증 상태값을 맞추고 다른 사용자 결과가 보이지 않게 한다
 [x] MG-002 | 바이어가 60개까지만 보이는 원인을 찾아 고친다
-[ ] MG-003 | 기업검증 화면을 실제 조회 결과와 연결한다
+[x] MG-003 | 기업검증 화면을 실제 조회 결과와 연결한다
 [ ] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
 [x] T-20260814-01 | 코드 머지 전에 제품 테스트가 통과해야 한다
 
@@ -608,11 +608,12 @@ BuyerSearch 기존 로딩 흐름을 깨지 않는다. 정적 기능이면 N/A �
 
 ### 8-4. 현재상태
 
-- TASK_START_SHA 984e37c, WORK_BRANCH task/MG-003
-- #120+#121 wired POST + field mapping, but left gaps: no owner GET, 404 “CV-02 미배포” 문구, D&B/K-SURE homepage/`ksure.go.kr`
-- This branch: POST then GET `/v1/company-verifications/{id}`; official D-U-N-S / K-Sight / K-SURE 신청 links; unknown enum → `확인 결과 없음`
-- LOGIN→검색→상세→검증 USER_E2E는 MG-004
-- REQUEST_SOLVED=NO
+- DONE 검증 2026-08-19 (TASK_START_SHA 984e37c, WORK_BRANCH task/MG-003, PR #126)
+- POST then owner-scoped GET `/v1/company-verifications/{id}` in BuyerSearch detail tab
+- D-U-N-S lookup / K-Sight find-buyer / K-SURE 신청 (`ksure.or.kr`) only; no auto credit grade
+- registry_check_status not mixed with contact/trade/credit; unknown enum → `확인 결과 없음`
+- USER_E2E: Playwright CV-04 journey PASS on localhost:5173 (React local)
+- REQUEST_SOLVED=YES
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
@@ -752,21 +753,24 @@ CV-05 → BUYER-60 → CV-02 → CV-03
 
 ### 8-4. 현재상태
 
-- 현재 구현: 야간 브랜치 4개가 검수 대상
-- 현재 문제: 선별병합·통합 E2E 미완료
-- 이미 구현된 부분: 각 night 브랜치 작업물
-- 확인 필요한 부분: 충돌 합성, PostgreSQL, CV-04 smoke
+- TASK_START_SHA 984e37c, WORK_BRANCH task/MG-004, PR #127
+- Night CV-05/BUYER-60/CV-02/CV-03 already on main — not re-merged. Empty code-split/css branches not merged.
+- CV-04 journey test added: login → search → detail → POST/GET verification (Playwright PASS, localhost:5173)
+- Backend `test_company_verification.py` 18/18 PASS; Postgres E2E SKIPPED (no DATABASE_URL in this VM)
+- Frontend `npm run test:unit` 28/28; `npm run build` PASS. Payment @journey still staging-only (E2E_WRITE_ENABLED)
+- TASK.md (not historical TASKS.md) updated to match evidence
+- REQUEST_SOLVED=NO — live Postgres + Preview E2E still needed for morning review
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
 ### 8-5. MUST — 반드시 구현
 
-- [ ] 필요한 브랜치만 선별병합 (CODE-SPLIT/CSS empty/identical 제외)
-- [ ] 권장 순서 `CV-05 → BUYER-60 → CV-02 → CV-03`
-- [ ] 각 브랜치 merge 전 자체 테스트 통과
-- [ ] `main.py` 충돌은 기계 ours/theirs 금지, 수동 합성 후 재테스트
-- [ ] 병합 후 CV-04 통합검증 (migration, Mock Adapter/API, E2E/smoke, 격리, buyer 검색, 인증, 결제/크레딧, frontend lint/build, backend pytest)
-- [ ] `TASKS.md` CV 상태를 실제 결과에 맞게 갱신
+- [x] 필요한 브랜치만 선별병합 (CODE-SPLIT/CSS empty/identical 제외) — already on main, not re-merged
+- [x] 권장 순서 `CV-05 → BUYER-60 → CV-02 → CV-03` — already on main
+- [x] 각 브랜치 merge 전 자체 테스트 통과 — historical, already merged
+- [x] `main.py` 충돌은 기계 ours/theirs 금지 — N/A, already merged
+- [ ] 병합 후 CV-04 통합검증 (migration, Mock Adapter/API, E2E/smoke, 격리, buyer 검색, 인증, 결제/크레딧, frontend lint/build, backend pytest) — journey+pytest+build done; live PG and Preview E2E pending
+- [x] `TASK.md` CV 상태를 실제 결과에 맞게 갱신 (TASKS.md는 역사 문서)
 
 ### 8-6. KEEP — 유지
 
