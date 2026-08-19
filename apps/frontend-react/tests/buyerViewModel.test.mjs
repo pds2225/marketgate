@@ -8,6 +8,9 @@ import {
   groupBuyersByCountry,
   resolveBuyerCountryIso3,
   mapCompanyVerificationResponse,
+  mapCompanyVerificationHttpError,
+  EXTERNAL_LOOKUP_LINKS,
+  REGISTRY_CHECK_STATUSES,
   CONTACT_STATUS_LABELS,
 } from '../src/pages/BuyerSearch/buyerViewModel.js';
 
@@ -198,4 +201,56 @@ test('L029: mapCompanyVerificationResponse aligns CV-02 API → CV-03 UI fields'
   assert.equal(view.company_name, 'Acme');
   assert.match(view.details, /opencorporates/);
   assert.equal(view.status && view.country && view.verified_at ? 'ok' : 'broken', 'ok');
+});
+
+test('MG-003: registry_check_status is not mixed with contact/trade/credit', () => {
+  const [buyer] = mapApiBuyersToViewModels(
+    [{ ...API_ITEMS[0], source_target_country_iso3: 'DEU' }],
+    '330499',
+    'K-뷰티',
+  );
+  assert.equal(buyer.contactStatus, 'format_validated');
+  assert.equal(buyer.tradeStatus, 'source_confirmed');
+  assert.equal(buyer.creditStatus, 'not_requested');
+  assert.equal(buyer.creditStatus in CONTACT_STATUS_LABELS, false);
+  for (const status of REGISTRY_CHECK_STATUSES) {
+    assert.notEqual(status, buyer.contactStatus);
+    assert.notEqual(status, buyer.tradeStatus);
+    assert.notEqual(status, buyer.creditStatus);
+  }
+  const mixed = mapCompanyVerificationResponse({
+    registry_check_status: 'BASIC_PARTIAL',
+    contactStatus: 'ownership_verified',
+    tradeStatus: 'recent_activity_confirmed',
+    creditStatus: 'report_received',
+    credit_grade: 'A',
+  });
+  assert.equal(mixed.status, 'BASIC_PARTIAL');
+  assert.equal(mixed.contactStatus, undefined);
+  assert.equal(mixed.tradeStatus, undefined);
+  assert.equal(mixed.creditStatus, undefined);
+  assert.equal(mixed.credit_grade, undefined);
+});
+
+test('MG-003: unknown registry status and 404 are explicit, not invented scores', () => {
+  const unknown = mapCompanyVerificationResponse({
+    registry_check_status: 'VERIFIED',
+    company_name: 'Ghost',
+    country_iso3: 'USA',
+  });
+  assert.equal(unknown.status, null);
+  assert.equal(unknown.details, '자료 내 확인 불가');
+  const notFound = mapCompanyVerificationHttpError({ response: { status: 404, data: { detail: 'verification_not_found' } } });
+  assert.equal(notFound.kind, 'not_found');
+  assert.doesNotMatch(notFound.message, /CV-02 배포/);
+  const storeDown = mapCompanyVerificationHttpError({ response: { status: 503, data: { detail: 'verification_store_unavailable' } } });
+  assert.equal(storeDown.kind, 'store');
+});
+
+test('MG-003: D&B/K-SURE links are official lookup pages only', () => {
+  assert.equal(EXTERNAL_LOOKUP_LINKS.dunsLookup.href, 'https://www.dnb.com/duns-number/lookup.html');
+  assert.equal(EXTERNAL_LOOKUP_LINKS.ksureSight.href, 'https://ksight.ksure.or.kr/find-buyer');
+  assert.equal(EXTERNAL_LOOKUP_LINKS.ksureCredit.href, 'https://www.ksure.or.kr/rh-kr/cntnts/i-115/web.do');
+  assert.doesNotMatch(EXTERNAL_LOOKUP_LINKS.ksureSight.href, /ksure\.go\.kr/);
+  assert.notEqual(EXTERNAL_LOOKUP_LINKS.dunsLookup.href, 'https://www.dnb.com');
 });

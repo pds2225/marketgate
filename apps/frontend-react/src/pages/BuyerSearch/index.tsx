@@ -20,6 +20,8 @@ import {
   groupBuyersByCountry,
   resolveBuyerCountryIso3,
   mapCompanyVerificationResponse,
+  mapCompanyVerificationHttpError,
+  EXTERNAL_LOOKUP_LINKS,
   CONTACT_STATUS_LABELS,
   TRADE_STATUS_LABELS,
   CREDIT_STATUS_LABELS,
@@ -578,7 +580,7 @@ const BuyerListPanel: React.FC<{ country: CountryRec; onSelectBuyer: (b: Buyer) 
 type VerificationStatus = 'BASIC_CONFIRMED' | 'BASIC_PARTIAL' | 'DATA_MISMATCH' | 'INACTIVE_ENTITY' | 'CREDIT_CHECK_REQUIRED';
 
 interface VerificationResult {
-  status: VerificationStatus;
+  status: VerificationStatus | null;
   company_name: string;
   country: string;
   verified_at: string;
@@ -618,34 +620,29 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
     const timer = setTimeout(() => { controller.abort(); setTimedOut(true); }, VERIFY_TIMEOUT_MS);
 
     try {
-      // Must use shared api client: baseURL is localhost:8000 (dev) or /api (Vercel).
-      // Raw fetch('/v1/...') hits the SPA host and never reaches FastAPI.
-      const { data } = await api.post(
+      // Shared api client: localhost:8000 (dev) or /api (Vercel). Auth header is attached.
+      // POST then owner-scoped GET so the card shows the stored CV-02 record, not a client guess.
+      const { data: created } = await api.post(
         '/v1/company-verifications',
         { company_name: buyer.name, country_iso3: countryIso3 },
         { signal: controller.signal },
       );
+      const verificationId = created?.verification_id;
+      if (!verificationId) {
+        setError('검증 결과를 확인할 수 없습니다.');
+        return;
+      }
+      const { data } = await api.get(
+        `/v1/company-verifications/${verificationId}`,
+        { signal: controller.signal },
+      );
       setResult(mapCompanyVerificationResponse(data) as VerificationResult);
     } catch (err: any) {
-      if (err?.name === 'AbortError' || err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') {
+      const mapped = mapCompanyVerificationHttpError(err);
+      if (mapped.kind === 'timeout') {
         setTimedOut(true);
       } else {
-        const status = err?.response?.status;
-        if (status === 404) {
-          setError('검증 API가 아직 준비되지 않았습니다. (CV-02 배포 후 활성화)');
-        } else if (status === 401 || status === 403) {
-          setError('로그인이 필요합니다. 로그인 후 다시 시도해 주세요.');
-        } else if (status === 500) {
-          setError('서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
-        } else {
-          const detail = err?.response?.data?.detail;
-          const detailText = typeof detail === 'string'
-            ? detail
-            : Array.isArray(detail)
-              ? detail.map((d: any) => d?.msg || JSON.stringify(d)).join('; ')
-              : err?.message;
-          setError(detailText || '검증 요청에 실패했습니다.');
-        }
+        setError(mapped.message);
       }
     } finally {
       clearTimeout(timer);
@@ -653,7 +650,7 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
     }
   };
 
-  const statusMeta = result ? VERIFICATION_STATUS_META[result.status] : null;
+  const statusMeta = result?.status ? VERIFICATION_STATUS_META[result.status] : null;
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5">
@@ -661,8 +658,9 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
         <ShieldCheck className="h-4 w-4 text-blue-600" />
         <h3 className="text-sm font-semibold text-slate-800">기업 기본 검증</h3>
       </div>
-      <p className="text-xs text-slate-500 mb-4">
-        바이어 기업의 기본 등록 정보를 확인합니다. D&amp;B, K-SURE 등 외부 데이터 소스를 참조합니다.
+      <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+        현재 결과는 법적 실체와 등록정보에 대한 기본확인입니다.
+        재무상태, 결제이력, 신용등급 및 지급능력 확인은 별도의 신용조사가 필요합니다.
       </p>
 
       {/* Auto-filled buyer info */}
@@ -754,26 +752,11 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
             )}
           </div>
 
-          {/* External reference links */}
-          <div className="flex items-center gap-3 pt-2">
-            <span className="text-xs text-slate-400">외부 참조:</span>
-            <a
-              href="https://www.dnb.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-            >
-              D&amp;B <ExternalLink className="h-3 w-3" />
-            </a>
-            <a
-              href="https://www.ksure.go.kr"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-            >
-              K-SURE <ExternalLink className="h-3 w-3" />
-            </a>
-          </div>
+          {result.status === 'CREDIT_CHECK_REQUIRED' && (
+            <p className="text-xs text-blue-700 leading-relaxed">
+              신용조사는 아래 공식 페이지에서 신청합니다. 이 화면에서 신용등급을 자동조회하지 않습니다.
+            </p>
+          )}
 
           <Button
             variant="outline"
@@ -785,6 +768,36 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
           </Button>
         </div>
       )}
+
+      {result && !statusMeta && !loading && (
+        <div className="mt-4 space-y-3">
+          <p className="text-xs text-slate-600">{result.details || '자료 내 확인 불가'}</p>
+          <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={handleVerify}>
+            <RefreshCw className="h-3 w-3" /> 재검증
+          </Button>
+        </div>
+      )}
+
+      <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+        <p className="text-xs text-slate-400">공식 외부 조회 (자동조회 아님)</p>
+        <p className="text-[11px] text-slate-500 leading-relaxed">
+          D&amp;B 공식 페이지에서 기업의 D-U-N-S Number 등록 여부를 확인합니다.
+          D-U-N-S Number 존재만으로 신용도나 지급능력이 확인되는 것은 아닙니다.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          {Object.values(EXTERNAL_LOOKUP_LINKS).map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+            >
+              {link.label} <ExternalLink className="h-3 w-3" />
+            </a>
+          ))}
+        </div>
+      </div>
 
       {/* Empty state (no buyer data to verify) */}
       {!buyer.name && !resolveBuyerCountryIso3(buyer) && !loading && !result && !error && (
