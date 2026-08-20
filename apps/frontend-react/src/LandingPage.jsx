@@ -174,6 +174,14 @@ export default function LandingPage({
     onStartBuyerSearch?.();
   };
 
+  const startOpportunities = () => {
+    persistSearchQuery(query);
+    const hs = resolveHsFromQuery();
+    onStartOpportunities?.(hs ? { hsCode: hs } : undefined);
+  };
+
+  const hsForSignals = resolveHsFromQuery();
+
   return (
     <div className="landing-page">
       <header className="landing-topbar">
@@ -194,7 +202,7 @@ export default function LandingPage({
           </button>
           <button
             className="landing-nav-link"
-            onClick={() => onStartOpportunities?.()}
+            onClick={startOpportunities}
           >
             해외 수요 찾기
           </button>
@@ -268,6 +276,16 @@ export default function LandingPage({
               <button type="submit" className="landing-search-button">
                 바이어 찾기
                 <ArrowRight size={18} />
+              </button>
+            </div>
+            <div className="landing-search-alt-row">
+              <button
+                type="button"
+                className="landing-search-alt"
+                onClick={startOpportunities}
+              >
+                구매신호 보기
+                {hsForSignals ? ` · HS ${hsForSignals}` : ""}
               </button>
             </div>
             <div className="landing-search-examples">
@@ -455,6 +473,12 @@ export default function LandingPage({
             onClick={() => onStartCalculators?.()}
           >
             수출 계산기
+          </button>
+          <button
+            className="landing-cta-link"
+            onClick={startOpportunities}
+          >
+            구매신호 보기
           </button>
           <button
             className="landing-cta-button landing-cta-button--primary"

@@ -26,11 +26,11 @@
 
 > 무료 기본검증은 법인 실체·등록상태·입력정보 일치 여부까지만 제공한다. `fitScore`, 기존 `creditStatus`, `core.buyers.verification_status`와 신규 `registryCheckStatus`를 혼합하지 않는다. OpenCorporates는 Mock Adapter부터 구현하고 D&B·K-SURE는 공식 외부 링크만 제공한다.
 
-- [ ] **[CV-01] 해외기업 기본검증 DB 마이그레이션** — `db/migrations/0005_company_registry_checks.sql` 추가. 재실행 가능한 SQL, 5개 `registry_check_status`, 선택값 NULL, 기존 인증·결제·크레딧 테이블 비변경. `run_migrations.py`를 `0004→0005` 순차 실행으로 수정. 완료 기준: 최초 실행·재실행·제약조건 테스트 통과.
-- [ ] **[CV-02] OpenCorporates Mock 기본검증 API** — `POST /v1/company-verifications`, `GET /v1/company-verifications/{verification_id}` 구현. 정상·일부정보·불일치·비활성·신용조사 필요·결과없음·Provider 오류·타임아웃의 결정적 Mock 시나리오 제공. `get_current_user` 인증 적용. 완료 기준: 400·404·502·504·500 및 DB 저장 테스트 통과.
-- [ ] **[CV-03] BuyerSearch 기본검증 카드** — 새 전역 페이지나 Router를 만들지 않고 `apps/frontend-react/src/pages/BuyerSearch/index.tsx` 상세 단계에 `CompanyBasicVerificationCard` 추가. 기존 바이어명·국가 자동입력, 빈값·로딩·결과없음·오류·타임아웃 처리, D&B·K-SURE 외부 링크 제공. 완료 기준: 기존 바이어 검색 흐름과 `contactStatus / tradeStatus / creditStatus` 회귀 없음.
-- [ ] **[CV-04] 기본검증 테스트·회귀검증** — DB·Adapter·API·화면 단위테스트와 로그인→바이어검색→상세→기본검증 E2E 작성. 신용점수·안전점수·지급능력 판정·임의 데이터 미노출 확인. 완료 기준: 백엔드 pytest, 프론트 unit·lint·build·E2E smoke 통과.
-- [ ] **[CV-05] K-SURE·D&B PRD 정정** — `PRD_C1_ksure_api.md`, `PRD_C3_dnb_api.md`에서 검증되지 않은 API·등급 자동조회 가정을 제거하고 현재 MVP를 외부 공식 조회 링크로 한정. 실제 API 연동은 계약·비용·저장·표시·재이용 권한 확인 후 별도 PRD로 진행. 완료 기준: 문서 간 상태·용어·범위 일치.
+- [x] **[CV-01] 해외기업 기본검증 DB 마이그레이션** — 실제 파일은 `db/migrations/0006_company_registry_checks.sql` (0005는 결제·크레딧). 5개 `registry_check_status`, 기존 인증·결제·크레딧 테이블 비변경. 완료: MG-001 #123.
+- [x] **[CV-02] OpenCorporates Mock 기본검증 API** — `POST /v1/company-verifications`, `GET /v1/company-verifications/{verification_id}`. Mock 시나리오 + `get_current_user` + `user_id` 격리. 완료: #119·#123.
+- [ ] **[CV-03] BuyerSearch 기본검증 카드** — `CompanyBasicVerificationCard`는 main에 있음 (#120·#121). MG-003에서 실제 조회 결과 연결·검수 중.
+- [ ] **[CV-04] 기본검증 테스트·회귀검증** — API/Postgres E2E는 있음. 로그인→바이어검색→상세→기본검증 화면 E2E는 MG-003 이후 MG-004.
+- [x] **[CV-05] K-SURE·D&B PRD 정정** — 검증되지 않은 API·등급 자동조회 가정 제거, MVP는 공식 외부 링크로 한정. 완료: #117.
 
 ### 🧭 A-MVP — Landing 진입 경로
 

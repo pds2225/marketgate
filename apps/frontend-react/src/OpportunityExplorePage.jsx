@@ -47,7 +47,17 @@ export default function OpportunityExplorePage({ onBack, preset }) {
       setOffset(nextOffset)
     } catch (err) {
       setData(null)
-      setError(err.response?.data?.detail || err.message || '목록을 불러오지 못했습니다.')
+      const status = err.response?.status
+      const detail = err.response?.data?.detail
+      const detailText = typeof detail === 'string' ? detail : ''
+      setError(
+        detailText
+        || (status === 500
+          ? '구매신호 원본 자료를 아직 불러올 수 없습니다. 목록이 비어 있는 것과는 다릅니다.'
+          : null)
+        || err.message
+        || '목록을 불러오지 못했습니다.'
+      )
     } finally {
       setLoading(false)
     }
@@ -201,7 +211,7 @@ export default function OpportunityExplorePage({ onBack, preset }) {
               </p>
             </article>
           ))}
-          {!loading && items.length === 0 ? (
+          {!loading && !error && items.length === 0 ? (
             <p style={{ color: '#94a3b8', textAlign: 'center', padding: 40 }}>조건에 맞는 구매신호가 없습니다.</p>
           ) : null}
         </section>
