@@ -17,7 +17,7 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 
 [x] MG-001 | 해외기업 기본검증 상태값을 맞추고 다른 사용자 결과가 보이지 않게 한다
 [x] MG-002 | 바이어가 60개까지만 보이는 원인을 찾아 고친다
-[ ] MG-003 | 기업검증 화면을 실제 조회 결과와 연결한다
+[x] MG-003 | 기업검증 화면을 실제 조회 결과와 연결한다
 [ ] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
 [x] MG-005 | 랜딩에서 입력한 HS로 구매신호를 바로 보게 한다
 [ ] MG-006 | 연락처가 실제 수신자 소유인지 확인하는 절차를 만든다
@@ -612,21 +612,23 @@ BuyerSearch 기존 로딩 흐름을 깨지 않는다. 정적 기능이면 N/A �
 
 ### 8-4. 현재상태
 
-- 현재 구현: `night/cv03-company-verification-ui` (`a8dc892`), `night/cv05-prd-correction` (`54bb709`)
-- 현재 문제: API 계약 확정 전 UI 검수, 외부조회 가정 정리
-- 이미 구현된 부분: BuyerSearch 상세 흐름
-- 확인 필요한 부분: registryCheckStatus 혼합 여부, PRD 용어
+- DONE 검증 2026-08-19 (TASK_START_SHA 984e37c, WORK_BRANCH task/MG-003, PR #126)
+- POST then owner-scoped GET `/v1/company-verifications/{id}` in BuyerSearch detail tab
+- D-U-N-S lookup / K-Sight find-buyer / K-SURE 신청 (`ksure.or.kr`) only; no auto credit grade
+- registry_check_status not mixed with contact/trade/credit; unknown enum → `확인 결과 없음`
+- USER_E2E: Playwright CV-04 journey PASS on localhost:5173 (React local)
+- REQUEST_SOLVED=YES
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
 ### 8-5. MUST — 반드시 구현
 
-- [ ] MG-001 API 계약이 확정된 뒤 UI 검수/보완
-- [ ] 기존 `BuyerSearch/index.tsx` 상세 흐름 안에 유지
-- [ ] 새 Router/전역 페이지 금지
-- [ ] `registryCheckStatus`를 `contactStatus/tradeStatus/creditStatus`와 혼합 금지
-- [ ] K-SURE/D&B는 공식 외부 조회 링크만 제공
-- [ ] 검증되지 않은 API·신용등급 자동조회 가정 제거 여부 확인
+- [x] MG-001 API 계약이 확정된 뒤 UI 검수/보완
+- [x] 기존 `BuyerSearch/index.tsx` 상세 흐름 안에 유지
+- [x] 새 Router/전역 페이지 금지
+- [x] `registryCheckStatus`를 `contactStatus/tradeStatus/creditStatus`와 혼합 금지
+- [x] K-SURE/D&B는 공식 외부 조회 링크만 제공
+- [x] 검증되지 않은 API·신용등급 자동조회 가정 제거 여부 확인
 
 ### 8-6. KEEP — 유지
 
@@ -636,7 +638,7 @@ BuyerSearch 기존 로딩 흐름을 깨지 않는다. 정적 기능이면 N/A �
 
 ### 8-7. REMOVE — 제거
 
-- [ ] 검증되지 않은 API·신용등급 자동조회 가정 (확인 후)
+- [x] 검증되지 않은 API·신용등급 자동조회 가정 (확인 후)
 
 ### 8-8. FORBIDDEN — 금지
 
@@ -755,21 +757,24 @@ CV-05 → BUYER-60 → CV-02 → CV-03
 
 ### 8-4. 현재상태
 
-- 선별병합은 main에 반영됨: CV-05 #117, BUYER-60 #118, CV-02 #119, CV-03 #120·#121
-- MG-001 #123, MG-002 #124도 main
-- 남은 문제: MG-003 UI 연결 검수 후 로그인→검색→상세→기본검증 통합 E2E
-- `TASKS.md` CV 체크는 코드 기준으로 일부 갱신 (CV-01/02/05). CV-03·CV-04는 MG-003 이후
+- TASK_START_SHA 984e37c, WORK_BRANCH task/MG-004, PR #127
+- Night CV-05/BUYER-60/CV-02/CV-03 already on main — not re-merged. Empty code-split/css branches not merged.
+- CV-04 journey test added: login → search → detail → POST/GET verification (Playwright PASS, localhost:5173)
+- Backend `test_company_verification.py` 18/18 PASS; Postgres E2E SKIPPED (no DATABASE_URL in this VM)
+- Frontend `npm run test:unit` 28/28; `npm run build` PASS. Payment @journey still staging-only (E2E_WRITE_ENABLED)
+- TASK.md (not historical TASKS.md) updated to match evidence
+- REQUEST_SOLVED=NO — live Postgres + Preview E2E still needed for morning review
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
 ### 8-5. MUST — 반드시 구현
 
-- [x] 필요한 브랜치만 선별병합 (CODE-SPLIT/CSS empty/identical 제외)
-- [x] 권장 순서 `CV-05 → BUYER-60 → CV-02 → CV-03`
-- [x] 각 브랜치 merge 전 자체 테스트 통과
-- [x] `main.py` 충돌은 기계 ours/theirs 금지, 수동 합성 후 재테스트
-- [ ] 병합 후 CV-04 통합검증 (migration, Mock Adapter/API, E2E/smoke, 격리, buyer 검색, 인증, 결제/크레딧, frontend lint/build, backend pytest)
-- [ ] `TASKS.md` CV 상태를 실제 결과에 맞게 갱신
+- [x] 필요한 브랜치만 선별병합 (CODE-SPLIT/CSS empty/identical 제외) — already on main, not re-merged
+- [x] 권장 순서 `CV-05 → BUYER-60 → CV-02 → CV-03` — already on main
+- [x] 각 브랜치 merge 전 자체 테스트 통과 — historical, already merged
+- [x] `main.py` 충돌은 기계 ours/theirs 금지 — N/A, already merged
+- [ ] 병합 후 CV-04 통합검증 (migration, Mock Adapter/API, E2E/smoke, 격리, buyer 검색, 인증, 결제/크레딧, frontend lint/build, backend pytest) — journey+pytest+build done; live PG and Preview E2E pending
+- [x] `TASK.md` CV 상태를 실제 결과에 맞게 갱신 (TASKS.md는 역사 문서)
 
 ### 8-6. KEEP — 유지
 

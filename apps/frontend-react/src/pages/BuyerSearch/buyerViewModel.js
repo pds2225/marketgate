@@ -192,6 +192,35 @@ export function mapApiBuyersToViewModels(items, hsCode, categoryLabel) {
   );
 }
 
+/** CV-02 registry_check_status only — never mix with contact/trade/credit. */
+export const REGISTRY_CHECK_STATUSES = [
+  'BASIC_CONFIRMED',
+  'BASIC_PARTIAL',
+  'DATA_MISMATCH',
+  'INACTIVE_ENTITY',
+  'CREDIT_CHECK_REQUIRED',
+];
+
+/** Official external lookup pages (no paid D&B/K-SURE API). */
+export const EXTERNAL_LOOKUP_LINKS = {
+  dunsLookup: {
+    label: 'D-U-N-S 조회',
+    href: 'https://www.dnb.com/duns-number/lookup.html',
+  },
+  ksureSight: {
+    label: 'K-SURE 기업 조회',
+    href: 'https://ksight.ksure.or.kr/find-buyer',
+  },
+  ksureCredit: {
+    label: 'K-SURE 신용조사 신청',
+    href: 'https://www.ksure.or.kr/rh-kr/cntnts/i-115/web.do',
+  },
+};
+
+export function isRegistryCheckStatus(status) {
+  return REGISTRY_CHECK_STATUSES.includes(status);
+}
+
 /** Resolve ISO3 for company-verification POST (CV-02/CV-03 contract). */
 export function resolveBuyerCountryIso3(buyer) {
   const direct = String(buyer?.countryIso3 || '')
@@ -205,16 +234,23 @@ export function resolveBuyerCountryIso3(buyer) {
  * Map CV-02 API record → CV-03 card view model.
  * API fields: registry_check_status, country_iso3, completed_at
  * UI fields: status, country, verified_at
+ * Unknown enum → status null (확인 결과 없음). Never copies contact/trade/credit.
  */
 export function mapCompanyVerificationResponse(data) {
-  const status = data?.registry_check_status;
-  const provider = data?.result_json?.provider;
+  const rawStatus = data?.registry_check_status;
+  const status = isRegistryCheckStatus(rawStatus) ? rawStatus : null;
+  const provider = data?.result_json?.provider || data?.provider;
   const mock = data?.result_json?.mock === true;
   let details;
-  if (provider) {
-    details = mock ? `${provider} mock` : `출처: ${provider}`;
+  if (!status) {
+    details = '확인 결과 없음';
+  } else if (provider) {
+    details = mock
+      ? `법인 기본검증 제공자: ${provider} (mock · 자동 신용등급 조회 아님)`
+      : `법인 기본검증 제공자: ${provider}`;
   }
   return {
+    verification_id: data?.verification_id || '',
     status,
     company_name: data?.company_name || '',
     country: data?.country_iso3 || '',
@@ -222,6 +258,56 @@ export function mapCompanyVerificationResponse(data) {
     details,
   };
 }
+
+function _httpDetail(err) {
+  const detail = err?.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((d) => d?.msg || JSON.stringify(d)).join('; ');
+  }
+  return err?.message || '';
+}
+
+/** Map CV-02 HTTP errors for the BuyerSearch card. Do not treat 404 as "API not deployed". */
+export function mapCompanyVerificationHttpError(err) {
+  if (
+    err?.name === 'AbortError' ||
+    err?.name === 'CanceledError' ||
+    err?.code === 'ERR_CANCELED'
+  ) {
+    return { kind: 'timeout', message: null };
+  }
+  const status = err?.response?.status;
+  const detail = _httpDetail(err);
+  if (status === 401 || status === 403) {
+    return { kind: 'auth', message: '로그인이 필요합니다. 로그인 후 다시 시도해 주세요.' };
+  }
+  if (status === 400 || status === 422) {
+    return { kind: 'invalid', message: detail || '요청 값이 올바르지 않습니다.' };
+  }
+  if (status === 404) {
+    return { kind: 'not_found', message: '검증 결과를 찾을 수 없습니다.' };
+  }
+  if (status === 503) {
+    return {
+      kind: 'store',
+      message: '검증 저장소를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+    };
+  }
+  if (status === 502 || status === 504) {
+    return {
+      kind: 'provider',
+      message: '외부 조회가 지연되거나 실패했습니다. 잠시 후 다시 시도해 주세요.',
+    };
+  }
+  if (status === 500) {
+    return { kind: 'server', message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.' };
+  }
+  return { kind: 'unknown', message: detail || '검증 요청에 실패했습니다.' };
+}
+
+export const COMPANY_VERIFICATION_INTRO =
+  '현재 결과는 법적 실체와 등록정보에 대한 기본확인입니다. 재무상태, 결제이력, 신용등급 및 지급능력 확인은 별도의 신용조사가 필요합니다.';
 
 /** 국가별 그룹핑 — 실측 가능한 값(건수·평균점수·연락처 보유 수)만 집계한다. */
 export function groupBuyersByCountry(buyers) {
