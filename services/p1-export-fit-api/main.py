@@ -1,4 +1,5 @@
 import os
+import threading
 from typing import Any, Dict, List
 
 from fastapi import Body, Depends, FastAPI, HTTPException, Query
@@ -79,8 +80,35 @@ def root():
     """
 
 
+def _warm_predict_data() -> None:
+    """Preload trade + buyer CSVs so the first /v1/predict is not a 110s cold load."""
+    try:
+        from app.services.data_loaders import load_datastore
+
+        load_datastore()
+    except Exception:
+        pass
+    try:
+        from app.services.buyer_shortlist import COSMETICS_OUTPUT_DIR
+        from shortlist_service import load_buyer_frame, load_opportunity_frame
+
+        load_buyer_frame(output_dir=COSMETICS_OUTPUT_DIR)
+        load_opportunity_frame(output_dir=COSMETICS_OUTPUT_DIR)
+    except Exception:
+        pass
+
+
+@app.on_event("startup")
+def _warm_predict_data_in_background() -> None:
+    threading.Thread(target=_warm_predict_data, daemon=True).start()
+
+
 @app.get("/v1/health")
-def health():
+def health(warm: bool = Query(default=False)):
+    # Keep Render's /health probe fast. BuyerSearch passes warm=1 to load CSVs
+    # before POST /v1/predict so the Vercel proxy does not abort at 110s.
+    if warm:
+        _warm_predict_data()
     return {"status": "ok", "timestamp": now_seoul_iso()}
 
 

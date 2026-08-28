@@ -6,7 +6,7 @@
   "installCommand": "npm install",
   "functions": {
     "api/proxy.js": {
-      "maxDuration": 120
+      "maxDuration": 300
     }
   },
   "rewrites": [

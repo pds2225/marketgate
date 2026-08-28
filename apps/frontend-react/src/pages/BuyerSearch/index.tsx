@@ -1008,21 +1008,37 @@ interface BuyerSearchPageProps {
   onOpenFormMode?: (preset: { hsCode: string }) => void;
 }
 
-// 백엔드(Render)가 유휴 상태에서 깨어나는 데 실측 40초 이상 걸린다. 여기에 predict 자체
-// 소요(실측 5~9초)를 더해 상한을 잡는다. 초과 시 무한 로딩 대신 재시도 가능한 오류 화면.
-const SEARCH_TIMEOUT_MS = 120_000;
+// 백엔드(Render) 콜드 스타트 + 무역/바이어 CSV 첫 로드가 110초를 넘기면
+// Vercel 프록시가 502를 반환한다. 검색 전에 health?warm=1 로 CSV를 적재하고,
+// 프록시 상한(280s)보다 짧게 클라이언트 타임아웃을 둔다.
+const SEARCH_TIMEOUT_MS = 270_000;
+const WARM_TIMEOUT_MS = 120_000;
 // 콜드 스타트 구간에서 "멈춘 것 아님"을 알려주는 시점.
 const SLOW_NOTICE_MS = 8_000;
 
-/** 응답 자체가 없는 실패(콜드 스타트 중 끊김·타임아웃)인지. 4xx/5xx 는 재시도 대상이 아니다. */
+/** 응답 자체가 없는 실패(콜드 스타트 중 끊김·타임아웃)인지. */
 function isTransportFailure(err: any) {
   if (err?.response) return false;
   return err?.code === 'ECONNABORTED' || err?.code === 'ERR_NETWORK' || !!err?.request;
 }
 
+/** 프록시가 업스트림 타임아웃 때 주는 502/503/504 도 1회 재시도 대상. */
+function isRetryablePredictFailure(err: any) {
+  if (isTransportFailure(err)) return true;
+  const status = err?.response?.status;
+  return status === 502 || status === 503 || status === 504;
+}
+
+async function warmPredictBackend(timeout = WARM_TIMEOUT_MS) {
+  try {
+    await api.get('/v1/health', { params: { warm: true }, timeout });
+  } catch {
+    /* predict 가 이어서 시도한다 */
+  }
+}
+
 /**
- * predict 호출. 유휴 상태의 백엔드가 깨어나는 첫 요청은 연결이 끊기거나 상한을 넘길 수 있어
- * 응답 없는 실패에 한해 1회만 재시도한다. 4xx/5xx 는 그대로 던져 원인별 안내를 유지한다.
+ * predict 호출. 검색 전 CSV 워밍 후 요청한다. 타임아웃·502 는 1회만 재시도한다.
  */
 async function requestPredict(hsCode: string) {
   const payload = {
@@ -1032,17 +1048,17 @@ async function requestPredict(hsCode: string) {
     year: 2023,
     filters: { min_trade_value_usd: 0 },
   };
-  // SEARCH_TIMEOUT_MS 는 재시도를 포함한 전체 상한이다. 시도마다 상한을 새로 주면
-  // 최악 180초가 되어 화면에 안내한 시간과 어긋나므로, 마감시각을 한 번만 정하고
-  // 재시도에는 남은 시간만 준다. 남은 시간이 없으면 첫 오류를 그대로 던진다.
   const deadline = Date.now() + SEARCH_TIMEOUT_MS;
+  await warmPredictBackend(Math.min(WARM_TIMEOUT_MS, Math.max(5_000, deadline - Date.now())));
   try {
-    return await api.post('/v1/predict', payload, { timeout: SEARCH_TIMEOUT_MS });
-  } catch (err) {
-    if (!isTransportFailure(err)) throw err;
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) throw err;
+    const remaining = Math.max(5_000, deadline - Date.now());
     return await api.post('/v1/predict', payload, { timeout: remaining });
+  } catch (err) {
+    if (!isRetryablePredictFailure(err)) throw err;
+    const remaining = deadline - Date.now();
+    if (remaining <= 5_000) throw err;
+    await warmPredictBackend(Math.min(WARM_TIMEOUT_MS, remaining / 2));
+    return await api.post('/v1/predict', payload, { timeout: Math.max(5_000, deadline - Date.now()) });
   }
 }
 
@@ -1184,7 +1200,7 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
   // 유휴 상태의 백엔드는 첫 요청에서 40초 이상 걸린다. 화면 진입 즉시 health 를 한 번 두드려
   // 사용자가 검색어를 입력하는 동안 미리 깨워 둔다(실패는 무시 — 검색 자체에 영향 없음).
   useEffect(() => {
-    api.get('/v1/health', { timeout: SEARCH_TIMEOUT_MS }).catch(() => {});
+    warmPredictBackend().catch(() => {});
   }, []);
 
   // 랜딩 히어로/칩에서 넘긴 mg_search_query 를 1회 읽어 자동 검색한다.
