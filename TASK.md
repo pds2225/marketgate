@@ -18,7 +18,7 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 [x] MG-001 | 해외기업 기본검증 상태값을 맞추고 다른 사용자 결과가 보이지 않게 한다
 [x] MG-002 | 바이어가 60개까지만 보이는 원인을 찾아 고친다
 [x] MG-003 | 기업검증 화면을 실제 조회 결과와 연결한다
-[ ] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
+[!] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
 [x] MG-005 | 랜딩에서 입력한 HS로 구매신호를 바로 보게 한다
 [ ] MG-006 | 연락처가 실제 수신자 소유인지 확인하는 절차를 만든다
 [ ] MG-007 | 인콰이어리를 고객이 제출한 뒤 실제 발송까지 이어지게 한다
@@ -757,13 +757,11 @@ CV-05 → BUYER-60 → CV-02 → CV-03
 
 ### 8-4. 현재상태
 
-- TASK_START_SHA 984e37c, WORK_BRANCH task/MG-004, PR #127
-- Night CV-05/BUYER-60/CV-02/CV-03 already on main — not re-merged. Empty code-split/css branches not merged.
-- CV-04 journey test added: login → search → detail → POST/GET verification (Playwright PASS, localhost:5173)
-- Backend `test_company_verification.py` 18/18 PASS; Postgres E2E SKIPPED (no DATABASE_URL in this VM)
-- Frontend `npm run test:unit` 28/28; `npm run build` PASS. Payment @journey still staging-only (E2E_WRITE_ENABLED)
-- TASK.md (not historical TASKS.md) updated to match evidence
-- REQUEST_SOLVED=NO — live Postgres + Preview E2E still needed for morning review
+- TASK_START_SHA c75de1a, WORK_BRANCH task/MG-004, PR #129
+- 2026-08-28 배포 실사용: 회원가입·로그인·바이어 검색 화면까지 성공 (로그아웃 버튼 확인)
+- HS 330499 검색 시 `/api/v1/predict` 2회 모두 ~90s 무응답 → 클라이언트 타임아웃. 국가 리스트/상세/기업검증 미도달
+- 수정 중: `api/proxy.js` maxDuration 120 + fetch 110s abort, `vercel.json` functions, BuyerSearch SEARCH_TIMEOUT_MS 120s
+- REQUEST_SOLVED=NO until 배포에서 상세→기업검증까지 확인
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 

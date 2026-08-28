@@ -1010,7 +1010,7 @@ interface BuyerSearchPageProps {
 
 // 백엔드(Render)가 유휴 상태에서 깨어나는 데 실측 40초 이상 걸린다. 여기에 predict 자체
 // 소요(실측 5~9초)를 더해 상한을 잡는다. 초과 시 무한 로딩 대신 재시도 가능한 오류 화면.
-const SEARCH_TIMEOUT_MS = 90_000;
+const SEARCH_TIMEOUT_MS = 120_000;
 // 콜드 스타트 구간에서 "멈춘 것 아님"을 알려주는 시점.
 const SLOW_NOTICE_MS = 8_000;
 
