@@ -5,6 +5,10 @@
  * Set on Vercel: P1_API_BASE_URL = https://your-fastapi-host.example (no trailing slash).
  * (VITE_API_BASE_URL is also read at runtime on Vercel for serverless.)
  */
+export const config = {
+  maxDuration: 120,
+};
+
 function upstreamBase() {
   return String(
     process.env.P1_API_BASE_URL ||
@@ -71,6 +75,7 @@ export default async function handler(req, res) {
       method: req.method || "GET",
       headers,
       body,
+      signal: AbortSignal.timeout(110_000),
     });
   } catch (e) {
     res.status(502).json({

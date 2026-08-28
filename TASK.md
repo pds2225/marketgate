@@ -757,12 +757,11 @@ CV-05 → BUYER-60 → CV-02 → CV-03
 
 ### 8-4. 현재상태
 
-- TASK_START_SHA c75de1a, WORK_BRANCH task/MG-004, PR #129, re-run 2026-08-28 16:40 KST
-- Playwright: `npm install` 후 `@playwright/test` + Chromium 설치 완료 (환경 문제 해소)
-- DATABASE_URL: 이 PC에 Docker/Postgres 서비스 없음. 앱은 URL 없으면 file fallback. CI W-020(PR #129) SUCCESS. 배포 API는 `/api/v1/health` JSON 200
-- Preview `/v1/predict` 502: 2026-08-20 실패는 콜드스타트/타임아웃. 오늘 프로덕션 `POST /api/v1/predict` 무인증 401, PR #129 Preview deployed E2E SUCCESS
-- marketgate.vercel.app 회원가입 화면까지 진입. 비밀번호 입력은 도구 가드에 막힘
-- REQUEST_SOLVED=NO. BLOCKED: 배포 로그인/회원가입 비밀번호(사용자 승인 또는 기존 계정)
+- TASK_START_SHA c75de1a, WORK_BRANCH task/MG-004, PR #129
+- 2026-08-28 배포 실사용: 회원가입·로그인·바이어 검색 화면까지 성공 (로그아웃 버튼 확인)
+- HS 330499 검색 시 `/api/v1/predict` 2회 모두 ~90s 무응답 → 클라이언트 타임아웃. 국가 리스트/상세/기업검증 미도달
+- 수정 중: `api/proxy.js` maxDuration 120 + fetch 110s abort, `vercel.json` functions, BuyerSearch SEARCH_TIMEOUT_MS 120s
+- REQUEST_SOLVED=NO until 배포에서 상세→기업검증까지 확인
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
