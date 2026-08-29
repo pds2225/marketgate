@@ -4,6 +4,13 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm install",
+  "git": {
+    "deploymentEnabled": {
+      "backup/WIN-K20QOC29TOB": false,
+      "backup/*": false
+    }
+  },
+  "ignoreCommand": "[ \"$VERCEL_GIT_COMMIT_REF\" = \"backup/WIN-K20QOC29TOB\" ]",
   "functions": {
     "api/proxy.js": {
       "maxDuration": 300
