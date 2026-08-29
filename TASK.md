@@ -757,11 +757,17 @@ CV-05 → BUYER-60 → CV-02 → CV-03
 
 ### 8-4. 현재상태
 
-- TASK_START_SHA c75de1a, WORK_BRANCH task/MG-004, PR #129
-- 2026-08-28 배포 실사용: 회원가입·로그인·바이어 검색 화면까지 성공 (로그아웃 버튼 확인)
-- HS 330499 검색 시 `/api/v1/predict` 2회 모두 ~90s 무응답 → 클라이언트 타임아웃. 국가 리스트/상세/기업검증 미도달
-- 수정 중: `api/proxy.js` maxDuration 120 + fetch 110s abort, `vercel.json` functions, BuyerSearch SEARCH_TIMEOUT_MS 120s
-- REQUEST_SOLVED=NO until 배포에서 상세→기업검증까지 확인
+- TASK_START_SHA c75de1a → live re-verify 2026-08-29 (cloud). WORK_BRANCH cursor/mg-004-skip-backup-preview-fe9c (PR #131 MERGED)
+- Vercel Hobby 한도: GitHub commit status on aea06df at 2026-08-29T07:42:23Z `Deployment rate limited — retry in 24 hours` (code api-deployments-free-per-day). Literal +24h would be 2026-08-30 16:42 KST. Actual rolling 86400s window reopened earlier: walk production deploy ~16:54Z, marketgate production `dpl_EuUHKv9w6ZyK2XHAjwei4qE9donD` READY 2026-08-29T17:01:44Z = **2026-08-30 02:01:44 KST**
+- Production https://marketgate.vercel.app **now serves 0969cc** (aea06df + #131 backup-preview skip). Previous production was 4bd8f99 (#129)
+- #131: `git.deploymentEnabled` / ignoreCommand skips `backup/WIN-K20QOC29TOB` (branch not deleted, no force-push)
+- Render FastAPI `https://marketgate.onrender.com` snapshot head **a887da8 (2026-07-28)**, 150 commits behind origin/main. No `/v1/company-verifications`, no #130 warmup. `autoDeploy: true` in render.yaml is not rolling this service
+- USER_E2E on marketgate.vercel.app (2026-08-29 17:13–17:41Z):
+  - 로그인/회원가입: PASS (로그아웃·100C 확인)
+  - HS 330499 검색: PASS — 국가 후보 리스트(미국, 바이어 5) / 첫 요청 구프록시 110s→502, 0969cc 이후 predict 200 in ~174s then ~150s
+  - 바이어 상세: PASS — Beauti Control Csmtcs Inc. BUYER DETAIL REPORT
+  - 기업검증: FAIL — 탭·D-U-N-S/K-SURE 공식 링크는 있음. POST `/api/v1/company-verifications` 404 `Not Found`. UI `검증 실패 / 검증 결과를 찾을 수 없습니다`. BASIC_* 미표시
+- REQUEST_SOLVED=NO until Render production API is on main (or later) and 기업검증 shows BASIC_* (or API statuses) with official lookup links
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
