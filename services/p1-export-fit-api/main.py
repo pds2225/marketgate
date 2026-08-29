@@ -114,7 +114,7 @@ def health(warm: bool = Query(default=False)):
 
 @app.get("/health")
 def health_legacy():
-    return health()
+    return health(False)
 
 
 @app.post("/v1/predict", response_model=PredictResponse)
