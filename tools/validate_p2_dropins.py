@@ -12,6 +12,7 @@ from typing import Any
 
 ENCODINGS = ("utf-8-sig", "utf-8", "cp949", "euc-kr")
 TRUTHY = {"1", "true", "yes", "y", "on"}
+FALSEY = {"", "0", "false", "no", "n", "off"}
 FORMULA_COLUMNS = {
     "source_dataset",
     "title",
@@ -71,10 +72,18 @@ def _read_rows(path: Path) -> tuple[list[str], list[dict[str, str]], str]:
             with path.open("r", encoding=encoding, newline="") as handle:
                 reader = csv.DictReader(handle)
                 headers = [_clean(value) for value in (reader.fieldnames or [])]
-                rows = [
-                    {_clean(key): _clean(value) for key, value in row.items() if key is not None}
-                    for row in reader
-                ]
+                rows = []
+                for row in reader:
+                    cleaned = {
+                        _clean(key): _clean(value)
+                        for key, value in row.items()
+                        if key is not None
+                    }
+                    if None in row:
+                        cleaned["__extra_columns__"] = " | ".join(
+                            _clean(value) for value in (row.get(None) or [])
+                        )
+                    rows.append(cleaned)
             return headers, rows, encoding
         except (UnicodeDecodeError, csv.Error) as exc:
             last_error = exc
@@ -122,6 +131,11 @@ def validate_dropin(path: Path) -> ValidationResult:
         source_dataset = _clean(row.get("source_dataset"))
         country = _clean(row.get("country_norm") or row.get("country_raw"))
         identity = _clean(row.get("normalized_name") or row.get("title"))
+        if "__extra_columns__" in row:
+            _append(
+                result.errors,
+                Diagnostic("extra_columns", "row has more values than the CSV header", row_number),
+            )
         if not source_dataset:
             _append(
                 result.errors,
@@ -148,7 +162,18 @@ def validate_dropin(path: Path) -> ValidationResult:
                 Diagnostic("invalid_email", "contact_email is malformed", row_number, "contact_email"),
             )
 
-        has_contact = _clean(row.get("has_contact")).casefold() in TRUTHY
+        contact_flag = _clean(row.get("has_contact")).casefold()
+        if contact_flag not in TRUTHY | FALSEY:
+            _append(
+                result.errors,
+                Diagnostic(
+                    "invalid_contact_flag",
+                    "has_contact must be a recognized true/false value",
+                    row_number,
+                    "has_contact",
+                ),
+            )
+        has_contact = contact_flag in TRUTHY
         actual_contact = email_valid or any(
             _clean(row.get(column)) for column in ("contact_phone", "contact_website")
         )
