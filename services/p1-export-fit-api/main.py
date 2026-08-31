@@ -348,4 +348,3 @@ def predict_legacy(payload: Dict[str, Any] = Body(...), user: dict = Depends(get
         "top_countries": _legacy_top_countries(results),
         "diagnostics": diagnostics,
     }
-
