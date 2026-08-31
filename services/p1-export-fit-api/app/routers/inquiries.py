@@ -163,6 +163,7 @@ def admin_dispatch_dry_run(inquiry_id: str, admin: dict = Depends(require_admin)
         inquiry_id,
         "sent",
         by=admin["user_id"],
+        delivery_provider=delivery.provider,
         provider_message_id=delivery.provider_message_id,
     )
 
