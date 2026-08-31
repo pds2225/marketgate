@@ -7,7 +7,6 @@ must implement the same result contract in a later, explicitly authorised task.
 from __future__ import annotations
 
 import os
-import uuid
 from dataclasses import dataclass
 
 _TRUTHY = {"1", "true", "yes", "on"}
@@ -45,9 +44,12 @@ def deliver_inquiry(record: dict) -> DeliveryResult:
     recipient = str(record.get("recipient_email") or "").strip()
     if not recipient or "@" not in recipient:
         raise DeliveryRejected("contact_missing")
+    inquiry_id = str(record.get("inquiry_id") or "").strip()
+    if not inquiry_id:
+        raise DeliveryRejected("inquiry_id_missing")
     return DeliveryResult(
         provider="dry_run",
-        provider_message_id=f"dryrun:{uuid.uuid4()}",
+        # Deterministic per inquiry so provider retries have one idempotency key.
+        provider_message_id=f"dryrun:{inquiry_id}",
         accepted=True,
     )
-
