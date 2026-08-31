@@ -769,6 +769,19 @@ CV-05 → BUYER-60 → CV-02 → CV-03
   - 기업검증: FAIL — 탭·D-U-N-S/K-SURE 공식 링크는 있음. POST `/api/v1/company-verifications` 404 `Not Found`. UI `검증 실패 / 검증 결과를 찾을 수 없습니다`. BASIC_* 미표시
 - REQUEST_SOLVED=NO until Render production API is on main (or later) and 기업검증 shows BASIC_* (or API statuses) with official lookup links
 
+- **2026-08-31 재진단 (background 세션):**
+  - PR #133 (`fix/frontend-hooks-lint`) MERGED → main `1591f6b`. 로컬 검증: backend `pytest` 248 pass / 1 skip, frontend `npm run build` ✓. (`npm run lint` 에 `react-refresh/only-export-components` 2건 — `ComparePage.jsx`/`demo.jsx`, #133 이전부터 존재하는 기존 부채이고 CI 게이트 아님)
+  - main 코드에 `POST /v1/company-verifications` 라우터 정상 존재 (`app/routers/company_verification.py`, `main.py` include_router). 빌드/임포트 이상 없음 — 배포만 되면 동작할 상태
+  - **Render 두 서비스 모두 미배포.** `marketgate.onrender.com`(prod)·`marketgate-e2e.onrender.com`(e2e) 의 openapi 경로 차이는 `/v1/e2e/*` 뿐 → 둘 다 동일 코드(a887da8, 2026-07-28)에서 멈춤. e2e 서비스에도 CV-02 없음
+  - a887da8 이후 backend 커밋 40개가 하나도 롤아웃 안 됨. GitHub commit status 에 Render 항목이 전혀 없음 (`2cf80f8`·`4f5dc77` "재배포 트리거" 커밋 포함 전부 Vercel status 만 존재) → **Render→GitHub auto-deploy 연결이 2026-07-28 즈음부터 끊김/비활성**. `render.yaml` 의 `autoDeploy: true` 는 대시보드에서 만든 서비스에는 무효
+  - main push (`1591f6b`, 11:34Z) 후 ~15분 폴링 → prod openapi 40 경로 불변. push-to-main 으로는 안 깨어남
+  - migration 리스크 낮음: `app/run_migrations.py` 는 `DATABASE_URL` 미설정 시 skip, 그 외 예외도 WARN 만 (빌드 실패 안 시킴)
+  - **남은 유일 차단 — Render 대시보드 수동 조치 (이 세션엔 Render API key/CLI/deploy hook/브라우저 확장 전부 없음):**
+    1. Render Dashboard → `marketgate` 서비스 → Settings → Build & Deploy → Auto-Deploy = **Yes**, Branch = `main` 확인/복구
+    2. Manual Deploy → **Deploy latest commit** (`1591f6b`) 1회 실행. `marketgate-e2e` 서비스도 동일하게
+    3. 빌드 후: `curl -s https://marketgate.onrender.com/openapi.json | grep company-verifications` → 존재 확인
+    4. 기업검증 E2E 재수행: 로그인 → HS 검색 → 바이어 상세 → 기업검증 탭 BASIC_* 표시 확인 후 MG-004 `[x]`
+
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
 ### 8-5. MUST — 반드시 구현
