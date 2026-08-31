@@ -778,9 +778,14 @@ CV-05 → BUYER-60 → CV-02 → CV-03
   - migration 리스크 낮음: `app/run_migrations.py` 는 `DATABASE_URL` 미설정 시 skip, 그 외 예외도 WARN 만 (빌드 실패 안 시킴)
   - **남은 유일 차단 — Render 대시보드 수동 조치 (이 세션엔 Render API key/CLI/deploy hook/브라우저 확장 전부 없음):**
     1. Render Dashboard → `marketgate` 서비스 → Settings → Build & Deploy → Auto-Deploy = **Yes**, Branch = `main` 확인/복구
-    2. Manual Deploy → **Deploy latest commit** (`1591f6b`) 1회 실행. `marketgate-e2e` 서비스도 동일하게
+    2. Manual Deploy → **Deploy latest commit** (`4b420ef`, #134; CV-02는 `1591f6b`부터 main에 있음) 1회 실행. `marketgate-e2e` 서비스도 동일하게
     3. 빌드 후: `curl -s https://marketgate.onrender.com/openapi.json | grep company-verifications` → 존재 확인
     4. 기업검증 E2E 재수행: 로그인 → HS 검색 → 바이어 상세 → 기업검증 탭 BASIC_* 표시 확인 후 MG-004 `[x]`
+
+- **2026-08-31 저녁 동기화:** 로컬이 옛 `night/cv02-enum-0006` TASK LIST(MG-001~004 전부 `[ ]`)를 보고 있었음. 기준은 origin/main 이 파일만.
+  - HEAD `4b420ef` (#134 Render 차단 고정, #133 훅 린트 포함)
+  - LIST 실측: MG-001/002/003/005/T-20260814-01 `[x]` · MG-004 `[!]` · MG-006/007/008 `[ ]`
+  - Render 배포 전 MG-004 `[x]` 금지. 다음 READY는 MG-006 (소유 확인). 발송(MG-007)은 MG-006 권장 선행
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
@@ -790,7 +795,7 @@ CV-05 → BUYER-60 → CV-02 → CV-03
 - [x] 권장 순서 `CV-05 → BUYER-60 → CV-02 → CV-03` — already on main
 - [x] 각 브랜치 merge 전 자체 테스트 통과 — historical, already merged
 - [x] `main.py` 충돌은 기계 ours/theirs 금지 — N/A, already merged
-- [ ] 병합 후 CV-04 통합검증 (migration, Mock Adapter/API, E2E/smoke, 격리, buyer 검색, 인증, 결제/크레딧, frontend lint/build, backend pytest) — journey+pytest+build done; live PG and Preview E2E pending
+- [ ] 병합 후 CV-04 통합검증 — localhost journey+pytest+build+#133 완료. **live Render API·prod 기업검증 E2E는 미배포로 FAIL 유지**
 - [x] `TASK.md` CV 상태를 실제 결과에 맞게 갱신 (TASKS.md는 역사 문서)
 
 ### 8-6. KEEP — 유지
