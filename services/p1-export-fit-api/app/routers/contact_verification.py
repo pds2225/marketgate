@@ -27,6 +27,7 @@ _CHALLENGES: dict[str, dict] = {}
 _LOCK = threading.RLock()
 _TTL_MINUTES = 15
 _MAX_ATTEMPTS = 5
+_MAX_PENDING_PER_USER = 10
 _TRUTHY = {"1", "true", "yes", "on"}
 _PRODUCTION_ENVS = {"prod", "production"}
 
@@ -98,13 +99,14 @@ def request_contact_verification(
     user: dict = Depends(get_current_user),
 ):
     normalised = _normalise_recipient(payload.channel, payload.recipient)
+    now = _now()
+    user_id = user["user_id"]
     challenge_id = str(uuid.uuid4())
     token = secrets.token_urlsafe(24)
-    now = _now()
     dry_run = _dry_run_enabled()
     record = {
         "challenge_id": challenge_id,
-        "user_id": user["user_id"],
+        "user_id": user_id,
         "state": "pending",
         "previous_state": "not_requested",
         "method": "email_link" if payload.channel == "email" else "sms_otp",
@@ -116,6 +118,15 @@ def request_contact_verification(
         "verified_at": None,
     }
     with _LOCK:
+        pending_count = 0
+        for existing in _CHALLENGES.values():
+            if existing["state"] == "pending" and now >= existing["expires_at"]:
+                existing["previous_state"] = "pending"
+                existing["state"] = "expired"
+            if existing["user_id"] == user_id and existing["state"] == "pending":
+                pending_count += 1
+        if pending_count >= _MAX_PENDING_PER_USER:
+            raise HTTPException(status_code=429, detail="too_many_pending_verifications")
         _CHALLENGES[challenge_id] = record
     return _public(record, preview_token=token if dry_run else None)
 
@@ -179,4 +190,3 @@ def revoke_contact_verification(
 def _reset_for_tests() -> None:
     with _LOCK:
         _CHALLENGES.clear()
-
