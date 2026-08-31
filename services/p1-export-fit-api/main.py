@@ -26,6 +26,7 @@ from app.routers import action_plan as action_plan_router
 from app.routers import inquiries as inquiries_router
 from app.routers import calculators as calculators_router
 from app.routers import company_verification as company_verification_router
+from app.routers import contact_verification as contact_verification_router
 
 app = FastAPI(title="Export Fit Score API(P1)", version="0.0.1")
 app.include_router(auth_router.router)
@@ -37,6 +38,7 @@ app.include_router(action_plan_router.router)
 app.include_router(inquiries_router.router)
 app.include_router(calculators_router.router)
 app.include_router(company_verification_router.router)
+app.include_router(contact_verification_router.router)
 if os.getenv("APP_ENV", "").strip().lower() == "e2e":
     from app.routers import e2e as e2e_router
 
@@ -346,3 +348,4 @@ def predict_legacy(payload: Dict[str, Any] = Body(...), user: dict = Depends(get
         "top_countries": _legacy_top_countries(results),
         "diagnostics": diagnostics,
     }
+
