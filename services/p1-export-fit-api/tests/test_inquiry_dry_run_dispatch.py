@@ -52,7 +52,8 @@ def test_dry_run_dispatch_moves_queued_to_sent_and_customer_can_read_status():
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "sent"
-    assert body["provider_message_id"].startswith("dryrun:")
+    assert body["delivery_provider"] == "dry_run"
+    assert body["provider_message_id"] == f"dryrun:{inquiry_id}"
     assert body["sent_at"]
     assert [entry["status"] for entry in body["history"]] == [
         "draft",
@@ -95,4 +96,3 @@ def test_unqueued_inquiry_is_rejected_without_state_change():
 def test_unknown_inquiry_returns_404():
     response = client.post("/v1/admin/inquiries/missing/dispatch-dry-run")
     assert response.status_code == 404
-
