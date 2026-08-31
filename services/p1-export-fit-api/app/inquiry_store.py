@@ -89,6 +89,7 @@ def create_inquiry(
         "status": "draft",
         "approved_by": None,
         "review_note": None,
+        "delivery_provider": None,
         "provider_message_id": None,
         "sent_at": None,
         "replied_at": None,
@@ -143,6 +144,7 @@ def transition(
     by: str,
     approved_by: str | None = None,
     review_note: str | None = None,
+    delivery_provider: str | None = None,
     provider_message_id: str | None = None,
     failure_reason: str | None = None,
 ) -> dict:
@@ -165,6 +167,8 @@ def transition(
             record["approved_by"] = approved_by
         if review_note is not None:
             record["review_note"] = review_note
+        if delivery_provider is not None:
+            record["delivery_provider"] = delivery_provider
         if provider_message_id is not None:
             record["provider_message_id"] = provider_message_id
         if failure_reason is not None:
