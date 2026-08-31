@@ -109,6 +109,24 @@ def test_production_never_exposes_preview_token(monkeypatch):
     assert "preview_token" not in response.json()
 
 
+def test_pending_challenge_limit_and_expired_cleanup():
+    challenge_ids = []
+    for index in range(10):
+        response = _request("email", f"owner{index}@example.com")
+        assert response.status_code == 200
+        challenge_ids.append(response.json()["challenge_id"])
+    blocked = _request("email", "owner10@example.com")
+    assert blocked.status_code == 429
+    assert blocked.json()["detail"] == "too_many_pending_verifications"
+
+    contact_router._CHALLENGES[challenge_ids[0]]["expires_at"] = (
+        datetime.now(timezone.utc) - timedelta(seconds=1)
+    )
+    retried = _request("email", "owner10@example.com")
+    assert retried.status_code == 200
+    assert contact_router._CHALLENGES[challenge_ids[0]]["state"] == "expired"
+
+
 @pytest.mark.parametrize(
     ("channel", "recipient", "detail"),
     [("email", "not-email", "invalid_email"), ("sms", "123", "invalid_phone")],
@@ -145,4 +163,3 @@ def test_verified_contact_can_be_revoked():
     assert response.status_code == 200
     assert response.json()["state"] == "revoked"
     assert response.json()["previous_state"] == "ownership_verified"
-
