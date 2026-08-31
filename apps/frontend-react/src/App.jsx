@@ -105,7 +105,9 @@ function App() {
     const refreshToken = localStorage.getItem('refresh_token')
     try {
       await api.post('/v1/auth/logout', refreshToken ? { refresh_token: refreshToken } : {})
-    } catch {}
+    } catch {
+      // best-effort: clear the local session regardless of the server response
+    }
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
     setSessionExpired(false)
@@ -154,7 +156,8 @@ function App() {
 
   // 서버 크레딧 잔액 동기화 (실패 시 로컬 폴백)
   useEffect(() => {
-    setBalance(getWallet().balance)
+    // 초기값은 useState(() => getWallet().balance)가 이미 잡아뒀고, 그 뒤 변화는
+    // 아래 구독과 서버 동기화가 처리한다 — effect 본문에서 동기적으로 setState 하지 않는다.
     const unsub = subscribeWallet((w) => setBalance(w.balance))
     if (authed) {
       syncBalanceFromServer().then((r) => {

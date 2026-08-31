@@ -9,19 +9,20 @@ const RECENT_WINDOW_MS = 15 * 60 * 1000
 const TERMINAL_CONFIRM_CODES = [400, 402, 403]
 
 export default function PaymentCallbackPage({ onBack, onBalanceRefresh }) {
-  const [status, setStatus] = useState('loading')
+  // 최초 렌더부터 올바른 화면을 보여준다 — effect 안에서 setStatus('fail')를
+  // 하면 성공→실패로 한 번 깜빡이고, set-state-in-effect 경고도 생긴다.
+  const [status, setStatus] = useState(() =>
+    new URLSearchParams(window.location.search).get('status') === 'success' ? 'loading' : 'fail'
+  )
   const [dots, setDots] = useState(0)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const s = params.get('status')
     const type = params.get('type')
     const item = params.get('item')
 
-    if (s !== 'success') {
-      setStatus('fail')
-      return
-    }
+    // status 파라미터가 success가 아니면 초기 state가 이미 'fail'이다
+    if (params.get('status') !== 'success') return
 
     // 쿼리스트링만 믿지 않고 서버 결제내역으로 실제 완료를 검증한다
     let cancelled = false
@@ -87,6 +88,9 @@ export default function PaymentCallbackPage({ onBack, onBalanceRefresh }) {
 
     confirmThenVerify()
     return () => { cancelled = true }
+    // 결제 콜백 착지 시 1회만 검증한다. onBalanceRefresh는 매 렌더 새로 만들어지는
+    // prop이라 의존성에 넣으면 검증이 반복 실행된다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {

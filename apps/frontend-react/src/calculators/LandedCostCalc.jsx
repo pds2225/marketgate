@@ -64,8 +64,6 @@ export default function LandedCostCalc({ onBack, onNavigate }) {
     return `₩${Number(n).toLocaleString()}`
   }
 
-  const selectedCountry = COUNTRIES.find((c) => c.code === form.country)
-
   const resultNode = result ? (
     <div className="calc-result">
       {/* 핵심 숫자 */}

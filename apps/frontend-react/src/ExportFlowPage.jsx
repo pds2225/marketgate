@@ -508,7 +508,7 @@ function DispatchRequestModal({ buyer, hsCode, onClose }) {
 }
 
 /* ── ProfitSimulator (Step 3) ── */
-function ProfitSimulator({ selectedBuyer, hsCode, onComplete }) {
+function ProfitSimulator({ selectedBuyer, onComplete }) {
   const [unitPrice, setUnitPrice] = useState(100);
   const [quantity, setQuantity] = useState(1000);
   const [unitCost, setUnitCost] = useState(60);
@@ -796,7 +796,7 @@ function PurchaseOrderGenerator({ selectedBuyer, simulationParams, hsCode, onRes
                 y += 6;
               });
               doc.save(`${poId}.pdf`);
-            } catch (e) {
+            } catch {
               alert("PDF 생성을 위해 jspdf 패키지 설치가 필요합니다.\n로컬에서: npm install jspdf");
             }
           }}
