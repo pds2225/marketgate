@@ -11,6 +11,7 @@
 
 import json
 import os
+import tempfile
 import threading
 import uuid
 from datetime import datetime, timezone
@@ -51,9 +52,23 @@ def _load() -> dict:
 
 
 def _save(data: dict) -> None:
-    os.makedirs(os.path.dirname(INQUIRIES_PATH), exist_ok=True)
-    with open(INQUIRIES_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    directory = os.path.dirname(INQUIRIES_PATH)
+    os.makedirs(directory, exist_ok=True)
+    descriptor, temp_path = tempfile.mkstemp(
+        prefix=".inquiries-", suffix=".tmp", dir=directory, text=True
+    )
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, ensure_ascii=False, indent=2)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_path, INQUIRIES_PATH)
+    except Exception:
+        try:
+            os.unlink(temp_path)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def create_inquiry(
@@ -108,11 +123,13 @@ def create_inquiry(
 
 
 def get_inquiry(inquiry_id: str) -> dict | None:
-    return _load().get(inquiry_id)
+    with _lock:
+        return _load().get(inquiry_id)
 
 
 def list_inquiries(user_id: str | None = None, status: str | None = None) -> list[dict]:
-    items = list(_load().values())
+    with _lock:
+        items = list(_load().values())
     if user_id is not None:
         items = [item for item in items if item.get("user_id") == user_id]
     if status is not None:
