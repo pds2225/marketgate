@@ -83,7 +83,11 @@ export default function MarketGateDemo() {
   const [fCountry, setFCountry] = useState('all')
   const [fTrust, setFTrust] = useState('all')
   const [fContact, setFContact] = useState(false)
-  const [selected, setSelected] = useState(null) // 상세 모달 대상
+  // 상세 모달 대상은 id로만 들고, 실제 객체는 enriched에서 파생한다.
+  // 공유 딥링크(?b=<id>)도 초기값으로 자연스럽게 흡수된다.
+  const [selectedId, setSelectedId] = useState(() =>
+    typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('b')
+  )
 
   useEffect(() => {
     fetch(ENDPOINTS.demoSnapshot)
@@ -114,15 +118,10 @@ export default function MarketGateDemo() {
       .sort((a, b) => b.fit.score - a.fit.score)
   }, [buyers, summary, countryRankMap])
 
-  // 공유 딥링크: ?b=<id> 로 특정 바이어 상세 매칭 프로필을 바로 연다
-  useEffect(() => {
-    if (!enriched.length) return
-    const id = new URLSearchParams(window.location.search).get('b')
-    if (id) {
-      const m = enriched.find(x => x.id === id)
-      if (m) setSelected(m)
-    }
-  }, [enriched])
+  const selected = useMemo(
+    () => (selectedId ? enriched.find(x => x.id === selectedId) || null : null),
+    [enriched, selectedId]
+  )
 
   // 필터 적용
   const filtered = useMemo(() => {
@@ -270,7 +269,7 @@ export default function MarketGateDemo() {
           {filtered.slice(0, 40).map((b, i) => {
             const t = TRUST[b.trust]
             return (
-              <button key={b.id} className={`mg-card mg-buyer ${i === 0 ? 'top' : ''}`} onClick={() => setSelected(b)}>
+              <button key={b.id} className={`mg-card mg-buyer ${i === 0 ? 'top' : ''}`} onClick={() => setSelectedId(b.id)}>
                 {i === 0 && <span className="mg-rank">BEST MATCH</span>}
                 <div className="mg-logo">{b.iso3 || '🌐'}</div>
                 <div className="mg-buyer-id">
@@ -306,9 +305,9 @@ export default function MarketGateDemo() {
         const t = TRUST[b.trust]
         const isOpen = isUnlocked(buyerKeyOf(b))
         return (
-          <div className="mg-modal-bg" onClick={() => { setSelected(null); setUnlockMsg('') }}>
+          <div className="mg-modal-bg" onClick={() => { setSelectedId(null); setUnlockMsg('') }}>
             <div className="mg-modal" onClick={e => e.stopPropagation()}>
-              <button className="mg-modal-x" onClick={() => setSelected(null)}>✕</button>
+              <button className="mg-modal-x" onClick={() => setSelectedId(null)}>✕</button>
               <div className="mg-modal-head">
                 <div className="mg-logo lg">{b.iso3 || '🌐'}</div>
                 <div>

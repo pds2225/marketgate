@@ -11,7 +11,6 @@ export default function AuthPage({ onSuccess, sessionExpired = false, duringPaym
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
-  const [focused, setFocused] = useState(null)
   // 실측 집계(/v1/demo/summary)만 표시 — 근거 없는 수치(50K+, 98% 등)는 사용하지 않는다
   const [dataStats, setDataStats] = useState(null)
 

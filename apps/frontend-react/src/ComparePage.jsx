@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ArrowLeft, GitCompare } from 'lucide-react'
 import api from './lib/api'
 
@@ -30,10 +30,6 @@ export default function ComparePage({ onBack }) {
   const [snapshot, setSnapshot] = useState(() => loadSnapshot())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    if (!snapshot) setSnapshot(loadSnapshot())
-  }, [])
 
   const countries = useMemo(() => snapshot?.countries || [], [snapshot])
   const buyers = useMemo(() => snapshot?.buyers || [], [snapshot])
