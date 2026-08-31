@@ -40,6 +40,7 @@ function errorMessage(error: unknown): string {
     invalid_verification_token: '확인 코드가 일치하지 않습니다.',
     contact_verification_expired: '확인 요청이 만료되었습니다. 다시 요청해 주세요.',
     contact_verification_attempts_exceeded: '확인 시도 횟수를 초과했습니다.',
+    too_many_pending_verifications: '진행 중인 확인 요청이 많습니다. 만료 후 다시 시도해 주세요.',
     contact_already_verified: '이미 소유 확인이 완료된 연락처입니다.',
     contact_verification_not_found: '확인 요청을 찾을 수 없습니다.',
   };
@@ -93,6 +94,14 @@ const ContactOwnershipPanel: React.FC<Props> = ({
       setToken('');
     } catch (confirmError) {
       setError(errorMessage(confirmError));
+      try {
+        const { data } = await api.get<ChallengeSnapshot>(
+          `/v1/contact-verifications/${snapshot.challenge_id}`,
+        );
+        setSnapshot(data);
+      } catch {
+        // Keep the actionable confirmation error when status refresh also fails.
+      }
     } finally {
       setLoading(false);
     }
@@ -202,4 +211,3 @@ const ContactOwnershipPanel: React.FC<Props> = ({
 };
 
 export default ContactOwnershipPanel;
-
