@@ -72,6 +72,21 @@ def test_invalid_rows_report_all_safety_failures(tmp_path):
     } <= codes
 
 
+def test_malformed_extra_columns_and_unknown_contact_flag_fail(tmp_path):
+    path = tmp_path / "kotra_trade_office.csv"
+    path.write_text(
+        "source_dataset,title,country_norm,has_contact\n"
+        "KOTRA_TradeOffice_BuyerList,Beauty lead,미국,maybe,unexpected\n",
+        encoding="utf-8",
+    )
+
+    result = validate_dropin(path)
+    codes = {error.code for error in result.errors}
+
+    assert not result.valid
+    assert {"extra_columns", "invalid_contact_flag"} <= codes
+
+
 def test_merge_skips_invalid_dropin_and_reports_reason(tmp_path, monkeypatch):
     path = tmp_path / "tradekorea.csv"
     _write(path, [{"source_dataset": "TradeKorea_BuyerOrInquiry"}])
