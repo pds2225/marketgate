@@ -24,6 +24,60 @@ export const CONTACT_STATUS_LABELS = {
   ownership_verified: '소유 검증됨',
 };
 
+export const CONTACT_OWNERSHIP_STATES = Object.freeze([
+  'not_requested',
+  'pending',
+  'ownership_verified',
+  'failed',
+  'expired',
+  'revoked',
+]);
+
+const CONTACT_OWNERSHIP_TRANSITIONS = Object.freeze({
+  not_requested: { verification_requested: 'pending' },
+  pending: {
+    challenge_confirmed: 'ownership_verified',
+    challenge_failed: 'failed',
+    challenge_expired: 'expired',
+  },
+  ownership_verified: { verification_revoked: 'revoked' },
+  failed: { verification_requested: 'pending' },
+  expired: { verification_requested: 'pending' },
+  revoked: { verification_requested: 'pending' },
+});
+
+const OWNERSHIP_CHALLENGE_METHODS = new Set(['email_link', 'sms_otp']);
+
+/**
+ * 연락처 소유 확인 상태 전이. 허용되지 않은 직접 승격은 무시한다.
+ * 실제 메일/SMS 전송과 challenge 검증은 백엔드 책임이며 이 함수는 계약을 고정한다.
+ */
+export function transitionContactOwnershipState(currentState, eventType) {
+  const state = CONTACT_OWNERSHIP_STATES.includes(currentState)
+    ? currentState
+    : 'not_requested';
+  return CONTACT_OWNERSHIP_TRANSITIONS[state]?.[eventType] || state;
+}
+
+/**
+ * 백엔드 challenge 결과의 최소 증거 계약.
+ * 원문 연락처 대신 recipient_fingerprint를 사용하며, 완전한 확인 증거만 허용한다.
+ */
+export function hasOwnershipVerificationProof(verification) {
+  if (!verification || typeof verification !== 'object') return false;
+  return (
+    verification.state === 'ownership_verified' &&
+    verification.previous_state === 'pending' &&
+    OWNERSHIP_CHALLENGE_METHODS.has(verification.method) &&
+    typeof verification.challenge_id === 'string' &&
+    verification.challenge_id.trim().length > 0 &&
+    typeof verification.recipient_fingerprint === 'string' &&
+    verification.recipient_fingerprint.trim().length >= 8 &&
+    typeof verification.verified_at === 'string' &&
+    verification.verified_at.trim().length > 0
+  );
+}
+
 export const TRADE_STATUS_LABELS = {
   unavailable: '수입실적 자료 내 확인 불가',
   source_confirmed: '출처 확인됨',
@@ -55,10 +109,13 @@ export function isPhoneFormatValid(phone) {
  * - unavailable: 없음
  * - discovered: 보유(형식 미통과·추정 등)
  * - format_validated: 이메일/전화 형식이 통과 (소유 검증 아님)
- * - ownership_verified: 별도 소유 확인 절차 전까지 부여하지 않음
+ * - ownership_verified: 백엔드 challenge 확인 증거가 완전할 때만 부여
  */
 export function deriveContactStatus(item) {
   if (!item?.has_contact) return 'unavailable'
+  if (hasOwnershipVerificationProof(item.contact_ownership_verification)) {
+    return 'ownership_verified'
+  }
   const emailOk = isEmailFormatValid(item.contact_email)
   const phoneOk = isPhoneFormatValid(item.contact_phone)
   if ((emailOk || phoneOk) && !item.contact_email_estimated) {
@@ -338,3 +395,4 @@ export function groupBuyersByCountry(buyers) {
   }
   return result.sort((a, b) => b.avgScore - a.avgScore);
 }
+
