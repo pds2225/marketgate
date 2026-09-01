@@ -19,6 +19,11 @@ from app.inquiry_store import (
     transition,
 )
 from app.services.inquiry_service import build_draft
+from app.services.inquiry_delivery import (
+    DeliveryRejected,
+    DeliveryUnavailable,
+    deliver_inquiry,
+)
 
 router = APIRouter(prefix="/v1", tags=["inquiries"])
 
@@ -140,6 +145,27 @@ def admin_reject(
 @router.post("/admin/inquiries/{inquiry_id}/queue")
 def admin_queue(inquiry_id: str, admin: dict = Depends(require_admin)):
     return _transition_or_400(inquiry_id, "queued", by=admin["user_id"])
+
+
+@router.post("/admin/inquiries/{inquiry_id}/dispatch-dry-run")
+def admin_dispatch_dry_run(inquiry_id: str, admin: dict = Depends(require_admin)):
+    """Exercise queued → sent without external delivery; production is fail-closed."""
+    record = get_inquiry(inquiry_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="inquiry_not_found")
+    try:
+        delivery = deliver_inquiry(record)
+    except DeliveryUnavailable as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except DeliveryRejected as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return _transition_or_400(
+        inquiry_id,
+        "sent",
+        by=admin["user_id"],
+        delivery_provider=delivery.provider,
+        provider_message_id=delivery.provider_message_id,
+    )
 
 
 @router.post("/admin/inquiries/{inquiry_id}/mark-sent")
