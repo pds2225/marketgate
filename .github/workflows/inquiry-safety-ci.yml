@@ -1,0 +1,72 @@
+name: Inquiry Safety Tests
+
+on:
+  pull_request:
+    paths:
+      - "services/p1-export-fit-api/app/inquiry_store.py"
+      - "services/p1-export-fit-api/app/routers/inquiries.py"
+      - "services/p1-export-fit-api/app/services/inquiry_*.py"
+      - "services/p1-export-fit-api/tests/test_inquiry*.py"
+      - ".github/workflows/inquiry-safety-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "services/p1-export-fit-api/app/inquiry_store.py"
+      - "services/p1-export-fit-api/app/routers/inquiries.py"
+      - "services/p1-export-fit-api/app/services/inquiry_*.py"
+      - "services/p1-export-fit-api/tests/test_inquiry*.py"
+      - ".github/workflows/inquiry-safety-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: inquiry-safety-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inquiry-safety:
+    name: inquiry-safety / Python 3.11
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: services/p1-export-fit-api
+    env:
+      APP_ENV: test
+      JWT_SECRET: ci-only-inquiry-tests-not-a-production-secret-0123456789abcdef
+      INQUIRY_DELIVERY_DRY_RUN: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/p1-export-fit-api/requirements.txt
+
+      - name: Install API and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt "pytest<9" "httpx<1"
+
+      - name: Run inquiry safety suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          tests=(
+            tests/test_inquiry_service.py
+            tests/test_inquiry_endpoint.py
+            tests/test_inquiry_queue.py
+          )
+          for optional in \
+            tests/test_inquiry_dry_run_dispatch.py \
+            tests/test_inquiry_store_atomic.py; do
+            if [ -f "${optional}" ]; then
+              tests+=("${optional}")
+            fi
+          done
+          python -m pytest -q "${tests[@]}"
