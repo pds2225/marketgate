@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   mapApiBuyersToViewModels,
   deriveContactStatus,
+  transitionContactOwnershipState,
+  hasOwnershipVerificationProof,
   deriveTradeStatus,
   deriveCreditStatus,
   groupBuyersByCountry,
@@ -133,6 +135,78 @@ test('L010: 원본(CSV/API) 필드만으로는 ownership_verified 를 부여하�
   }
 });
 
+test('MG-006: 소유 확인은 요청→대기→challenge 확인 순서로만 승격한다', () => {
+  assert.equal(
+    transitionContactOwnershipState('not_requested', 'verification_requested'),
+    'pending'
+  );
+  assert.equal(
+    transitionContactOwnershipState('pending', 'challenge_confirmed'),
+    'ownership_verified'
+  );
+  assert.equal(
+    transitionContactOwnershipState('not_requested', 'challenge_confirmed'),
+    'not_requested'
+  );
+  assert.equal(
+    transitionContactOwnershipState('ownership_verified', 'verification_revoked'),
+    'revoked'
+  );
+});
+
+test('MG-006: 완전한 이메일 링크 challenge 증거만 ownership_verified 로 표시한다', () => {
+  const proof = {
+    state: 'ownership_verified',
+    previous_state: 'pending',
+    method: 'email_link',
+    challenge_id: 'challenge-123',
+    recipient_fingerprint: 'sha256:ab12cd34',
+    verified_at: '2026-09-01T00:00:00Z',
+  };
+  assert.equal(hasOwnershipVerificationProof(proof), true);
+  assert.equal(
+    deriveContactStatus({
+      has_contact: true,
+      contact_email: 'owner@example.com',
+      contact_ownership_verification: proof,
+    }),
+    'ownership_verified'
+  );
+});
+
+test('MG-006: pending·실패·불완전 증거와 임의 verified 플래그는 승격하지 않는다', () => {
+  const base = {
+    state: 'ownership_verified',
+    previous_state: 'pending',
+    method: 'sms_otp',
+    challenge_id: 'challenge-456',
+    recipient_fingerprint: 'sha256:ef56gh78',
+    verified_at: '2026-09-01T00:00:00Z',
+  };
+  const invalidProofs = [
+    { ...base, state: 'pending' },
+    { ...base, state: 'failed' },
+    { ...base, previous_state: 'not_requested' },
+    { ...base, method: 'csv_flag' },
+    { ...base, challenge_id: '' },
+    { ...base, recipient_fingerprint: '' },
+    { ...base, verified_at: '' },
+  ];
+  for (const proof of invalidProofs) {
+    assert.equal(hasOwnershipVerificationProof(proof), false);
+    assert.notEqual(
+      deriveContactStatus({
+        has_contact: true,
+        contact_email: 'owner@example.com',
+        ownership_verified: true,
+        verified: true,
+        contact_ownership_verification: proof,
+      }),
+      'ownership_verified'
+    );
+  }
+});
+
 test('L010: has_contact 만으로는 소유검증(검증 완료) 라벨이 노출되지 않는다', () => {
   const status = deriveContactStatus({ has_contact: true });
   assert.equal(status, 'discovered');
@@ -260,3 +334,4 @@ test('MG-003: D&B/K-SURE links are official lookup pages only', () => {
   assert.doesNotMatch(EXTERNAL_LOOKUP_LINKS.ksureSight.href, /ksure\.go\.kr/);
   assert.notEqual(EXTERNAL_LOOKUP_LINKS.dunsLookup.href, 'https://www.dnb.com');
 });
+
