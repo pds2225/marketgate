@@ -20,9 +20,9 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 [x] MG-003 | 기업검증 화면을 실제 조회 결과와 연결한다
 [!] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
 [x] MG-005 | 랜딩에서 입력한 HS로 구매신호를 바로 보게 한다
-[ ] MG-006 | 연락처가 실제 수신자 소유인지 확인하는 절차를 만든다
-[ ] MG-007 | 인콰이어리를 고객이 제출한 뒤 실제 발송까지 이어지게 한다
-[ ] MG-008 | P2 바이어 소스를 CSV로 넣어 실제 검색에 쓰이게 한다
+[x] MG-006 | 연락처가 실제 수신자 소유인지 확인하는 절차를 만든다
+[!] MG-007 | 인콰이어리를 고객이 제출한 뒤 실제 발송까지 이어지게 한다
+[!] MG-008 | P2 바이어 소스를 CSV로 넣어 실제 검색에 쓰이게 한다
 [x] T-20260814-01 | 코드 머지 전에 제품 테스트가 통과해야 한다
 
 
@@ -988,8 +988,9 @@ DEPENDS_ON: 없음. MG-003과 파일군이 다름.
 
 ### 8-4. 현재상태
 
-- UI 라벨은 있음. 부여 로직 없음 (`buyerViewModel.js` 주석: 별도 절차 전까지 부여하지 않음)
-- 선행: 확인 채널(메일 링크 등) 설계 필요
+- 연락처 소유권 검증 요청·확인·취소·재시도 API와 BuyerSearch 패널을 main에 반영했다 (MG-006 merge `f2757d28`).
+- 토큰은 해시 저장·만료·시도 제한·사용자 격리로 보호하며, 운영/Render에서는 명시적 외부 채널 없이 fail-closed다. 비운영 dry-run에서만 미리보기 토큰을 사용할 수 있다.
+- REQUEST_SOLVED=YES (실제 소유 확인 전에는 `ownership_verified`로 승격하지 않는 절차 구현 완료).
 
 ### 8-5. MUST
 
@@ -1024,9 +1025,9 @@ DEPENDS_ON: 없음. 발송(MG-007)보다 먼저 하는 것이 안전.
 
 ### 8-4. 현재상태
 
-- POST `/v1/inquiries` + `/submit` → `review_required`
-- 관리자 큐는 있음. 고객 E2E 실발송·SMTP 파일럿 미완
-- 실 SMTP는 운영 메일함/`ADMIN_EMAILS` 필요
+- POST `/v1/inquiries` + `/submit` 이후 고객용 상태/이력 조회와 관리자 dry-run dispatch를 main에 반영했다 (MG-007 merge `91861e25`).
+- 실제 SMTP/provider 발송은 명시적 비운영 dry-run 외에는 fail-closed로 비활성화되어 있으며, 운영 파일럿에는 SMTP와 `ADMIN_EMAILS`가 필요하다.
+- REQUEST_SOLVED=NO / BLOCKED (운영 발송 자격증명·수신 메일함 미제공).
 
 ### 8-5. MUST
 
@@ -1061,8 +1062,9 @@ P2 바이어 소스를 CSV로 넣어 실제 검색에 쓰이게 한다
 
 ### 8-4. 현재상태
 
-- P2 경로/`ACCESS_GATED` 흔적. 실 CSV 드롭인 미완
-- 원본 파일이 없으면 만들지 않음
+- P2 CSV drop-in fail-closed validator와 merge preflight를 main에 반영했다 (MG-008 merge `3909f1b5`).
+- 실제 P2 CSV 원본이 아직 제공되지 않아 검색 데이터 연결은 보류하며, 없는 값을 합성하지 않는다.
+- REQUEST_SOLVED=NO / BLOCKED (사용자가 제공할 라이선스·원본 CSV 필요).
 
 ### 8-5. MUST
 

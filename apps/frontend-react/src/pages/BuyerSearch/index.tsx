@@ -28,6 +28,7 @@ import {
   CREDIT_STATUS_LABELS,
 } from './buyerViewModel';
 import CreditUnlockPanel from '@/components/CreditUnlockPanel';
+import ContactOwnershipPanel from './ContactOwnershipPanel';
 import { displayContact, makeBuyerKey } from '@/lib/creditWallet';
 import { detectCategory as detectCategoryShared } from '@/lib/hsKeywordMap';
 
@@ -888,11 +889,12 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
                   website={buyer.website}
                   variant="light"
                 />
-                {buyer.contactStatus !== 'unavailable' ? (
-                  <div className="flex items-center gap-2 mt-4 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 w-fit"><AlertCircle className="h-4 w-4 text-amber-600" /><span className="text-xs font-medium text-amber-700">{CONTACT_STATUS_LABELS[buyer.contactStatus]}</span><span className="text-[10px] text-amber-500">형식·소유 검증 절차 전 상태입니다</span></div>
-                ) : (
-                  <div className="flex items-center gap-2 mt-4 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 w-fit"><AlertCircle className="h-4 w-4 text-slate-500" /><span className="text-xs font-medium text-slate-600">연락처 없음</span><span className="text-[10px] text-slate-400">자료 내 확인 불가 — 발송 불가</span></div>
-                )}
+                <ContactOwnershipPanel
+                  contactStatus={buyer.contactStatus}
+                  email={buyer.email}
+                  phone={buyer.phone}
+                  emailEstimated={buyer.emailEstimated}
+                />
               </div>
             </div>
           )}
