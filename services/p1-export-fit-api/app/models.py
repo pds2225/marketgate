@@ -99,7 +99,11 @@ class PredictDiagnostics(BaseModel):
 
 class BuyerShortlistItem(BaseModel):
     buyer_name: str
+    normalized_name: Optional[str] = None
     source_dataset: Optional[str] = None
+    source_name: Optional[str] = None
+    source_type: Optional[str] = None
+    source_names: List[str] = Field(default_factory=list)
     country_norm: Optional[str] = None
     source_target_country_iso3: Optional[str] = None
     source_target_country_name: Optional[str] = None
@@ -125,6 +129,9 @@ class BuyerShortlistItem(BaseModel):
     # 가산 필드 (matchC): HS 관련성 등급(strong/weak/none)·검증 연락처 보유 배지
     match_relevance: Optional[str] = None
     has_verified_contact: Optional[bool] = None
+    # Buyer Matching P0: explicit hard-gate outcome and rejection reason codes.
+    gate_status: str = "PASS"
+    gate_reasons: List[str] = Field(default_factory=list)
 
 
 class BuyerShortlistSourceCountry(BaseModel):

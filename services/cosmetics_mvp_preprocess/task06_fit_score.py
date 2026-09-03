@@ -45,7 +45,7 @@ SOFT_PENALTY_WEIGHTS = {
     "missing_contact": 10,
     "partial_missing_data": 6,
 }
-BUYER_HARD_FAIL_CODES = {"banned_country"}
+BUYER_HARD_FAIL_CODES = {"banned_country", "invalid_buyer_identity"}
 # expired/ambiguous_product은 component score에서 이미 0으로 처리 — hard_fail로 모든 buyer 제거 불필요
 OPPORTUNITY_HARD_FAIL_CODES = {"signal_type_invalid"}
 SHORTLIST_THRESHOLD = 70
@@ -187,6 +187,7 @@ def _build_gate_bundle(
     opportunity: Mapping[str, Any] | None,
     gate_result: Mapping[str, Any] | None,
     reference_date: date | None,
+    strict_buyer_identity: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any] | None, dict[str, Any] | None]:
     normalized_opportunity = _normalized_opportunity(opportunity, reference_date=reference_date)
     target = _target_context(supplier_profile, normalized_opportunity)
@@ -214,6 +215,7 @@ def _build_gate_bundle(
             target_title=target["title"],
             banned_countries=banned_countries,
             required_capacity=required_capacity,
+            validate_identity=strict_buyer_identity,
         )
     )
 
@@ -474,6 +476,7 @@ def _gate_failure_reasons(
     opportunity_gate: Mapping[str, Any] | None,
 ) -> list[str]:
     mapping = {
+        "invalid_buyer_identity": "회사 식별 정보가 없어 후보에서 제외했습니다.",
         "country_mismatch": "타깃 국가와 buyer 국가가 맞지 않아 강한 감점이 적용됐습니다.",
         "banned_country": "금지 국가 규칙에 걸려 후보에서 제외했습니다.",
         "hs_mismatch": "제품 HS 또는 핵심 키워드가 맞지 않아 감점이 적용됐습니다.",
@@ -625,6 +628,7 @@ def fit_score_v0(
     opportunity: Mapping[str, Any] | None = None,
     gate_result: Mapping[str, Any] | None = None,
     reference_date: date | None = None,
+    strict_buyer_identity: bool = False,
 ) -> dict[str, Any]:
     normalized_opportunity = _normalized_opportunity(opportunity, reference_date=reference_date)
     target, buyer_gate, opportunity_gate = _build_gate_bundle(
@@ -633,6 +637,7 @@ def fit_score_v0(
         opportunity=normalized_opportunity,
         gate_result=gate_result,
         reference_date=reference_date,
+        strict_buyer_identity=strict_buyer_identity,
     )
     match_result = match_hs_or_keywords(buyer, target)
     overlap_terms = _keyword_overlap(buyer, target)
@@ -715,6 +720,7 @@ def score_buyers(
     supplier_profile: Mapping[str, Any],
     opportunity: Mapping[str, Any] | None = None,
     reference_date: date | None = None,
+    strict_buyer_gate: bool = False,
 ) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for buyer in buyers:
@@ -723,6 +729,7 @@ def score_buyers(
             supplier_profile=supplier_profile,
             opportunity=opportunity,
             reference_date=reference_date,
+            strict_buyer_identity=strict_buyer_gate,
         )
         enriched = dict(result)
         enriched["buyer"] = dict(buyer)

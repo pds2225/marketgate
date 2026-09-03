@@ -27,6 +27,21 @@ from task08_recommendation import build_recommendation_lines
 ROOT = Path(__file__).resolve().parent
 
 
+def _normalize_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    return normalize_text(value).casefold() in {"1", "true", "yes", "y", "t"}
+
+
+def _buyer_gate_status(score_result: Mapping[str, Any]) -> tuple[str, list[str]]:
+    gate = (score_result.get("gate_result") or {}).get("buyer_gate") or {}
+    status = normalize_text(gate.get("gate_status")).upper()
+    if status not in {"PASS", "FAIL", "UNKNOWN"}:
+        status = "PASS" if gate.get("passed", True) else "FAIL"
+    reasons = [normalize_text(reason) for reason in gate.get("gate_reason", []) if normalize_text(reason)]
+    return status, reasons
+
+
 def _soft_penalty_distribution(rows: list[dict[str, Any]]) -> dict[str, int]:
     counter: Counter[str] = Counter()
     for row in rows:
@@ -274,6 +289,7 @@ def shortlist_buyers(
     opportunity_title_contains: str = "",
     opportunity_country_norm: str = "",
     include_rejected: bool = False,
+    strict_buyer_gate: bool = False,
 ) -> dict[str, Any]:
     buyers = load_buyer_frame(output_dir=output_dir)
     opportunities = load_opportunity_frame(output_dir=output_dir)
@@ -281,9 +297,15 @@ def shortlist_buyers(
     target_country = normalize_text(supplier_profile.get("target_country_norm"))
     filtered_buyers = buyers
     if target_country:
-        filtered_buyers = filtered_buyers[
-            filtered_buyers["country_norm"].astype(str).eq(target_country)
-        ].copy()
+        country_values = filtered_buyers["country_norm"].astype(str)
+        if strict_buyer_gate:
+            # Keep country-unknown rows for UNKNOWN handling; explicit mismatches
+            # are excluded at the candidate-search boundary.
+            filtered_buyers = filtered_buyers[
+                country_values.eq(target_country) | country_values.str.strip().eq("")
+            ].copy()
+        else:
+            filtered_buyers = filtered_buyers[country_values.eq(target_country)].copy()
 
     selected_opportunity = _select_opportunity(
         opportunities,
@@ -334,7 +356,12 @@ def shortlist_buyers(
         supplier_profile=scoring_supplier_profile,
         opportunity=scoring_opportunity,
         reference_date=reference_date,
+        strict_buyer_gate=strict_buyer_gate,
     )
+    gate_fail_count = sum(1 for row in scored_all if _buyer_gate_status(row)[0] == "FAIL")
+    unknown_gate_count = sum(1 for row in scored_all if _buyer_gate_status(row)[0] == "UNKNOWN")
+    if strict_buyer_gate:
+        scored_all = [row for row in scored_all if _buyer_gate_status(row)[0] != "FAIL"]
     shortlist_count = sum(1 for row in scored_all if row["decision"] == "shortlist")
     candidate_count = sum(1 for row in scored_all if row["decision"] == "candidate")
     rejected_count = sum(1 for row in scored_all if row["decision"] == "rejected")
@@ -354,6 +381,7 @@ def shortlist_buyers(
     items: list[dict[str, Any]] = []
     for row in scored:
         buyer = row["buyer"]
+        gate_status, gate_reasons = _buyer_gate_status(row)
         recommendation_lines = build_recommendation_lines(row)
         explanation_reasons = [
             normalize_text(line)
@@ -365,13 +393,22 @@ def shortlist_buyers(
         items.append(
             {
                 "buyer_name": normalize_text(buyer.get("normalized_name")) or normalize_text(buyer.get("title")),
+                "normalized_name": normalize_text(buyer.get("normalized_name")),
                 "source_dataset": normalize_text(buyer.get("source_dataset")),
                 "country_norm": normalize_text(buyer.get("country_norm")),
                 "hs_code_norm": normalize_text(buyer.get("hs_code_norm")),
                 "keywords_norm": normalize_text(buyer.get("keywords_norm")),
-                "has_contact": str(buyer.get("has_contact", "")).strip().lower() == "true",
+                "has_contact": (
+                    _normalize_bool(buyer.get("has_contact"))
+                    or bool(
+                        normalize_text(buyer.get("contact_email"))
+                        or normalize_text(buyer.get("contact_phone"))
+                        or normalize_text(buyer.get("contact_website"))
+                        or normalize_text(buyer.get("contact_name"))
+                    )
+                ),
                 "contact_email": normalize_text(buyer.get("contact_email")),
-                "contact_email_estimated": str(buyer.get("contact_email_estimated", "")).strip().lower() == "true",
+                "contact_email_estimated": _normalize_bool(buyer.get("contact_email_estimated")),
                 "contact_name": normalize_text(buyer.get("contact_name")),
                 "contact_phone": normalize_text(buyer.get("contact_phone")),
                 "contact_website": normalize_text(buyer.get("contact_website")),
@@ -382,6 +419,13 @@ def shortlist_buyers(
                 "explanation_reasons": explanation_reasons[:3],
                 "matched_by": normalize_text(row.get("matched_by")),
                 "matched_terms": list(row.get("matched_terms", [])),
+                "gate_status": gate_status,
+                "gate_reasons": gate_reasons,
+                "source_name": normalize_text(buyer.get("source_dataset")),
+                "source_type": "buyer_candidate",
+                "source_names": [normalize_text(buyer.get("source_dataset"))]
+                if normalize_text(buyer.get("source_dataset"))
+                else [],
             }
         )
 
@@ -429,6 +473,9 @@ def shortlist_buyers(
             "shortlist_count": shortlist_count,
             "candidate_count": candidate_count,
             "rejected_count": rejected_count,
+            "hard_gate_fail_count": gate_fail_count,
+            "unknown_gate_count": unknown_gate_count,
+            "strict_buyer_gate": strict_buyer_gate,
             "soft_penalty_row_count": soft_penalty_row_count,
             "soft_penalty_distribution": soft_penalty_distribution,
         },
