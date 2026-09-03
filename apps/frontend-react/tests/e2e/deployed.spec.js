@@ -135,11 +135,14 @@ test.describe('deployed production-safe smoke', () => {
     expect(navigation, 'top-level navigation must return a response').not.toBeNull()
     expect(navigation.ok(), `navigation failed: ${navigation.status()}`).toBeTruthy()
 
-    const loginButton = page.getByRole('button', { name: '로그인' })
+    // The logged-out marketing landing also carries a '로그인' button, so that
+    // label cannot tell the dedicated AuthPage apart from the landing. The email
+    // field placeholder is unique to the auth screen.
+    const authEmailInput = page.getByPlaceholder('you@company.com')
     const landingHeading = page.getByRole('heading', {
       name: '무엇을 수출하시나요?',
     })
-    const authVisible = await loginButton.isVisible()
+    const authVisible = await authEmailInput.isVisible()
     const landingVisible = await landingHeading.isVisible()
     expect(
       authVisible || landingVisible,
