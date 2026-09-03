@@ -59,6 +59,7 @@ def validate_top20(
         opportunity_title_contains=opportunity_title_contains,
         opportunity_country_norm=str(scenario.get("target_country_norm", "")),
         include_rejected=False,
+        strict_buyer_gate=True,
     )
     quality = validate_shortlist_quality(shortlist)
     top20 = shortlist.get("items", [])[:20]
