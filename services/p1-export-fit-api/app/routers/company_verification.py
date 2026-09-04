@@ -55,7 +55,10 @@ def create_company_verification(
             result_json=result_json,
         )
     except RuntimeError as exc:
-        # Store is DB-only; do not collapse provider/DB failure into a fake success.
+        # company_verification_store falls back to a file when DATABASE_URL is
+        # unset; a RuntimeError here means the write itself genuinely failed
+        # (DB or disk), not "no DB configured" — do not collapse that into a
+        # fake success.
         raise HTTPException(status_code=503, detail="verification_store_unavailable") from exc
     return record
 

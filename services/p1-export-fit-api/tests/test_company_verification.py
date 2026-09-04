@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import uuid
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from main import app
@@ -319,6 +321,7 @@ def test_run_migrations_lists_0006():
 
 
 def test_post_db_unavailable_returns_503(monkeypatch):
+    """A genuine store write failure (not merely 'no DATABASE_URL') is still 503."""
     def boom(**kwargs):
         raise RuntimeError("PostgreSQL unavailable")
     monkeypatch.setattr(cv_router, "create_verification", boom)
@@ -328,3 +331,100 @@ def test_post_db_unavailable_returns_503(monkeypatch):
     )
     assert res.status_code == 503
     assert res.json()["detail"] == "verification_store_unavailable"
+
+
+# -- File fallback when DATABASE_URL is unset (L027) --------------------------
+# company_verification_store now mirrors inquiry_store/credit_store: DB is the
+# primary path, an atomic JSON file is the fallback when get_conn() is None
+# (e.g. Render free tier with no DATABASE_URL). Isolation and durability must
+# hold in the fallback path too.
+
+
+def test_file_fallback_create_and_get_roundtrip(tmp_path, monkeypatch):
+    path = tmp_path / "company_verifications.json"
+    monkeypatch.setattr(cv_store, "_VERIFICATIONS_PATH", str(path))
+    monkeypatch.setattr(cv_store, "get_conn", lambda: None)
+
+    rec = cv_store.create_verification(
+        user_id="user-1",
+        company_name="FileFallbackCo",
+        country_iso3="KOR",
+        registration_number=None,
+        provider="opencorporates",
+        registry_check_status="BASIC_CONFIRMED",
+        result_json={"provider": "opencorporates", "mock": True},
+    )
+    assert rec["company_name"] == "FileFallbackCo"
+    assert path.is_file()
+
+    fetched = cv_store.get_verification(rec["verification_id"], "user-1")
+    assert fetched is not None
+    assert fetched["company_name"] == "FileFallbackCo"
+    assert fetched["registry_check_status"] == "BASIC_CONFIRMED"
+    assert fetched["result_json"]["mock"] is True
+
+
+def test_file_fallback_isolates_by_user(tmp_path, monkeypatch):
+    path = tmp_path / "company_verifications.json"
+    monkeypatch.setattr(cv_store, "_VERIFICATIONS_PATH", str(path))
+    monkeypatch.setattr(cv_store, "get_conn", lambda: None)
+
+    rec = cv_store.create_verification(
+        user_id="owner",
+        company_name="SecretFileCo",
+        country_iso3="KOR",
+        registration_number=None,
+        provider="opencorporates",
+        registry_check_status="BASIC_CONFIRMED",
+        result_json={"mock": True},
+    )
+    assert cv_store.get_verification(rec["verification_id"], "someone-else") is None
+    assert cv_store.get_verification(rec["verification_id"], "owner") is not None
+
+
+def test_file_fallback_atomic_write_keeps_previous_json_on_failure(tmp_path, monkeypatch):
+    """Failed os.replace leaves prior JSON intact and no stray .tmp file (L016)."""
+    path = tmp_path / "company_verifications.json"
+    monkeypatch.setattr(cv_store, "_VERIFICATIONS_PATH", str(path))
+    monkeypatch.setattr(cv_store, "get_conn", lambda: None)
+
+    first = cv_store.create_verification(
+        user_id="user-1", company_name="FirstCo", country_iso3="KOR",
+        registration_number=None, provider="opencorporates",
+        registry_check_status="BASIC_CONFIRMED", result_json={"mock": True},
+    )
+
+    def fail_replace(source, destination):
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr(cv_store.os, "replace", fail_replace)
+    with pytest.raises(OSError, match="simulated replace failure"):
+        cv_store.create_verification(
+            user_id="user-1", company_name="SecondCo", country_iso3="KOR",
+            registration_number=None, provider="opencorporates",
+            registry_check_status="BASIC_CONFIRMED", result_json={"mock": True},
+        )
+
+    persisted = json.loads(path.read_text(encoding="utf-8"))
+    assert list(persisted) == [first["verification_id"]]
+    assert list(tmp_path.glob(".company-verifications-*.tmp")) == []
+
+
+def test_post_then_get_succeeds_via_real_store_when_db_unavailable(tmp_path, monkeypatch):
+    """Router-level: POST/GET succeed (not 503) through the real store, no DB."""
+    path = tmp_path / "company_verifications.json"
+    monkeypatch.setattr(cv_store, "_VERIFICATIONS_PATH", str(path))
+    monkeypatch.setattr(cv_store, "get_conn", lambda: None)
+    monkeypatch.setattr(cv_router, "create_verification", cv_store.create_verification)
+    monkeypatch.setattr(cv_router, "get_verification", cv_store.get_verification)
+
+    res = client.post(
+        "/v1/company-verifications",
+        json={"company_name": "RouterFallbackCo", "country_iso3": "KOR"},
+    )
+    assert res.status_code == 200
+    vid = res.json()["verification_id"]
+
+    get_res = client.get(f"/v1/company-verifications/{vid}")
+    assert get_res.status_code == 200
+    assert get_res.json()["company_name"] == "RouterFallbackCo"
