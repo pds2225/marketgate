@@ -1,84 +1,61 @@
 # marketgate E2E — 상태와 남은 일 (2026-09-04)
 
 > 이 브랜치(`chore/e2e-followups`)는 **지금 main에 넣지 않고 나중에 반영할** 것들을
-> 모아둔 곳이다. 사용자 지시: "나중에 반영하게 브랜치에 저장하고 읽을 수 있게 메모 남겨".
-> main에 이미 들어간 것은 아래 "완료" 참고.
+> 모아둔 곳이다. MG-004는 이후 진행돼 main에 이미 병합·완료됐다 — 아래 "완료" 참고.
 
 ---
 
 ## 지금 어디까지 됐나 (비개발자용)
 
-**로그인 → 바이어 검색 → 상세 → 인콰이어리 초안 → 관리자 검토 요청까지, 실제로 다
-동작한다.** 로컬(내 PC)에서 자동 테스트로 전 과정을 5개 항목 전부 통과 확인했다.
-데이터도 진짜다 — 바이어 36,241건이 `buyer_candidate.csv`에서 나온다.
+**로그인 → 바이어 검색 → 상세 → 기업검증 → 인콰이어리 초안 → 관리자 검토 요청까지,
+로컬과 운영(marketgate.vercel.app) 양쪽 다 실제로 동작한다.** 데이터도 진짜다 —
+바이어 36,241건이 `buyer_candidate.csv`에서 나온다.
 
-`localhost:5173/demo.html` 은 로그인 없이 실데이터를 보여주는 화면인데, 이것도 정상.
+`localhost:5173/demo.html` 은 로그인 없이 실데이터를 보여주는 화면, 이것도 정상.
 
 **아직 안 되는 것:**
-- 회사(기업) 검증이 **운영 사이트(marketgate.vercel.app)** 에서는 실패 — MG-004.
-  운영 백엔드(Render)가 2026-07-28 코드에 멈춰 있어서 그렇다. Render 관리자
-  화면에서 수동으로 한 번 배포해야 한다. (아래 "MG-004" 참고)
 - 인콰이어리 **실제 메일 발송** — MG-007. 코드는 됐고 dry-run(모의 발송)은 테스트됨.
-  진짜 발송은 운영 메일 계정(SMTP) 설정이 있어야 한다.
+  진짜 발송은 provider 어댑터 구현 + 운영 메일 계정(SMTP) 설정이 있어야 한다.
 - P2 바이어 데이터 추가 — MG-008. 넣을 CSV 파일이 있어야 진행.
 
 ---
 
-## main에 이미 반영됨 (PR #146, `e2d1ed4`)
+## main에 이미 반영됨
 
-- `tools/e2e-local.mjs` — 로컬 스택에 대고 E2E 전체를 돌리는 러너
-- `apps/frontend-react/tests/e2e/deployed.spec.js` — `@smoke` 화면 판별 버그 수정 (L026)
-- `docs/LESSONS.md` — L026
-- 결과: 로컬 E2E 5/5, 백엔드 pytest 267 pass / 1 skip, 프론트 unit 28 pass
-- **부수효과**: main의 `Deployed E2E` 워크플로가 몇 주 만에 처음 GREEN. (smoke 판별
-  버그가 원인이었음. 단, 이게 MG-004를 푸는 건 아님 — smoke는 health 체크만 하고,
-  write journey는 기업검증을 안 건드리고, company-verification 스펙은 CV-02를 mock함)
+**PR #146 (`e2d1ed4`)** — `tools/e2e-local.mjs`(로컬 E2E 러너), `deployed.spec.js`
+`@smoke` 화면판별 버그 수정(L026). 로컬 E2E 5/5, 백엔드 pytest 267 pass/1 skip.
+부수효과로 main `Deployed E2E` 워크플로가 몇 주 만에 GREEN.
+
+**PR #148 (`5a288e7`) — MG-004 본체 수정** — `company_verification_store.py`에
+`inquiry_store` 패턴(원자적 JSON 파일 폴백 + `user_id` 격리)을 추가해, Render 운영에
+Postgres가 없어도(`DATABASE_URL` 미설정) 기업검증이 동작하게 함. `docs/LESSONS.md` L027.
+backend pytest 271 pass/1 skip.
+
+**PR #149 (`483c2fa`) — MG-004 종료** — 운영(`marketgate.onrender.com`)에 배포 확인 후
+`tests/e2e/mg004-prod-verification.spec.js`(비mock, 실제 운영 API)로 로그인→검색→상세→
+기업검증 전 과정 PASS 확인. `TASK.md` `MG-004 [!]`→`[x]`, `REQUEST_SOLVED=YES`.
+`marketgate-e2e.onrender.com`(격리 e2e 서비스)은 아직 이 fix가 안 올라가 있어 그
+서비스에 대고 도는 CI(`Preview deployed E2E`)는 계속 503으로 실패함 — AC-7(SHOULD)
+후속 과제로 남음, MG-004 자체를 막지는 않음(운영이 기준).
 
 Codex가 같은 밤에 병합: MG-006(`/v1/contact-verifications`), MG-007(dry-run dispatch),
 MG-008 preflight(`tools/validate_p2_dropins.py`).
+
+**결과: MG-001~006 전부 `[x]`. 남은 건 MG-007·MG-008뿐, 둘 다 아래처럼 100% 사용자
+제공(자격증명/데이터) 대기.**
 
 ---
 
 ## 이 브랜치에 담긴 것
 
-### 1. `tools/mg004-live-e2e.mjs` (이전 세션에서 만든 untracked 파일 — 여기 저장)
+### `tools/mg004-live-e2e.mjs` (이전 세션에서 만든 untracked 파일 — 여기 저장)
 
-운영 사이트(`marketgate.vercel.app`)에 실제로 접속해서 로그인→검색→상세→기업검증까지
-훑는 스크립트. Render가 재배포되기 전엔 기업검증 단계에서 FAIL 난다.
-**나중에 할 일**: `tools/e2e-local.mjs`에 `--target=prod` 모드로 흡수하고 이 파일은 삭제.
-지금은 그냥 잃어버리지 않게 커밋만 해둠.
+운영 사이트에 실제 접속해 로그인→검색→상세→기업검증을 훑는 초기 스크립트.
+`tests/e2e/mg004-prod-verification.spec.js`(이제 main에 있고 green)로 사실상
+대체됐다. **나중에 할 일**: 필요 없으면 삭제, 필요하면 `e2e-local.mjs`에
+`--target=prod` 모드로 흡수.
 
-### 2. 이 문서
-
----
-
-## MG-004 — 2026-09-04 재조사 (블로커가 바뀜)
-
-**옛 블로커(Render가 2026-07-28 코드에 멈춤) 해소됨.** `marketgate.onrender.com`
-이 최근 코드로 재배포됨 — `/v1/company-verifications`, `/v1/contact-verifications`,
-`/v1/admin/inquiries/{id}/dispatch-dry-run` 전부 라이브(전엔 404). 로그인 →
-바이어검색 → 상세 → 기업검증 탭까지 운영에서 실제 동작 확인
-(`tests/e2e/mg004-prod-verification.spec.js`).
-
-**새 블로커:** 기업검증 POST가 **503 `verification_store_unavailable`**.
-- `company_verification_store.py` 는 의도적으로 **"DB-only, no file fallback"**
-  (docstring·router 주석·`#119`부터). `test_post_db_unavailable_returns_503` 가드 존재.
-- `render.yaml` 에 `DATABASE_URL`/DB 리소스 없음 → 운영에 Postgres 없음 →
-  `get_conn()` None → `RuntimeError` → 503.
-- 다른 store(inquiry/credit/auth/subscription)는 전부 파일 폴백이 있는데 CV-02만 없음.
-
-**끝내려면 둘 중 하나 (팀 결정 필요 — 야간 자동처리 부적절):**
-1. **운영에 Postgres 붙이기** (Render Blueprint에 free Postgres + `DATABASE_URL`).
-   부작용: payment/credit/subscription store도 DB 경로로 전환 → L013–L027 멱등·잠금
-   로직이 DB 기준으로 바뀜, `UVICORN_WORKERS:1` 근거 재검토, free Postgres 30일 만료.
-   payment 회귀 검증 선행 필요.
-2. **CV-02에 파일 폴백 추가** (`inquiry_store` 패턴 미러, `os.replace` 원자쓰기,
-   `owner user_id` 격리 유지). "DB-only" 명시 결정을 되돌림 + 가드 테스트 2건 갱신.
-   CV-02 provider가 결정론적 mock이라 "가짜 성공 은폐" 우려는 약함.
-
-내 판단: **2번(파일 폴백)** 이 범위 작고 운영 현실과 일치. 단 명시적 반대 결정을
-뒤집는 거라 사용자/Codex 승인 후. `mg004-prod-verification.spec.js` 는 고쳐지면
-바로 green으로 AC-4/5/6 증명하도록 이미 작성됨.
+### 이 문서
 
 ## MG-007 — 2026-09-04 재조사
 
