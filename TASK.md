@@ -18,7 +18,7 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 [x] MG-001 | 해외기업 기본검증 상태값을 맞추고 다른 사용자 결과가 보이지 않게 한다
 [x] MG-002 | 바이어가 60개까지만 보이는 원인을 찾아 고친다
 [x] MG-003 | 기업검증 화면을 실제 조회 결과와 연결한다
-[!] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
+[x] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
 [x] MG-005 | 랜딩에서 입력한 HS로 구매신호를 바로 보게 한다
 [x] MG-006 | 연락처가 실제 수신자 소유인지 확인하는 절차를 만든다
 [!] MG-007 | 인콰이어리를 고객이 제출한 뒤 실제 발송까지 이어지게 한다
@@ -787,6 +787,18 @@ CV-05 → BUYER-60 → CV-02 → CV-03
   - LIST 실측: MG-001/002/003/005/T-20260814-01 `[x]` · MG-004 `[!]` · MG-006/007/008 `[ ]`
   - Render 배포 전 MG-004 `[x]` 금지. 다음 READY는 MG-006 (소유 확인). 발송(MG-007)은 MG-006 권장 선행
 
+- **2026-09-04 완료 (Claude, 야간):**
+  - Render `marketgate`가 어느 시점에 최근 main으로 재배포됨(정확한 트리거 미상 — Render 대시보드 접근 없이 확인; `/v1/company-verifications`·`/v1/contact-verifications`·`dispatch-dry-run` 라우트가 전부 404→live로 바뀐 걸로 실측). 옛 블로커(2026-07-28 스냅샷 고정) 해소.
+  - 재배포 직후 기업검증 POST는 **503** `verification_store_unavailable`로 새 증상. 원인: `company_verification_store.py`가 유일하게 "DB-only, no file fallback"이고 Render 운영에 `DATABASE_URL` 없음. `services/p1-export-fit-api/app/company_verification_store.py`에 `inquiry_store` 패턴(원자적 JSON 파일 폴백, `user_id` 격리 유지)을 추가 — PR #148 병합 `5a288e7`. 로컬 backend pytest 271 pass/1 skip(가드 테스트 4건 추가). `docs/LESSONS.md` L027.
+  - PR #148 머지 후 운영 폴링으로 배포 확인: `POST https://marketgate.onrender.com/v1/company-verifications` → 200, `registry_check_status: BASIC_CONFIRMED` (2026-09-04 22:4x KST).
+  - **USER_E2E on marketgate.vercel.app (2026-09-04, `tests/e2e/mg004-prod-verification.spec.js`, non-mocked, live API):**
+    - 로그인(API 가입+토큰 주입): PASS
+    - HS 330499 검색: PASS — 국가 후보 리스트까지 렌더
+    - 바이어 상세: PASS — BUYER DETAIL REPORT
+    - 기업검증: **PASS** — POST 200, BASIC_* 라벨 표시, D-U-N-S/K-SURE 공식 링크 3종 전부 노출. `검증 실패` 문구 없음. 스크린샷: `apps/frontend-react/test-results/mg004-prod-verification-.../mg004-prod-verification.png`
+    - KEEP: 위 로그인·검색·상세가 같은 세션에서 그대로 통과해 기존 흐름 회귀 없음 확인
+  - **REQUEST_SOLVED=YES.** `marketgate-e2e.onrender.com`(AC-7, SHOULD)은 이 세션에서 미확인 — parity 확인은 별도 후속.
+
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
 ### 8-5. MUST — 반드시 구현
@@ -795,17 +807,17 @@ CV-05 → BUYER-60 → CV-02 → CV-03
 - [x] 권장 순서 `CV-05 → BUYER-60 → CV-02 → CV-03` — already on main
 - [x] 각 브랜치 merge 전 자체 테스트 통과 — historical, already merged
 - [x] `main.py` 충돌은 기계 ours/theirs 금지 — N/A, already merged
-- [ ] 병합 후 CV-04 통합검증 — localhost journey+pytest+build+#133 완료. **live Render API·prod 기업검증 E2E는 미배포로 FAIL 유지**
+- [x] 병합 후 CV-04 통합검증 — localhost journey+pytest+build+#133 완료. **2026-09-04: live Render API·prod 기업검증 E2E PASS** (`mg004-prod-verification.spec.js`, 8-4 참고)
 - [x] `TASK.md` CV 상태를 실제 결과에 맞게 갱신 (TASKS.md는 역사 문서)
 
 ### 8-6. KEEP — 유지
 
-- [ ] 기존 buyer 검색/상세
-- [ ] 인증
-- [ ] 결제/크레딧
-- [ ] 기존 contact/trade/credit 상태
-- [ ] demo snapshot API
-- [ ] 기존 migration chain
+- [x] 기존 buyer 검색/상세 — 2026-09-04 prod E2E로 실측 (8-4 참고)
+- [x] 인증 — 위와 동일 세션에서 로그인 유지 확인
+- [ ] 결제/크레딧 — 이번 세션 미확인(CV-02 변경과 무관한 경로라 별도 확인 필요)
+- [ ] 기존 contact/trade/credit 상태 — 이번 세션 미확인
+- [ ] demo snapshot API — 이번 세션 미확인
+- [ ] 기존 migration chain — 이번 세션 미확인
 
 ### 8-7. REMOVE — 제거
 
