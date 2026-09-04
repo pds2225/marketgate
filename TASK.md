@@ -797,7 +797,7 @@ CV-05 → BUYER-60 → CV-02 → CV-03
     - 바이어 상세: PASS — BUYER DETAIL REPORT
     - 기업검증: **PASS** — POST 200, BASIC_* 라벨 표시, D-U-N-S/K-SURE 공식 링크 3종 전부 노출. `검증 실패` 문구 없음. 스크린샷: `apps/frontend-react/test-results/mg004-prod-verification-.../mg004-prod-verification.png`
     - KEEP: 위 로그인·검색·상세가 같은 세션에서 그대로 통과해 기존 흐름 회귀 없음 확인
-  - **REQUEST_SOLVED=YES.** `marketgate-e2e.onrender.com`(AC-7, SHOULD)은 이 세션에서 미확인 — parity 확인은 별도 후속.
+  - **REQUEST_SOLVED=YES.** `marketgate-e2e.onrender.com`(AC-7, SHOULD)은 확인 결과 아직 이 fix가 안 올라가 있음 — 같은 `mg004-prod-verification.spec.js`를 PR #149 Preview CI가 e2e 서비스에 대고 자동 실행해 503으로 재현(`marketgate.onrender.com`과 별개 Render 서비스라 재배포 타이밍이 다름). Preview deployed E2E는 `docs-gate`·`W-020`처럼 필수 체크가 아니라 병합은 진행하되, `marketgate-e2e` 재배포는 별도 후속으로 남김.
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
