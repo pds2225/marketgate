@@ -52,22 +52,53 @@ MG-008 preflight(`tools/validate_p2_dropins.py`).
 
 ---
 
-## MG-004 — Render 수동 배포 절차 (사용자 액션)
+## MG-004 — 2026-09-04 재조사 (블로커가 바뀜)
 
-이 세션들엔 Render API key / CLI / 브라우저 확장이 없어서 자동화 불가.
-TASK.md §8-4에 원문 있음. 요약:
+**옛 블로커(Render가 2026-07-28 코드에 멈춤) 해소됨.** `marketgate.onrender.com`
+이 최근 코드로 재배포됨 — `/v1/company-verifications`, `/v1/contact-verifications`,
+`/v1/admin/inquiries/{id}/dispatch-dry-run` 전부 라이브(전엔 404). 로그인 →
+바이어검색 → 상세 → 기업검증 탭까지 운영에서 실제 동작 확인
+(`tests/e2e/mg004-prod-verification.spec.js`).
 
-1. Render Dashboard → `marketgate` 서비스 → Settings → Build & Deploy
-   → **Auto-Deploy = Yes**, Branch = `main` 확인/복구
-2. Manual Deploy → **Deploy latest commit** 1회 실행
-3. `marketgate-e2e` 서비스도 똑같이
-4. 확인: `curl -s https://marketgate.onrender.com/openapi.json | grep company-verifications`
-   → 결과가 나오면 성공
-5. 그 다음 기업검증 E2E를 운영에 대고 재실행 → BASIC_* 표시되면 `MG-004 [!]` → `[x]`
+**새 블로커:** 기업검증 POST가 **503 `verification_store_unavailable`**.
+- `company_verification_store.py` 는 의도적으로 **"DB-only, no file fallback"**
+  (docstring·router 주석·`#119`부터). `test_post_db_unavailable_returns_503` 가드 존재.
+- `render.yaml` 에 `DATABASE_URL`/DB 리소스 없음 → 운영에 Postgres 없음 →
+  `get_conn()` None → `RuntimeError` → 503.
+- 다른 store(inquiry/credit/auth/subscription)는 전부 파일 폴백이 있는데 CV-02만 없음.
 
-**Render 배포가 끝나면 나한테 알려주세요.** 내가 운영 기업검증 E2E를 돌려서
-결과 보고하고, 통과하면 TASK.md MG-004도 `[x]`로 바꿉니다. (AskUserQuestion
-3번 질문에 4번 = "나중에 브랜치+메모"로 답해서, 그 지시를 여기 기록해 둠)
+**끝내려면 둘 중 하나 (팀 결정 필요 — 야간 자동처리 부적절):**
+1. **운영에 Postgres 붙이기** (Render Blueprint에 free Postgres + `DATABASE_URL`).
+   부작용: payment/credit/subscription store도 DB 경로로 전환 → L013–L027 멱등·잠금
+   로직이 DB 기준으로 바뀜, `UVICORN_WORKERS:1` 근거 재검토, free Postgres 30일 만료.
+   payment 회귀 검증 선행 필요.
+2. **CV-02에 파일 폴백 추가** (`inquiry_store` 패턴 미러, `os.replace` 원자쓰기,
+   `owner user_id` 격리 유지). "DB-only" 명시 결정을 되돌림 + 가드 테스트 2건 갱신.
+   CV-02 provider가 결정론적 mock이라 "가짜 성공 은폐" 우려는 약함.
+
+내 판단: **2번(파일 폴백)** 이 범위 작고 운영 현실과 일치. 단 명시적 반대 결정을
+뒤집는 거라 사용자/Codex 승인 후. `mg004-prod-verification.spec.js` 는 고쳐지면
+바로 green으로 AC-4/5/6 증명하도록 이미 작성됨.
+
+## MG-007 — 2026-09-04 재조사
+
+- 고객 상태 조회: My Inquiries + `history` 로 이미 보임 (deployed write journey가
+  "검토 대기" 확인). MUST #1은 사실상 충족.
+- 실발송: `inquiry_delivery.py` 에 **dry-run 어댑터만** 있음. 파일 헤더 명시:
+  "A real provider must implement the same result contract in a later, explicitly
+  authorised task." `dry_run_enabled()` 은 `APP_ENV=production` 이거나 `RENDER`
+  set이면 False → 운영에서 dispatch-dry-run은 409(fail-closed, 의도됨).
+- **블로커: 실제 provider 어댑터 미구현 + SMTP 자격증명 없음.** 별도 승인된 작업 필요.
+
+## MG-008 — 2026-09-04 재조사
+
+- `services/cosmetics_mvp_preprocess/input/p2_optional/` 에 `.csv.example` 템플릿 +
+  README만. 실데이터 0.
+- README: "TradeKorea / KITA / KOTRA 무역관은 **공개 일괄 CSV가 없습니다**
+  (ACCESS_GATED, L002)." — 회원·무역관에서 **합법 수령한** 목록만 넣을 수 있음.
+- FORBIDDEN: 스크래핑, 가짜 바이어, 라이선스 없는 데이터 커밋.
+- **블로커: 100% 사용자 제공.** 우회 불가(L002). 파일을 위 폴더에 넣고
+  `python3 tools/merge_p1_p2_buyer_sources.py` 실행하면 검색에 반영됨.
 
 ---
 
