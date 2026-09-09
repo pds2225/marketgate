@@ -1531,3 +1531,103 @@ PENDING_TASKS:
 - 해결방법 선택이 제품정책을 바꾸며 사용자의 결정이 반드시 필요함
 
 상태를 `BLOCKED` 또는 `NO_ACTIVE_TASK`로 보고한다.
+
+---
+
+# 24. TASK-001 최신 실행 보강 — 2026-09-10
+
+> 이 절은 기존 `TASK-001`의 최신 감사결과와 다음 실행조건을 보강한다. 새 TASK가 아니며 `TASK-001`과 함께 적용한다.
+
+## WAVE 0.5 / 0.6 확정 상태
+
+- WAVE 0.5 인증 hotfix와 Production 로그인·연속 검색은 PASS. 인증 문제는 완료 처리한다.
+- `buyer_candidate.csv` = 36,241건.
+- `source_dataset`, `source_file`, `source_row_no` = 36,241건 전부 존재.
+- `(source_dataset, source_file, source_row_no)` 중복 = 0건.
+- `source_snapshot_date` = 36,006건 존재.
+- `opportunity_item.csv` = 0건.
+- `country_iso3` 정상 매핑 = 33,654건.
+- country 품질 감사: VALID_COUNTRY 33,654건, COUNTRY_ALIAS 1,117건, ADDRESS_IN_COUNTRY 27건, OTHER_INVALID 1,443건.
+- processed metadata의 source_file 11종 중 저장소 `output/raw`와 정확히 일치하는 원본 파일은 1종만 확인됨. 다수 raw snapshot 및 ITC 원본은 현재 저장소에 없음.
+- Production `/v1/demo/buyers`는 축약 source만 노출하며 `source_dataset/source_file/source_row_no/source_snapshot_date`는 현재 API에서 소실됨.
+
+현재 판정:
+
+- `INTERNAL_PROVENANCE_PARTIAL`
+- `RAW_SOURCE_RECOVERY_BACKLOG`
+- `DATA_QUALITY_BACKLOG`
+- Opportunity는 `BLOCKED_NO_DATA`
+
+raw snapshot이 없다는 이유만으로 Buyer Matching 전체를 중단하지 않는다. 단, 원본 검증 완료라고 표현하거나 허위 출처를 생성하면 안 된다.
+
+## 다음 실행 — WAVE 0.7 MINIMUM DATA TRUST GATE
+
+### MUST
+
+1. `buyer_candidate.csv`에 이미 존재하는 아래 provenance를 Buyer Matching 파이프라인/API까지 소실 없이 유지한다.
+   - `source_dataset`
+   - `source_file`
+   - `source_row_no`
+   - `source_snapshot_date`
+2. 사용자 UI에는 최소 실제 `source_dataset` 기반 출처를 표시한다. 내부 추적에는 `source_file/source_row_no/source_snapshot_date`를 유지한다.
+3. raw snapshot이 없는 source는 `provenance_status = PARTIAL` 또는 동등한 명시 상태로 구분한다. `VERIFIED`로 올리지 않는다.
+4. 국가 후보 검색/필터는 `country_iso3` 또는 검증된 canonical country를 우선 사용한다.
+5. `country_iso3`가 없고 canonical country로 확인할 수 없는 레코드는 삭제하지 말고 `COUNTRY_UNVERIFIED`로 분리하여 exact country match 후보에서 제외한다.
+6. 미국/USA 조회에서 주소형·잘못된 country 값이 미국 후보에 섞이지 않게 검증한다.
+7. 현재 `opportunity_item.csv = 0`이므로 Opportunity Signal은 실제 기능 완료 처리하지 않는다. 상태는 `BLOCKED_NO_DATA`. 가짜 fixture를 실데이터처럼 사용하거나 특정 Buyer에 임의 가점을 주지 않는다.
+8. 원본 raw 파일이 없는 10개 source를 이번 실행에서 새로 만들거나 외부 scraping으로 채우지 않는다. 원본 복구는 `RAW_SOURCE_RECOVERY_BACKLOG`로 남긴다.
+9. 기존 Buyer ranking/FitScore, 인증, 국가추천, 기업검증 기능은 변경하지 않는다.
+10. REUSE → 최소 EXTEND 순서로만 구현한다. 새 provenance 시스템/새 서비스/대규모 migration 금지.
+
+### FORBIDDEN
+
+- 가짜 source URL 생성
+- ITC/K-SURE/KOTRA 등 출처를 근거 없이 추정 라벨링
+- 없는 raw CSV 재생성
+- 외부 Volza/LinkedIn 등 scraping
+- country invalid 값을 임의 국가로 추정
+- Opportunity 0건인데 임의 수요신호/가점 생성
+- 이번 단계에서 Buyer Fit Score/Hard Gate/Top N 신규 개발
+- 기존 `buyer_candidate.csv` 원본 삭제·덮어쓰기
+
+### VERIFY
+
+- Buyer 표본 5건에서 결과 object/API → `source_dataset` → `source_file` → `source_row_no`가 유지된다.
+- `source_snapshot_date`가 있는 레코드는 함께 유지된다.
+- source metadata가 없는 케이스는 `원천 확인 불가` 또는 PARTIAL 상태로 명시된다.
+- USA/United States 후보 조회에서 canonical/ISO3 기준 정상 후보만 포함되고 invalid/address-like country가 섞이지 않는다.
+- opportunity 0건일 때 실제 Buyer 점수에 수요신호 가점이 들어가지 않는다.
+- 기존 인증 regression PASS.
+- 기존 Buyer API/검색 regression PASS.
+- 관련 frontend build PASS.
+
+### WAVE 0.7 완료 기준
+
+아래가 충족되면 raw snapshot 부재만으로 BLOCKED 처리하지 않는다.
+
+- 현재 Buyer dataset을 안전하게 사용할 수 있음
+- canonical country filtering 가능
+- provenance metadata가 pipeline/API에서 유지됨
+- Opportunity 0건 상태가 명시됨
+- 허위 source 생성 없음
+
+완료 시:
+
+`WAVE 0.7 COMPLETE — READY FOR WAVE 1 — BUYER MATCHING`
+
+실제 핵심 사용이 불가능한 경우에만:
+
+`WAVE 0.7 PARTIAL — [구체 blocker]`
+
+## Buyer Matching 진입 규칙
+
+WAVE 1 시작 시 다음을 반영한다.
+
+- 전체 36,241건을 무조건 동일 신뢰도로 쓰지 않는다. canonical/ISO3 확인 가능한 후보를 우선 사용한다.
+- `P0-06 Opportunity Signal`은 현재 `BLOCKED_NO_DATA`이므로 WAVE 1 완료조건에서 제외한다.
+- Opportunity 실제 데이터가 들어오기 전에는 특정 Buyer 활동/수요로 표현하지 않는다.
+- WAVE 1은 기존 `scoring.py`, loader, 국가추천/P1 API 계약을 재작성하지 않고 `REUSE → Adapter/Wrapper → 최소 EXTEND → ONLY-IF-GAP CREATE` 순서로 진행한다.
+
+## 운영 정리
+
+Codex background terminal이 과도하게 누적된 경우 현재 작업에 필요 없는 **완료/idle terminal만 종료**한다. 실행 중인 중요 작업과 사용자 프로세스는 임의 종료하지 않는다.
