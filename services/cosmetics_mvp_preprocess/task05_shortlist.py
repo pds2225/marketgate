@@ -17,6 +17,7 @@ DATE_WINDOW_DAYS = 183
 
 
 class GateReason(str, Enum):
+    INVALID_BUYER_IDENTITY = "invalid_buyer_identity"
     COUNTRY_MISMATCH = "country_mismatch"
     HS_MISMATCH = "hs_mismatch"
     BANNED_COUNTRY = "banned_country"
@@ -27,6 +28,7 @@ class GateReason(str, Enum):
 
 
 GATE_REASON_ORDER_BUYER = (
+    GateReason.INVALID_BUYER_IDENTITY,
     GateReason.COUNTRY_MISMATCH,
     GateReason.BANNED_COUNTRY,
     GateReason.HS_MISMATCH,
@@ -875,6 +877,7 @@ def buyer_hard_gate(
     target_title: str | None = None,
     banned_countries: Iterable[str] | None = None,
     required_capacity: float | int | None = None,
+    validate_identity: bool = False,
 ) -> dict[str, Any]:
     merged_target = _merge_target_fields(
         opportunity=opportunity,
@@ -887,21 +890,60 @@ def buyer_hard_gate(
 
     reasons: list[GateReason] = []
 
+    identity = _first_non_empty(
+        buyer,
+        ("normalized_name", "company_name", "buyer_name", "title"),
+    )
+    gate_statuses = {
+        "identity": "PASS" if identity else ("FAIL" if validate_identity else "UNKNOWN"),
+        "country": "PASS",
+        "product": "PASS",
+    }
+    if validate_identity and not identity:
+        reasons.append(GateReason.INVALID_BUYER_IDENTITY)
+
     buyer_country = normalize_country(
         _first_non_empty(buyer, ("country_norm", "country", "country_raw"))
     )
-    if merged_target["country_norm"] and (
-        not buyer_country or buyer_country != normalize_country(merged_target["country_norm"])
-    ):
-        reasons.append(GateReason.COUNTRY_MISMATCH)
+    if merged_target["country_norm"]:
+        if not buyer_country:
+            gate_statuses["country"] = "UNKNOWN"
+        elif buyer_country != normalize_country(merged_target["country_norm"]):
+            gate_statuses["country"] = "FAIL"
+            reasons.append(GateReason.COUNTRY_MISMATCH)
 
     if banned_countries is None:
         banned_countries = DEFAULT_BANNED_COUNTRY_KEYS
     if _country_is_banned(buyer_country, banned_countries):
+        gate_statuses["country"] = "FAIL"
         reasons.append(GateReason.BANNED_COUNTRY)
 
     match_result = {"matched": True, "reason": "match_not_checked"}
-    if merged_target["hs_code_norm"] or merged_target["keywords_norm"] or merged_target["product_name_norm"] or merged_target["title"]:
+    target_has_product_rule = bool(
+        merged_target["hs_code_norm"]
+        or merged_target["keywords_norm"]
+        or merged_target["product_name_norm"]
+        or merged_target["title"]
+    )
+    buyer_has_product_evidence = bool(
+        _first_non_empty(
+            buyer,
+            (
+                "hs_code_norm",
+                "hs_code",
+                "hs_code_raw",
+                "keywords_norm",
+                "keywords",
+                "product_name_norm",
+                "title",
+                "description",
+                "category",
+            ),
+        )
+    )
+    if target_has_product_rule and not buyer_has_product_evidence:
+        gate_statuses["product"] = "UNKNOWN"
+    elif target_has_product_rule:
         target_record = {
             "hs_code_norm": merged_target["hs_code_norm"],
             "keywords_norm": merged_target["keywords_norm"],
@@ -910,17 +952,29 @@ def buyer_hard_gate(
         }
         match_result = match_hs_or_keywords(buyer, target_record)
         if not match_result["matched"]:
+            gate_statuses["product"] = "FAIL"
             reasons.append(GateReason.HS_MISMATCH)
+
+    overall_status = "FAIL" if reasons else (
+        "UNKNOWN" if "UNKNOWN" in gate_statuses.values() else "PASS"
+    )
 
     if required_capacity is not None:
         capacity = _capacity_value(buyer)
         required_capacity_value = float(required_capacity)
         if capacity is None or capacity < required_capacity_value:
+            gate_statuses["capacity"] = "FAIL"
             reasons.append(GateReason.CAPACITY_FAIL)
+        else:
+            gate_statuses["capacity"] = "PASS"
 
     reasons = list(dict.fromkeys(reasons))
+    if reasons:
+        overall_status = "FAIL"
     return {
         "passed": not reasons,
+        "gate_status": overall_status,
+        "gate_statuses": gate_statuses,
         "gate_reason": _format_gate_reasons(reasons, GATE_REASON_ORDER_BUYER),
         "matched_by": match_result.get("match_mode", ""),
         "matched_terms": match_result.get("matched_terms", []),

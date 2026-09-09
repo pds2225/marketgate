@@ -188,6 +188,7 @@ def test_v1_snapshot_exposes_normalized_git_state(client):
 def test_build_buyer_shortlist_merges_top_three_countries(monkeypatch):
     captured_countries = []
     captured_profiles = []
+    captured_strict_flags = []
 
     def fake_build_supplier_profile(**kwargs):
         captured_profiles.append(kwargs)
@@ -196,6 +197,7 @@ def test_build_buyer_shortlist_merges_top_three_countries(monkeypatch):
     def fake_shortlist_buyers(**kwargs):
         target_country = kwargs["supplier_profile"]["target_country_norm"]
         captured_countries.append(target_country)
+        captured_strict_flags.append(kwargs["strict_buyer_gate"])
         return {
             "meta": {
                 "filtered_buyer_rows": 2,
@@ -251,6 +253,7 @@ def test_build_buyer_shortlist_merges_top_three_countries(monkeypatch):
     assert captured_countries == ["미국", "일본", "베트남"]
     assert [profile["target_hs_code_norm"] for profile in captured_profiles] == ["330499", "330499", "330499"]
     assert result.status == "ok"
+    assert captured_strict_flags == [True, True, True]
     assert len(result.source_countries) == 3
     assert [item.partner_country_iso3 for item in result.source_countries] == ["USA", "JPN", "VNM"]
     assert result.meta["merged_country_count"] == 3
@@ -348,3 +351,95 @@ def test_matchc_weak_match_not_dropped_when_only_option():
     assert meta["match_relevance_distribution"] == {"weak": 2}
     # 추정 이메일뿐이라 검증 연락처 0
     assert meta["verified_contactable_count"] == 0
+
+
+def test_wave1_dedupe_merges_contact_and_source_provenance():
+    source_countries = [
+        {"rank": 1, "partner_country_iso3": "USA", "target_country_name": "미국", "fit_score": 90.0}
+    ]
+    shortlist_results = [
+        {
+            "meta": {
+                "shortlist_count": 2,
+                "candidate_count": 0,
+                "rejected_count": 0,
+                "hard_gate_fail_count": 1,
+                "unknown_gate_count": 0,
+                "filtered_buyer_rows": 3,
+                "scored_rows": 3,
+                "strict_buyer_gate": True,
+                "soft_penalty_distribution": {},
+            },
+            "items": [
+                {
+                    "buyer_name": "Acme Trading",
+                    "normalized_name": "acme trading",
+                    "source_dataset": "ITC_TradeMap",
+                    "source_name": "ITC_TradeMap",
+                    "source_type": "buyer_candidate",
+                    "country_norm": "미국",
+                    "hs_code_norm": "330499",
+                    "keywords_norm": "serum",
+                    "has_contact": True,
+                    "contact_email": "estimated@acme.example",
+                    "contact_email_estimated": True,
+                    "contact_name": "",
+                    "contact_phone": "",
+                    "contact_website": "",
+                    "final_score": 70.0,
+                    "decision": "shortlist",
+                    "score_breakdown": {"hs_match_type": "hs_exact"},
+                    "recommendation_lines": ["HS exact"],
+                    "explanation_reasons": ["HS exact"],
+                    "matched_by": "hs_exact",
+                    "matched_terms": ["serum"],
+                    "gate_status": "PASS",
+                    "gate_reasons": [],
+                },
+                {
+                    "buyer_name": "Acme Trading",
+                    "normalized_name": "ACME TRADING",
+                    "source_dataset": "buyKOREA_inquiry",
+                    "source_name": "buyKOREA_inquiry",
+                    "source_type": "opportunity_buyer",
+                    "country_norm": "미국",
+                    "hs_code_norm": "330499",
+                    "keywords_norm": "serum | mask",
+                    "has_contact": True,
+                    "contact_email": "verified@acme.example",
+                    "contact_email_estimated": False,
+                    "contact_name": "Buyer Desk",
+                    "contact_phone": "+1-555-0100",
+                    "contact_website": "https://acme.example",
+                    "final_score": 68.0,
+                    "decision": "shortlist",
+                    "score_breakdown": {"hs_match_type": "hs_exact"},
+                    "recommendation_lines": ["Keyword overlap"],
+                    "explanation_reasons": ["Keyword overlap"],
+                    "matched_by": "hs_exact",
+                    "matched_terms": ["mask"],
+                    "gate_status": "UNKNOWN",
+                    "gate_reasons": ["identity_unknown"],
+                },
+            ],
+        }
+    ]
+
+    items, meta = _merge_shortlist_results(
+        source_countries=source_countries,
+        shortlist_results=shortlist_results,
+        limit=10,
+    )
+
+    assert len(items) == 1
+    item = items[0]
+    assert item["contact_email"] == "verified@acme.example"
+    assert item["contact_email_estimated"] is False
+    assert item["contact_name"] == "Buyer Desk"
+    assert set(item["source_names"]) == {"ITC_TradeMap", "buyKOREA_inquiry"}
+    assert set(item["source_dataset"].split(" | ")) == {"ITC_TradeMap", "buyKOREA_inquiry"}
+    assert set(item["source_type"].split(" | ")) == {"buyer_candidate", "opportunity_buyer"}
+    assert item["gate_status"] == "UNKNOWN"
+    assert item["gate_reasons"] == ["identity_unknown"]
+    assert meta["hard_gate_fail_count"] == 1
+    assert meta["strict_buyer_gate"] is True

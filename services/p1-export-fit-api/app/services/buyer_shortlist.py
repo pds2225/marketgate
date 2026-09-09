@@ -184,6 +184,9 @@ def _empty_buyer_meta(source_countries: list[dict[str, Any]]) -> dict[str, Any]:
         "selected_opportunity_signal_types": [],
         "selected_opportunity_match_scores": [],
         "opportunity_signals": [],
+        "hard_gate_fail_count": 0,
+        "unknown_gate_count": 0,
+        "strict_buyer_gate": True,
         "soft_penalty_distribution": {},
         "country_shortlist_before_merge": {},
         "country_shortlist_after_merge": {},
@@ -248,13 +251,127 @@ def _build_country_mismatch_warning(
 
 
 def _dedupe_key(item: dict[str, Any]) -> tuple[str, str, str, str, str]:
-    return (
-        str(item.get("buyer_name") or "").strip().casefold(),
-        str(item.get("country_norm") or "").strip().casefold(),
-        str(item.get("contact_email") or "").strip().casefold(),
-        str(item.get("contact_website") or "").strip().casefold(),
-        str(item.get("source_dataset") or "").strip().casefold(),
+    name = str(item.get("normalized_name") or item.get("buyer_name") or "").strip().casefold()
+    country = str(
+        item.get("country_norm")
+        or item.get("source_target_country_name")
+        or item.get("source_target_country_iso3")
+        or ""
+    ).strip().casefold()
+    return (name, country, "", "", "")
+
+
+def _unique_texts(*values: Any) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        candidates = value if isinstance(value, (list, tuple, set)) else [value]
+        for candidate in candidates:
+            text = str(candidate or "").strip()
+            if not text:
+                continue
+            key = text.casefold()
+            if key not in seen:
+                seen.add(key)
+                result.append(text)
+    return result
+
+
+def _source_names(item: dict[str, Any]) -> list[str]:
+    sources: list[str] = []
+    for value in (item.get("source_names"), item.get("source_dataset"), item.get("source_name")):
+        for source in str(value or "").split("|"):
+            source = source.strip()
+            if source:
+                sources.append(source)
+    return _unique_texts(sources)
+
+
+def _merge_text_field(first: dict[str, Any], duplicate: dict[str, Any], field: str) -> None:
+    values = _unique_texts(first.get(field), duplicate.get(field))
+    if values:
+        first[field] = " | ".join(values)
+
+
+def _merge_duplicate_buyer_item(first: dict[str, Any], duplicate: dict[str, Any]) -> None:
+    """Merge the information of the same buyer identity without losing provenance."""
+    for field in ("country_norm", "hs_code_norm", "keywords_norm"):
+        _merge_text_field(first, duplicate, field)
+
+    for field in ("contact_email", "contact_name", "contact_phone", "contact_website"):
+        if not str(first.get(field) or "").strip() and str(duplicate.get(field) or "").strip():
+            first[field] = duplicate[field]
+
+    first_email_estimated = bool(first.get("contact_email_estimated"))
+    duplicate_email = str(duplicate.get("contact_email") or "").strip()
+    if (
+        first_email_estimated
+        and not bool(duplicate.get("contact_email_estimated"))
+        and duplicate_email
+    ):
+        first["contact_email"] = duplicate_email
+        first["contact_email_estimated"] = False
+    else:
+        first["contact_email_estimated"] = first_email_estimated and bool(
+            str(first.get("contact_email") or "").strip()
+        )
+
+    first["has_contact"] = bool(first.get("has_contact")) or bool(duplicate.get("has_contact"))
+    first["has_verified_contact"] = bool(first.get("has_verified_contact")) or bool(
+        duplicate.get("has_verified_contact")
     )
+    first["source_verified"] = bool(first.get("source_verified")) or bool(
+        duplicate.get("source_verified")
+    )
+    verification_rank = {"unknown": 0, "unverified": 1, "verified": 2}
+    if verification_rank.get(str(duplicate.get("source_verification") or "unknown"), 0) > verification_rank.get(
+        str(first.get("source_verification") or "unknown"), 0
+    ):
+        first["source_verification"] = duplicate.get("source_verification")
+
+    sources = _unique_texts(_source_names(first), _source_names(duplicate))
+    first["source_names"] = sources
+    if sources:
+        first["source_dataset"] = " | ".join(sources)
+        first["source_name"] = sources[0]
+    first["source_type"] = " | ".join(
+        _unique_texts(first.get("source_type"), duplicate.get("source_type"))
+    ) or first.get("source_type") or duplicate.get("source_type")
+
+    first["matched_terms"] = _unique_texts(first.get("matched_terms"), duplicate.get("matched_terms"))
+    first["recommendation_lines"] = _unique_texts(
+        first.get("recommendation_lines"), duplicate.get("recommendation_lines")
+    )[:3]
+    first["explanation_reasons"] = _unique_texts(
+        first.get("explanation_reasons"), duplicate.get("explanation_reasons")
+    )[:3]
+    first["gate_reasons"] = _unique_texts(first.get("gate_reasons"), duplicate.get("gate_reasons"))
+    gate_rank = {"PASS": 0, "UNKNOWN": 1, "FAIL": 2}
+    if gate_rank.get(str(duplicate.get("gate_status") or "PASS"), 0) > gate_rank.get(
+        str(first.get("gate_status") or "PASS"), 0
+    ):
+        first["gate_status"] = duplicate.get("gate_status")
+    if not str(first.get("matched_by") or "").strip() and str(duplicate.get("matched_by") or "").strip():
+        first["matched_by"] = duplicate["matched_by"]
+    first["final_score"] = max(
+        float(first.get("final_score") or 0.0), float(duplicate.get("final_score") or 0.0)
+    )
+
+
+def _dedupe_and_merge_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged_by_key: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
+    for item in items:
+        key = _dedupe_key(item)
+        existing = merged_by_key.get(key)
+        if existing is None or not key[0]:
+            # Invalid identities should already be removed by the strict adapter. Keep a
+            # defensive source-specific key if a legacy caller supplies one.
+            if not key[0]:
+                key = (*key[:2], str(item.get("source_dataset") or "").casefold(), str(id(item)), "")
+            merged_by_key[key] = item
+        else:
+            _merge_duplicate_buyer_item(existing, item)
+    return list(merged_by_key.values())
 
 
 def _merge_shortlist_results(
@@ -267,6 +384,8 @@ def _merge_shortlist_results(
     shortlist_total = 0
     candidate_total = 0
     rejected_total = 0
+    hard_gate_fail_total = 0
+    unknown_gate_total = 0
     total_filtered_rows = 0
     total_scored_rows = 0
     selected_titles: list[str] = []
@@ -284,6 +403,8 @@ def _merge_shortlist_results(
         shortlist_total += int(meta.get("shortlist_count", 0) or 0)
         candidate_total += int(meta.get("candidate_count", 0) or 0)
         rejected_total += int(meta.get("rejected_count", 0) or 0)
+        hard_gate_fail_total += int(meta.get("hard_gate_fail_count", 0) or 0)
+        unknown_gate_total += int(meta.get("unknown_gate_count", 0) or 0)
         total_filtered_rows += int(meta.get("filtered_buyer_rows", 0) or 0)
         total_scored_rows += int(meta.get("scored_rows", 0) or 0)
         country_key = source_country["partner_country_iso3"]
@@ -369,21 +490,16 @@ def _merge_shortlist_results(
         # matchC: 검증 연락처(추정 제외) 보유 여부
         item["has_verified_contact"] = _has_verified_contact(item)
 
-    deduped_items: list[dict[str, Any]] = []
-    seen_keys: set[tuple[str, str, str, str, str]] = set()
     # matchC: 관련성·연락처·출처신뢰도를 decision/final_score 다음 우선순위로 반영한다.
     #   - 강한 HS 매칭 > 약한 매칭 (audit #7/#8) — 단 약한 매칭도 제거하지 않고 후순위 노출(폴백)
     #   - 검증 연락처 보유 우선 (audit #3) — 추정 이메일뿐인 바이어는 뒤로
     #   - 검증 출처(ITC/KSURE/인콰이어리) > SNS 스크랩 (audit #2)
     #   - 관련성 보호(matchD): 무관(none)은 shortlist여도 관련(strong/weak) 바이어를 추월 못 함
     merged_items.sort(key=_buyer_sort_key, reverse=True)
-    for item in merged_items:
-        key = _dedupe_key(item)
-        if key in seen_keys:
-            continue
-        seen_keys.add(key)
+    deduped_items = _dedupe_and_merge_items(merged_items)
+    deduped_items.sort(key=_buyer_sort_key, reverse=True)
+    for item in deduped_items:
         item.pop("_source_fit_score", None)
-        deduped_items.append(item)
 
     deduped_items = [item for item in deduped_items if not _is_blocked_item(item)]
 
@@ -431,6 +547,9 @@ def _merge_shortlist_results(
         "shortlist_count": shortlist_total,
         "candidate_count": candidate_total,
         "rejected_count": rejected_total,
+        "hard_gate_fail_count": hard_gate_fail_total,
+        "unknown_gate_count": unknown_gate_total,
+        "strict_buyer_gate": True,
         "filtered_buyer_rows": total_filtered_rows,
         "scored_rows": total_scored_rows,
         "merged_country_count": len(source_countries),
@@ -524,6 +643,7 @@ def build_buyer_shortlist(req: Any, country_results: list[dict[str, Any]]) -> Bu
                     limit=internal_limit,
                     opportunity_country_norm=source_country["target_country_name"],
                     include_rejected=include_rejected,
+                    strict_buyer_gate=True,
                 )
             )
 

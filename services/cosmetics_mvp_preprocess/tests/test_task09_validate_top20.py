@@ -69,6 +69,7 @@ def test_validate_top20_passes_on_synthetic_cosmetics_rows() -> None:
         )
 
         assert result["quality"]["passed"] is True
+        assert result["meta"]["strict_buyer_gate"] is True
         assert len(result["top20"]) == 20
         assert result["top20"][0]["final_score"] >= result["top20"][-1]["final_score"]
     finally:
