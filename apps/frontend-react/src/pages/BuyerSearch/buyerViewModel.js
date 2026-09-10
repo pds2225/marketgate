@@ -179,9 +179,14 @@ export function mapApiBuyerToViewModel(item, index, hsCode, categoryLabel) {
     countryIso3: /^[A-Z]{3}$/.test(countryIso3) ? countryIso3 : '',
     region: item.source_target_country_name || countryName,
     dataSource: item.source_dataset || '출처 미상',
-    // 원본에 수집일이 없으므로 생성하지 않는다 (기존: 오늘 날짜를 수집일로 표기)
-    dataDate: null,
-    csvTrace: item.source_dataset ? `${item.source_dataset}.csv` : null,
+    // 실제 processed CSV가 제공한 provenance만 표시한다. 파일명을 합성하지 않는다.
+    dataDate: item.source_snapshot_date || null,
+    csvTrace: item.source_file || null,
+    sourceFile: item.source_file || null,
+    sourceRowNo: item.source_row_no || null,
+    sourceRecordType: item.record_type || null,
+    sourceProvenanceStatus:
+      item.source_dataset && item.source_file && item.source_row_no ? 'identified' : 'unavailable',
     contactName: item.contact_name || '',
     email,
     phone: item.contact_phone || '',
