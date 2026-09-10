@@ -100,6 +100,10 @@ class PredictDiagnostics(BaseModel):
 class BuyerShortlistItem(BaseModel):
     buyer_name: str
     source_dataset: Optional[str] = None
+    record_type: Optional[str] = None
+    source_file: Optional[str] = None
+    source_row_no: Optional[str] = None
+    source_snapshot_date: Optional[str] = None
     country_norm: Optional[str] = None
     source_target_country_iso3: Optional[str] = None
     source_target_country_name: Optional[str] = None

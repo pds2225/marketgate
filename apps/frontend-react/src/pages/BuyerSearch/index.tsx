@@ -43,6 +43,8 @@ interface ExportConditions {
 interface Buyer {
   id: string; rank: number; name: string; legalName: string; industry: string;
   country: string; countryIso3: string; region: string; dataSource: string; dataDate: string | null; csvTrace: string | null;
+  sourceFile: string | null; sourceRowNo: string | null; sourceRecordType: string | null;
+  sourceProvenanceStatus: 'identified' | 'unavailable';
   contactName: string; email: string; phone: string; website: string;
   contactStatus: 'unavailable' | 'discovered' | 'format_validated' | 'ownership_verified';
   tradeStatus: 'unavailable' | 'source_confirmed' | 'recent_activity_confirmed';
@@ -91,7 +93,9 @@ function buildBuyerReportText(buyer: Buyer): string {
   lines.push(`HS 코드: ${buyer.hsCode} (${buyer.hsLabel})`);
   lines.push(`적합도 점수: ${buyer.score}점 (${buyer.scoreLabel})`);
   lines.push(`데이터 출처: ${buyer.dataSource}`);
-  lines.push(`데이터 수집일: ${buyer.dataDate || '자료 내 확인 불가'}`);
+  lines.push(`원본 파일: ${buyer.sourceFile || '원천 확인 불가'}`);
+  lines.push(`원본 행 번호: ${buyer.sourceRowNo || '원천 확인 불가'}`);
+  lines.push(`원본 기준일: ${buyer.dataDate || '자료 내 확인 불가'}`);
   lines.push('');
   lines.push('[연락처]');
   lines.push(`담당자: ${buyer.contactName || '정보 없음'}`);
@@ -849,7 +853,7 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
             </div>
             <div className="grid grid-cols-2 gap-y-1 gap-x-4 text-xs text-slate-300 mt-2">
               <div><span className="text-slate-500">발행일:</span> {formatDate()}</div>
-              <div><span className="text-slate-500">데이터 기준일:</span> {buyer.dataDate || '자료 내 확인 불가'}</div>
+              <div><span className="text-slate-500">원본 기준일:</span> {buyer.dataDate || '자료 내 확인 불가'}</div>
               <div className="col-span-2"><span className="text-slate-500">분석 대상:</span> {buyer.country} · HS {buyer.hsCode} ({buyer.hsLabel})</div>
             </div>
           </div>
@@ -875,8 +879,11 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
                 <div className="grid grid-cols-2 gap-y-3 gap-x-6 text-sm mb-4">
                   <div><span className="text-xs text-slate-500 block mb-0.5">업종</span><span className="text-slate-800 font-medium">{buyer.industry}</span></div>
                   <div><span className="text-xs text-slate-500 block mb-0.5">국가/지역</span><span className="text-slate-800 font-medium">{buyer.country} · {buyer.region}</span></div>
-                  <div><span className="text-xs text-slate-500 block mb-0.5">데이터 출처</span><span className="text-slate-800">{buyer.dataSource}</span></div>
-                  <div className="col-span-2"><span className="text-xs text-slate-500 block mb-0.5">데이터 수집일</span><span className="text-slate-800">{buyer.dataDate || '자료 내 확인 불가'}</span></div>
+                  <div><span className="text-xs text-slate-500 block mb-0.5">데이터 출처</span><span className="text-slate-800">{buyer.dataSource || '원천 확인 불가'}</span></div>
+                  <div><span className="text-xs text-slate-500 block mb-0.5">원본 파일</span><span className="text-slate-800 break-all">{buyer.sourceFile || '원천 확인 불가'}</span></div>
+                  <div><span className="text-xs text-slate-500 block mb-0.5">원본 행 번호</span><span className="text-slate-800">{buyer.sourceRowNo || '원천 확인 불가'}</span></div>
+                  <div><span className="text-xs text-slate-500 block mb-0.5">원본 기준일</span><span className="text-slate-800">{buyer.dataDate || '자료 내 확인 불가'}</span></div>
+                  <div className="col-span-2"><span className="text-xs text-slate-500 block mb-0.5">원천 추적 상태</span><span className="text-slate-800">{buyer.sourceProvenanceStatus === 'identified' ? '식별정보 있음 (원본 파일 존재 여부는 별도 확인)' : '원천 확인 불가'}</span></div>
                 </div>
                 <Separator className="my-3" />
                 <div className="space-y-1">
