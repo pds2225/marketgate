@@ -2,6 +2,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Dict
 
 from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from passlib.context import CryptContext
 
 from app.auth_store import (
@@ -10,12 +11,13 @@ from app.auth_store import (
 )
 from app.auth_deps import (
     create_access_token, create_refresh_token,
-    decode_refresh, decode_refresh_claims, get_current_user, get_token_payload,
+    decode_access, decode_refresh, decode_refresh_claims, get_current_user,
     is_admin,
 )
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+_optional_bearer = HTTPBearer(auto_error=False)
 
 LOCK_MINUTES = 15
 MAX_FAIL = 5
@@ -96,12 +98,22 @@ def refresh(payload: Dict[str, Any] = Body(...)):
 
 @router.post("/logout")
 def logout(
-    token_payload: dict = Depends(get_token_payload),
     payload: Dict[str, Any] | None = Body(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_optional_bearer),
 ):
     # Access jti alone is not enough — a surviving refresh_token can mint a
     # new access token after "logout" (L024).
-    add_to_blacklist(token_payload.get("jti", ""))
+    #
+    # Do not require a *valid* access token. After #152 the SPA skips silent
+    # refresh on /v1/auth/logout, so an expired Bearer would previously 401
+    # before this handler ran and leave the refresh_token live for up to 7 days.
+    if credentials is not None:
+        try:
+            token_payload = decode_access(credentials.credentials)
+            add_to_blacklist(token_payload.get("jti", ""))
+        except HTTPException:
+            # Expired/invalid access — still revoke refresh below.
+            pass
     refresh = str((payload or {}).get("refresh_token") or "")
     if refresh:
         try:
