@@ -39,8 +39,12 @@ _SOURCE_META: dict[str, dict[str, Any]] = {
     "ITC_TradeMap_ImportingCompanies": {"name": "ITC TradeMap", "official": True},
 }
 
-# How many buyer samples the demo grid renders / scores at most.
-_DEFAULT_BUYER_LIMIT = 60
+# Demo showcase sample cap ONLY (/v1/demo/snapshot, /v1/demo/buyers).
+# Root cause of "only 60 buyers" (MG-002): this default was 60 while
+# _MAX_BUYER_LIMIT was already 200, so public demo grids silently truncated.
+# This is NOT the authenticated BuyerSearch path — that uses POST /v1/predict
+# top_n (default 5, max 10) in buyer_shortlist.build_buyer_shortlist.
+_DEFAULT_BUYER_LIMIT = 200
 _MAX_BUYER_LIMIT = 200
 
 
@@ -199,6 +203,11 @@ def _build_buyers(df, limit: int) -> list[dict[str, Any]]:
                 "iso3": _clean(row.get("country_iso3")) or iso3_map.get(country, ""),
                 "industry": _industry_from_keywords(keywords, hs_norm),
                 "hs": hs_norm,
+                "record_type": _clean(row.get("record_type")),
+                "source_dataset": raw_source,
+                "source_file": _clean(row.get("source_file")),
+                "source_row_no": _clean(row.get("source_row_no")),
+                "source_snapshot_date": _clean(row.get("source_snapshot_date")),
                 "source": source_meta.get("name") or (raw_source.split("_")[-1] if raw_source else "기타"),
                 "trust": _trust_level(has_contact, official, estimated),
                 "distanceKm": _to_float(row.get("distance_from_kr_km")),

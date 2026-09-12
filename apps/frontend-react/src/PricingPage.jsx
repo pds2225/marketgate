@@ -86,7 +86,7 @@ function useCountUp(target, duration = 900) {
     }
     frame.current = requestAnimationFrame(step)
     return () => cancelAnimationFrame(frame.current)
-  }, [target])
+  }, [target, duration])
   return val
 }
 
@@ -126,7 +126,7 @@ export default function PricingPage({ onBack }) {
         setLoading(null)
         return
       }
-      window.location.href = result.checkout_url
+      window.location.assign(result.checkout_url)
     } catch (e) {
       setError(e?.response?.data?.detail || '결제 요청 실패')
       setLoading(null)

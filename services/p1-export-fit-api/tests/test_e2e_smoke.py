@@ -59,6 +59,17 @@ def test_health_is_public_and_ok():
     assert r.json()["status"] == "ok"
 
 
+def test_health_legacy_does_not_warm_predict_data(monkeypatch):
+    """Direct Python calls skip FastAPI Query injection; warm must stay False."""
+    from main import health_legacy
+
+    warmed = []
+    monkeypatch.setattr("main._warm_predict_data", lambda: warmed.append(True))
+    result = health_legacy()
+    assert result["status"] == "ok"
+    assert warmed == []
+
+
 def test_predict_requires_authentication(real_auth):
     """오버라이드를 걷어낸 상태에서 무인증 호출이 실제로 막혀야 한다."""
     r = client.post("/v1/predict", json=PREDICT_PAYLOAD)

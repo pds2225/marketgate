@@ -14,6 +14,21 @@ const API_BASE = import.meta.env?.DEV
 
 const api = axios.create({ baseURL: API_BASE })
 
+// Authentication endpoints report credential/refresh failures themselves.
+// Treating their 401 responses as an expired application session can trigger
+// a second refresh attempt and replace the real login error with auth:logout.
+const AUTH_ENDPOINTS = new Set([
+  '/v1/auth/login',
+  '/v1/auth/register',
+  '/v1/auth/refresh',
+  '/v1/auth/logout',
+])
+
+function isAuthEndpoint(url) {
+  const path = String(url || '').split('?')[0]
+  return AUTH_ENDPOINTS.has(path)
+}
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
@@ -56,7 +71,12 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config
-    if (error.response?.status === 401 && original && !original._retry) {
+    if (
+      error.response?.status === 401 &&
+      original &&
+      !original._retry &&
+      !isAuthEndpoint(original.url)
+    ) {
       original._retry = true
       try {
         const accessToken = await refreshQueue.runSingleFlight()

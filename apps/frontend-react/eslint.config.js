@@ -23,7 +23,21 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // No eslint-plugin-react here, so JSX usage isn't tracked by no-unused-vars.
+      // PascalCase names are ignored (components/icons used only in JSX); `motion`
+      // is the framer-motion namespace used as <motion.*>. argsIgnorePattern covers
+      // renamed destructured params like `.map(({ icon: Icon }) => <Icon/>)`.
+      'no-unused-vars': ['error', {
+        varsIgnorePattern: '^[A-Z_]|^motion$',
+        argsIgnorePattern: '^[A-Z_]',
+      }],
+    },
+  },
+  {
+    // Vercel serverless functions run on Node, not in the browser.
+    files: ['api/**/*.js'],
+    languageOptions: {
+      globals: { ...globals.node },
     },
   },
 ])

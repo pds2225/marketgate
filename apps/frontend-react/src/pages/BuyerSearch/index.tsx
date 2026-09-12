@@ -5,7 +5,7 @@ import {
   Loader2, Database, AlertCircle, RefreshCw, Shield,
   TrendingUp, ExternalLink, Search, Zap, Cpu, Shirt, Stethoscope,
   Settings2, X, Calculator, DollarSign, Percent, TrendingDown, ArrowUpRight,
-  Globe2, Users, ChevronLeft, MapPin,
+  Globe2, Users, ChevronLeft, MapPin, ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,11 +18,17 @@ import { computeProfitability } from '@/lib/profitability';
 import {
   mapApiBuyersToViewModels,
   groupBuyersByCountry,
+  resolveBuyerCountryIso3,
+  mapCompanyVerificationResponse,
+  mapCompanyVerificationHttpError,
+  EXTERNAL_LOOKUP_LINKS,
+  COMPANY_VERIFICATION_INTRO,
   CONTACT_STATUS_LABELS,
   TRADE_STATUS_LABELS,
   CREDIT_STATUS_LABELS,
 } from './buyerViewModel';
 import CreditUnlockPanel from '@/components/CreditUnlockPanel';
+import ContactOwnershipPanel from './ContactOwnershipPanel';
 import { displayContact, makeBuyerKey } from '@/lib/creditWallet';
 import { detectCategory as detectCategoryShared } from '@/lib/hsKeywordMap';
 
@@ -36,7 +42,9 @@ interface ExportConditions {
 }
 interface Buyer {
   id: string; rank: number; name: string; legalName: string; industry: string;
-  country: string; region: string; dataSource: string; dataDate: string | null; csvTrace: string | null;
+  country: string; countryIso3: string; region: string; dataSource: string; dataDate: string | null; csvTrace: string | null;
+  sourceFile: string | null; sourceRowNo: string | null; sourceRecordType: string | null;
+  sourceProvenanceStatus: 'identified' | 'unavailable';
   contactName: string; email: string; phone: string; website: string;
   contactStatus: 'unavailable' | 'discovered' | 'format_validated' | 'ownership_verified';
   tradeStatus: 'unavailable' | 'source_confirmed' | 'recent_activity_confirmed';
@@ -85,7 +93,9 @@ function buildBuyerReportText(buyer: Buyer): string {
   lines.push(`HS 코드: ${buyer.hsCode} (${buyer.hsLabel})`);
   lines.push(`적합도 점수: ${buyer.score}점 (${buyer.scoreLabel})`);
   lines.push(`데이터 출처: ${buyer.dataSource}`);
-  lines.push(`데이터 수집일: ${buyer.dataDate || '자료 내 확인 불가'}`);
+  lines.push(`원본 파일: ${buyer.sourceFile || '원천 확인 불가'}`);
+  lines.push(`원본 행 번호: ${buyer.sourceRowNo || '원천 확인 불가'}`);
+  lines.push(`원본 기준일: ${buyer.dataDate || '자료 내 확인 불가'}`);
   lines.push('');
   lines.push('[연락처]');
   lines.push(`담당자: ${buyer.contactName || '정보 없음'}`);
@@ -572,6 +582,237 @@ const BuyerListPanel: React.FC<{ country: CountryRec; onSelectBuyer: (b: Buyer) 
   );
 };
 
+/* ── CompanyBasicVerificationCard (CV-03) ── */
+type VerificationStatus = 'BASIC_CONFIRMED' | 'BASIC_PARTIAL' | 'DATA_MISMATCH' | 'INACTIVE_ENTITY' | 'CREDIT_CHECK_REQUIRED';
+
+interface VerificationResult {
+  status: VerificationStatus | null;
+  company_name: string;
+  country: string;
+  verified_at: string;
+  details?: string;
+}
+
+const VERIFICATION_STATUS_META: Record<VerificationStatus, { label: string; color: string; bg: string; border: string; icon: React.ReactNode }> = {
+  BASIC_CONFIRMED:         { label: '기본 확인 완료',     color: 'text-emerald-700', bg: 'bg-emerald-50',   border: 'border-emerald-200',   icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
+  BASIC_PARTIAL:           { label: '부분 확인',          color: 'text-amber-700',   bg: 'bg-amber-50',     border: 'border-amber-200',     icon: <Info className="h-3.5 w-3.5" /> },
+  DATA_MISMATCH:           { label: '데이터 불일치',     color: 'text-rose-700',    bg: 'bg-rose-50',      border: 'border-rose-200',      icon: <AlertCircle className="h-3.5 w-3.5" /> },
+  INACTIVE_ENTITY:         { label: '비활성 법인',       color: 'text-slate-600',   bg: 'bg-slate-100',    border: 'border-slate-200',     icon: <AlertCircle className="h-3.5 w-3.5" /> },
+  CREDIT_CHECK_REQUIRED:   { label: '신용조사 필요',     color: 'text-blue-700',    bg: 'bg-blue-50',      border: 'border-blue-200',      icon: <ShieldCheck className="h-3.5 w-3.5" /> },
+};
+
+const VERIFY_TIMEOUT_MS = 15_000;
+
+const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<VerificationResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
+
+  const handleVerify = async () => {
+    setLoading(true);
+    setResult(null);
+    setError(null);
+    setTimedOut(false);
+
+    const countryIso3 = resolveBuyerCountryIso3(buyer);
+    if (!buyer.name?.trim() || !countryIso3) {
+      setError('기업명 또는 국가 코드(ISO3)가 없어 검증할 수 없습니다.');
+      setLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => { controller.abort(); setTimedOut(true); }, VERIFY_TIMEOUT_MS);
+
+    try {
+      // Shared api client: localhost:8000 (dev) or /api (Vercel). Auth header is attached.
+      // POST then owner-scoped GET so the card shows the stored CV-02 record, not a client guess.
+      const { data: created } = await api.post(
+        '/v1/company-verifications',
+        { company_name: buyer.name, country_iso3: countryIso3 },
+        { signal: controller.signal },
+      );
+      const verificationId = created?.verification_id;
+      if (!verificationId) {
+        setError('검증 결과를 확인할 수 없습니다.');
+        return;
+      }
+      const { data } = await api.get(
+        `/v1/company-verifications/${verificationId}`,
+        { signal: controller.signal },
+      );
+      setResult(mapCompanyVerificationResponse(data) as VerificationResult);
+    } catch (err: any) {
+      const mapped = mapCompanyVerificationHttpError(err);
+      if (mapped.kind === 'timeout') {
+        setTimedOut(true);
+      } else {
+        setError(mapped.message);
+      }
+    } finally {
+      clearTimeout(timer);
+      setLoading(false);
+    }
+  };
+
+  const statusMeta = result?.status ? VERIFICATION_STATUS_META[result.status] : null;
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <ShieldCheck className="h-4 w-4 text-blue-600" />
+        <h3 className="text-sm font-semibold text-slate-800">기업 기본 검증</h3>
+      </div>
+      <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+        {COMPANY_VERIFICATION_INTRO}
+      </p>
+
+      {/* Auto-filled buyer info */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <span className="text-xs text-slate-500 block mb-1">기업명</span>
+          <span className="text-sm font-medium text-slate-800">{buyer.name}</span>
+        </div>
+        <div>
+          <span className="text-xs text-slate-500 block mb-1">국가</span>
+          <span className="text-sm font-medium text-slate-800">{buyer.country}</span>
+        </div>
+      </div>
+
+      {/* Verify button — registry check only; never mutates contact/trade/credit axes */}
+      {!result && !error && !timedOut && (
+        <Button
+          size="sm"
+          className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
+          onClick={handleVerify}
+          disabled={loading}
+        >
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+          기업 검증
+        </Button>
+      )}
+
+      {/* Loading state */}
+      {loading && (
+        <div className="flex items-center gap-2 mt-3 text-xs text-slate-500">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
+          검증 요청 중입니다...
+        </div>
+      )}
+
+      {/* Timeout */}
+      {timedOut && !loading && (
+        <div className="mt-3 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-xs font-medium text-amber-700">응답 시간 초과</p>
+            <p className="text-xs text-amber-600 mt-0.5">서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.</p>
+            <Button variant="outline" size="sm" className="mt-2 h-7 text-xs gap-1" onClick={handleVerify}>
+              <RefreshCw className="h-3 w-3" /> 다시 시도
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Error */}
+      {error && !loading && (
+        <div className="mt-3 flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+          <AlertCircle className="h-4 w-4 text-rose-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-xs font-medium text-rose-700">검증 실패</p>
+            <p className="text-xs text-rose-600 mt-0.5">{error}</p>
+            <Button variant="outline" size="sm" className="mt-2 h-7 text-xs gap-1" onClick={handleVerify}>
+              <RefreshCw className="h-3 w-3" /> 다시 시도
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Result — registry_check_status badge only (not creditStatus) */}
+      {result && !loading && (
+        <div className="mt-4 space-y-3">
+          {statusMeta ? (
+            <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border ${statusMeta.bg} ${statusMeta.color} ${statusMeta.border}`}>
+              {statusMeta.icon}
+              {statusMeta.label}
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border bg-slate-50 text-slate-600 border-slate-200">
+              <Info className="h-3.5 w-3.5" />
+              확인 결과 없음
+            </div>
+          )}
+
+          <div className="bg-slate-50 rounded-lg p-3 space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">기업명</span>
+              <span className="font-medium text-slate-800">{result.company_name || '자료 내 확인 불가'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">국가(ISO3)</span>
+              <span className="font-medium text-slate-800">{result.country || '자료 내 확인 불가'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">검증 시각</span>
+              <span className="font-medium text-slate-800">{result.verified_at || '자료 내 확인 불가'}</span>
+            </div>
+            {result.details && (
+              <div className="pt-1 border-t border-slate-200">
+                <p className="text-slate-600 leading-relaxed">{result.details}</p>
+              </div>
+            )}
+          </div>
+
+          {result.status === 'CREDIT_CHECK_REQUIRED' && (
+            <p className="text-xs text-blue-700 leading-relaxed">
+              신용조사는 아래 공식 페이지에서 신청합니다. 이 화면에서 신용등급을 자동조회하지 않습니다.
+            </p>
+          )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs gap-1"
+            onClick={handleVerify}
+          >
+            <RefreshCw className="h-3 w-3" /> 재검증
+          </Button>
+        </div>
+      )}
+
+      <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+        <p className="text-xs text-slate-400">공식 외부 조회 (자동조회 아님)</p>
+        <p className="text-[11px] text-slate-500 leading-relaxed">
+          D&amp;B 공식 페이지에서 기업의 D-U-N-S Number 등록 여부를 확인합니다.
+          D-U-N-S Number 존재만으로 신용도나 지급능력이 확인되는 것은 아닙니다.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          {Object.values(EXTERNAL_LOOKUP_LINKS).map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+            >
+              {link.label} <ExternalLink className="h-3 w-3" />
+            </a>
+          ))}
+        </div>
+      </div>
+
+      {/* Empty state (no buyer data to verify) */}
+      {!buyer.name && !resolveBuyerCountryIso3(buyer) && !loading && !result && !error && (
+        <div className="flex flex-col items-center py-6 text-center">
+          <Database className="h-6 w-6 text-slate-300 mb-2" />
+          <p className="text-xs text-slate-500">기업 정보가 부족하여 검증할 수 없습니다.</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
 /* ── BuyerDetailPanel ── */
 const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode: string; category: string; }> = ({ buyer, onBack, inputHsCode, category }) => {
   const [favorited, setFavorited] = useState(false);
@@ -587,6 +828,7 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
     { key: 'profile', label: '기본 프로필', icon: <Building2 className="h-3.5 w-3.5" /> },
     { key: 'import', label: '수입 이력', icon: <TrendingUp className="h-3.5 w-3.5" /> },
     { key: 'fit', label: '세부 지표', icon: <BarChart3 className="h-3.5 w-3.5" /> },
+    { key: 'verify', label: '기업 검증', icon: <ShieldCheck className="h-3.5 w-3.5" /> },
   ];
 
   return (
@@ -611,7 +853,7 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
             </div>
             <div className="grid grid-cols-2 gap-y-1 gap-x-4 text-xs text-slate-300 mt-2">
               <div><span className="text-slate-500">발행일:</span> {formatDate()}</div>
-              <div><span className="text-slate-500">데이터 기준일:</span> {buyer.dataDate || '자료 내 확인 불가'}</div>
+              <div><span className="text-slate-500">원본 기준일:</span> {buyer.dataDate || '자료 내 확인 불가'}</div>
               <div className="col-span-2"><span className="text-slate-500">분석 대상:</span> {buyer.country} · HS {buyer.hsCode} ({buyer.hsLabel})</div>
             </div>
           </div>
@@ -637,8 +879,11 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
                 <div className="grid grid-cols-2 gap-y-3 gap-x-6 text-sm mb-4">
                   <div><span className="text-xs text-slate-500 block mb-0.5">업종</span><span className="text-slate-800 font-medium">{buyer.industry}</span></div>
                   <div><span className="text-xs text-slate-500 block mb-0.5">국가/지역</span><span className="text-slate-800 font-medium">{buyer.country} · {buyer.region}</span></div>
-                  <div><span className="text-xs text-slate-500 block mb-0.5">데이터 출처</span><span className="text-slate-800">{buyer.dataSource}</span></div>
-                  <div className="col-span-2"><span className="text-xs text-slate-500 block mb-0.5">데이터 수집일</span><span className="text-slate-800">{buyer.dataDate || '자료 내 확인 불가'}</span></div>
+                  <div><span className="text-xs text-slate-500 block mb-0.5">데이터 출처</span><span className="text-slate-800">{buyer.dataSource || '원천 확인 불가'}</span></div>
+                  <div><span className="text-xs text-slate-500 block mb-0.5">원본 파일</span><span className="text-slate-800 break-all">{buyer.sourceFile || '원천 확인 불가'}</span></div>
+                  <div><span className="text-xs text-slate-500 block mb-0.5">원본 행 번호</span><span className="text-slate-800">{buyer.sourceRowNo || '원천 확인 불가'}</span></div>
+                  <div><span className="text-xs text-slate-500 block mb-0.5">원본 기준일</span><span className="text-slate-800">{buyer.dataDate || '자료 내 확인 불가'}</span></div>
+                  <div className="col-span-2"><span className="text-xs text-slate-500 block mb-0.5">원천 추적 상태</span><span className="text-slate-800">{buyer.sourceProvenanceStatus === 'identified' ? '식별정보 있음 (원본 파일 존재 여부는 별도 확인)' : '원천 확인 불가'}</span></div>
                 </div>
                 <Separator className="my-3" />
                 <div className="space-y-1">
@@ -651,11 +896,12 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
                   website={buyer.website}
                   variant="light"
                 />
-                {buyer.contactStatus !== 'unavailable' ? (
-                  <div className="flex items-center gap-2 mt-4 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 w-fit"><AlertCircle className="h-4 w-4 text-amber-600" /><span className="text-xs font-medium text-amber-700">{CONTACT_STATUS_LABELS[buyer.contactStatus]}</span><span className="text-[10px] text-amber-500">형식·소유 검증 절차 전 상태입니다</span></div>
-                ) : (
-                  <div className="flex items-center gap-2 mt-4 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 w-fit"><AlertCircle className="h-4 w-4 text-slate-500" /><span className="text-xs font-medium text-slate-600">연락처 없음</span><span className="text-[10px] text-slate-400">자료 내 확인 불가 — 발송 불가</span></div>
-                )}
+                <ContactOwnershipPanel
+                  contactStatus={buyer.contactStatus}
+                  email={buyer.email}
+                  phone={buyer.phone}
+                  emailEstimated={buyer.emailEstimated}
+                />
               </div>
             </div>
           )}
@@ -690,6 +936,12 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
                   description="RFM(최근성·빈도·금액)은 기업별 수입실적이 필요합니다. 원본 데이터에 수입실적이 없어 계산하지 않습니다."
                 />
               </div>
+            </div>
+          )}
+
+          {activeTab === 'verify' && (
+            <div className="mb-6">
+              <CompanyBasicVerificationCard buyer={buyer} />
             </div>
           )}
 
@@ -765,21 +1017,37 @@ interface BuyerSearchPageProps {
   onOpenFormMode?: (preset: { hsCode: string }) => void;
 }
 
-// 백엔드(Render)가 유휴 상태에서 깨어나는 데 실측 40초 이상 걸린다. 여기에 predict 자체
-// 소요(실측 5~9초)를 더해 상한을 잡는다. 초과 시 무한 로딩 대신 재시도 가능한 오류 화면.
-const SEARCH_TIMEOUT_MS = 90_000;
+// 백엔드(Render) 콜드 스타트 + 무역/바이어 CSV 첫 로드가 110초를 넘기면
+// Vercel 프록시가 502를 반환한다. 검색 전에 health?warm=1 로 CSV를 적재하고,
+// 프록시 상한(280s)보다 짧게 클라이언트 타임아웃을 둔다.
+const SEARCH_TIMEOUT_MS = 270_000;
+const WARM_TIMEOUT_MS = 120_000;
 // 콜드 스타트 구간에서 "멈춘 것 아님"을 알려주는 시점.
 const SLOW_NOTICE_MS = 8_000;
 
-/** 응답 자체가 없는 실패(콜드 스타트 중 끊김·타임아웃)인지. 4xx/5xx 는 재시도 대상이 아니다. */
+/** 응답 자체가 없는 실패(콜드 스타트 중 끊김·타임아웃)인지. */
 function isTransportFailure(err: any) {
   if (err?.response) return false;
   return err?.code === 'ECONNABORTED' || err?.code === 'ERR_NETWORK' || !!err?.request;
 }
 
+/** 프록시가 업스트림 타임아웃 때 주는 502/503/504 도 1회 재시도 대상. */
+function isRetryablePredictFailure(err: any) {
+  if (isTransportFailure(err)) return true;
+  const status = err?.response?.status;
+  return status === 502 || status === 503 || status === 504;
+}
+
+async function warmPredictBackend(timeout = WARM_TIMEOUT_MS) {
+  try {
+    await api.get('/v1/health', { params: { warm: true }, timeout });
+  } catch {
+    /* predict 가 이어서 시도한다 */
+  }
+}
+
 /**
- * predict 호출. 유휴 상태의 백엔드가 깨어나는 첫 요청은 연결이 끊기거나 상한을 넘길 수 있어
- * 응답 없는 실패에 한해 1회만 재시도한다. 4xx/5xx 는 그대로 던져 원인별 안내를 유지한다.
+ * predict 호출. 검색 전 CSV 워밍 후 요청한다. 타임아웃·502 는 1회만 재시도한다.
  */
 async function requestPredict(hsCode: string) {
   const payload = {
@@ -789,17 +1057,17 @@ async function requestPredict(hsCode: string) {
     year: 2023,
     filters: { min_trade_value_usd: 0 },
   };
-  // SEARCH_TIMEOUT_MS 는 재시도를 포함한 전체 상한이다. 시도마다 상한을 새로 주면
-  // 최악 180초가 되어 화면에 안내한 시간과 어긋나므로, 마감시각을 한 번만 정하고
-  // 재시도에는 남은 시간만 준다. 남은 시간이 없으면 첫 오류를 그대로 던진다.
   const deadline = Date.now() + SEARCH_TIMEOUT_MS;
+  await warmPredictBackend(Math.min(WARM_TIMEOUT_MS, Math.max(5_000, deadline - Date.now())));
   try {
-    return await api.post('/v1/predict', payload, { timeout: SEARCH_TIMEOUT_MS });
-  } catch (err) {
-    if (!isTransportFailure(err)) throw err;
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) throw err;
+    const remaining = Math.max(5_000, deadline - Date.now());
     return await api.post('/v1/predict', payload, { timeout: remaining });
+  } catch (err) {
+    if (!isRetryablePredictFailure(err)) throw err;
+    const remaining = deadline - Date.now();
+    if (remaining <= 5_000) throw err;
+    await warmPredictBackend(Math.min(WARM_TIMEOUT_MS, remaining / 2));
+    return await api.post('/v1/predict', payload, { timeout: Math.max(5_000, deadline - Date.now()) });
   }
 }
 
@@ -941,7 +1209,7 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
   // 유휴 상태의 백엔드는 첫 요청에서 40초 이상 걸린다. 화면 진입 즉시 health 를 한 번 두드려
   // 사용자가 검색어를 입력하는 동안 미리 깨워 둔다(실패는 무시 — 검색 자체에 영향 없음).
   useEffect(() => {
-    api.get('/v1/health', { timeout: SEARCH_TIMEOUT_MS }).catch(() => {});
+    warmPredictBackend().catch(() => {});
   }, []);
 
   // 랜딩 히어로/칩에서 넘긴 mg_search_query 를 1회 읽어 자동 검색한다.

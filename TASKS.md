@@ -22,6 +22,16 @@
 
 ## Active
 
+### 🏢 CV — 해외기업 기본검증
+
+> 무료 기본검증은 법인 실체·등록상태·입력정보 일치 여부까지만 제공한다. `fitScore`, 기존 `creditStatus`, `core.buyers.verification_status`와 신규 `registryCheckStatus`를 혼합하지 않는다. OpenCorporates는 Mock Adapter부터 구현하고 D&B·K-SURE는 공식 외부 링크만 제공한다.
+
+- [x] **[CV-01] 해외기업 기본검증 DB 마이그레이션** — 실제 파일은 `db/migrations/0006_company_registry_checks.sql` (0005는 결제·크레딧). 5개 `registry_check_status`, 기존 인증·결제·크레딧 테이블 비변경. 완료: MG-001 #123.
+- [x] **[CV-02] OpenCorporates Mock 기본검증 API** — `POST /v1/company-verifications`, `GET /v1/company-verifications/{verification_id}`. Mock 시나리오 + `get_current_user` + `user_id` 격리. 완료: #119·#123.
+- [ ] **[CV-03] BuyerSearch 기본검증 카드** — `CompanyBasicVerificationCard`는 main에 있음 (#120·#121). MG-003에서 실제 조회 결과 연결·검수 중.
+- [ ] **[CV-04] 기본검증 테스트·회귀검증** — API/Postgres E2E는 있음. 로그인→바이어검색→상세→기본검증 화면 E2E는 MG-003 이후 MG-004.
+- [x] **[CV-05] K-SURE·D&B PRD 정정** — 검증되지 않은 API·등급 자동조회 가정 제거, MVP는 공식 외부 링크로 한정. 완료: #117.
+
 ### 🧭 A-MVP — Landing 진입 경로
 
 - [x] **[A-001] Landing CTA 연결** — `LandingPage.jsx` 하단 CTA에서 유망국 분석(`AnalysisPage`), 수출 플로우(`ExportFlowPage`), 바이어 검색(`BuyerSearchPage`)으로 진입 가능. 기존 `App.jsx` 상태 라우팅 재사용, 새 라이브러리·백엔드 변경 없음. 검증: CTA/라우트 6/6 정적 연결 확인, `npm run build` 통과.

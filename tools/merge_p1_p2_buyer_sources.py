@@ -23,6 +23,11 @@ from typing import Any
 
 import pandas as pd
 
+try:
+    from validate_p2_dropins import validate_dropin
+except ModuleNotFoundError:  # imported as tools.merge_p1_p2_buyer_sources
+    from tools.validate_p2_dropins import validate_dropin
+
 ROOT = Path(__file__).resolve().parents[1]
 PREPROCESS = ROOT / "services" / "cosmetics_mvp_preprocess"
 RAW_DIR = PREPROCESS / "output" / "raw"
@@ -256,6 +261,16 @@ def _load_p2_optional() -> tuple[list[pd.DataFrame], list[dict[str, Any]]]:
         # 스키마 예시(*.csv.example)는 glob에 안 걸리지만, *.example.csv 잔존도 제외
         if path.name.endswith(".example.csv") or ".example." in path.name:
             continue
+        validation = validate_dropin(path)
+        if not validation.valid:
+            status.append(
+                {
+                    "file": path.name,
+                    "status": "VALIDATION_FAILED",
+                    "validation": validation.to_dict(),
+                }
+            )
+            continue
         df = _load_csv(path)
         # COMMON 최소 컬럼 없으면 스킵
         if "country_norm" not in df.columns and "country_raw" not in df.columns:
@@ -284,6 +299,14 @@ def _load_p2_optional() -> tuple[list[pd.DataFrame], list[dict[str, Any]]]:
                 "record_type": record_type,
                 "rows": len(aligned),
                 "source_dataset": source or path.stem,
+                "validation_warnings": [
+                    {
+                        "code": warning.code,
+                        "message": warning.message,
+                        "row": warning.row,
+                    }
+                    for warning in validation.warnings
+                ],
             }
         )
 

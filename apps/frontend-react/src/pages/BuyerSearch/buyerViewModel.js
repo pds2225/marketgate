@@ -24,6 +24,60 @@ export const CONTACT_STATUS_LABELS = {
   ownership_verified: '소유 검증됨',
 };
 
+export const CONTACT_OWNERSHIP_STATES = Object.freeze([
+  'not_requested',
+  'pending',
+  'ownership_verified',
+  'failed',
+  'expired',
+  'revoked',
+]);
+
+const CONTACT_OWNERSHIP_TRANSITIONS = Object.freeze({
+  not_requested: { verification_requested: 'pending' },
+  pending: {
+    challenge_confirmed: 'ownership_verified',
+    challenge_failed: 'failed',
+    challenge_expired: 'expired',
+  },
+  ownership_verified: { verification_revoked: 'revoked' },
+  failed: { verification_requested: 'pending' },
+  expired: { verification_requested: 'pending' },
+  revoked: { verification_requested: 'pending' },
+});
+
+const OWNERSHIP_CHALLENGE_METHODS = new Set(['email_link', 'sms_otp']);
+
+/**
+ * 연락처 소유 확인 상태 전이. 허용되지 않은 직접 승격은 무시한다.
+ * 실제 메일/SMS 전송과 challenge 검증은 백엔드 책임이며 이 함수는 계약을 고정한다.
+ */
+export function transitionContactOwnershipState(currentState, eventType) {
+  const state = CONTACT_OWNERSHIP_STATES.includes(currentState)
+    ? currentState
+    : 'not_requested';
+  return CONTACT_OWNERSHIP_TRANSITIONS[state]?.[eventType] || state;
+}
+
+/**
+ * 백엔드 challenge 결과의 최소 증거 계약.
+ * 원문 연락처 대신 recipient_fingerprint를 사용하며, 완전한 확인 증거만 허용한다.
+ */
+export function hasOwnershipVerificationProof(verification) {
+  if (!verification || typeof verification !== 'object') return false;
+  return (
+    verification.state === 'ownership_verified' &&
+    verification.previous_state === 'pending' &&
+    OWNERSHIP_CHALLENGE_METHODS.has(verification.method) &&
+    typeof verification.challenge_id === 'string' &&
+    verification.challenge_id.trim().length > 0 &&
+    typeof verification.recipient_fingerprint === 'string' &&
+    verification.recipient_fingerprint.trim().length >= 8 &&
+    typeof verification.verified_at === 'string' &&
+    verification.verified_at.trim().length > 0
+  );
+}
+
 export const TRADE_STATUS_LABELS = {
   unavailable: '수입실적 자료 내 확인 불가',
   source_confirmed: '출처 확인됨',
@@ -55,10 +109,13 @@ export function isPhoneFormatValid(phone) {
  * - unavailable: 없음
  * - discovered: 보유(형식 미통과·추정 등)
  * - format_validated: 이메일/전화 형식이 통과 (소유 검증 아님)
- * - ownership_verified: 별도 소유 확인 절차 전까지 부여하지 않음
+ * - ownership_verified: 백엔드 challenge 확인 증거가 완전할 때만 부여
  */
 export function deriveContactStatus(item) {
   if (!item?.has_contact) return 'unavailable'
+  if (hasOwnershipVerificationProof(item.contact_ownership_verification)) {
+    return 'ownership_verified'
+  }
   const emailOk = isEmailFormatValid(item.contact_email)
   const phoneOk = isPhoneFormatValid(item.contact_phone)
   if ((emailOk || phoneOk) && !item.contact_email_estimated) {
@@ -105,6 +162,12 @@ export function mapApiBuyerToViewModel(item, index, hsCode, categoryLabel) {
     COUNTRY_NAME_MAP[countryCode] || item.source_target_country_name || countryCode;
   const email = item.contact_email || '';
 
+  const countryIso3 = String(
+    item.source_target_country_iso3 || item.country_iso3 || ''
+  )
+    .trim()
+    .toUpperCase();
+
   return {
     id: `MG-${hsCode}-${index + 1}`,
     rank: index + 1,
@@ -112,11 +175,18 @@ export function mapApiBuyerToViewModel(item, index, hsCode, categoryLabel) {
     legalName: (item.buyer_name || '').toLowerCase(),
     industry: item.source_dataset || '유통/바이어',
     country: `${countryCode} ${countryName}`,
+    // CV API requires ISO3; display `country` is a label (norm/name), not the code.
+    countryIso3: /^[A-Z]{3}$/.test(countryIso3) ? countryIso3 : '',
     region: item.source_target_country_name || countryName,
     dataSource: item.source_dataset || '출처 미상',
-    // 원본에 수집일이 없으므로 생성하지 않는다 (기존: 오늘 날짜를 수집일로 표기)
-    dataDate: null,
-    csvTrace: item.source_dataset ? `${item.source_dataset}.csv` : null,
+    // 실제 processed CSV가 제공한 provenance만 표시한다. 파일명을 합성하지 않는다.
+    dataDate: item.source_snapshot_date || null,
+    csvTrace: item.source_file || null,
+    sourceFile: item.source_file || null,
+    sourceRowNo: item.source_row_no || null,
+    sourceRecordType: item.record_type || null,
+    sourceProvenanceStatus:
+      item.source_dataset && item.source_file && item.source_row_no ? 'identified' : 'unavailable',
     contactName: item.contact_name || '',
     email,
     phone: item.contact_phone || '',
@@ -184,6 +254,123 @@ export function mapApiBuyersToViewModels(items, hsCode, categoryLabel) {
   );
 }
 
+/** CV-02 registry_check_status only — never mix with contact/trade/credit. */
+export const REGISTRY_CHECK_STATUSES = [
+  'BASIC_CONFIRMED',
+  'BASIC_PARTIAL',
+  'DATA_MISMATCH',
+  'INACTIVE_ENTITY',
+  'CREDIT_CHECK_REQUIRED',
+];
+
+/** Official external lookup pages (no paid D&B/K-SURE API). */
+export const EXTERNAL_LOOKUP_LINKS = {
+  dunsLookup: {
+    label: 'D-U-N-S 조회',
+    href: 'https://www.dnb.com/duns-number/lookup.html',
+  },
+  ksureSight: {
+    label: 'K-SURE 기업 조회',
+    href: 'https://ksight.ksure.or.kr/find-buyer',
+  },
+  ksureCredit: {
+    label: 'K-SURE 신용조사 신청',
+    href: 'https://www.ksure.or.kr/rh-kr/cntnts/i-115/web.do',
+  },
+};
+
+export function isRegistryCheckStatus(status) {
+  return REGISTRY_CHECK_STATUSES.includes(status);
+}
+
+/** Resolve ISO3 for company-verification POST (CV-02/CV-03 contract). */
+export function resolveBuyerCountryIso3(buyer) {
+  const direct = String(buyer?.countryIso3 || '')
+    .trim()
+    .toUpperCase();
+  if (/^[A-Z]{3}$/.test(direct)) return direct;
+  return '';
+}
+
+/**
+ * Map CV-02 API record → CV-03 card view model.
+ * API fields: registry_check_status, country_iso3, completed_at
+ * UI fields: status, country, verified_at
+ * Unknown enum → status null (확인 결과 없음). Never copies contact/trade/credit.
+ */
+export function mapCompanyVerificationResponse(data) {
+  const rawStatus = data?.registry_check_status;
+  const status = isRegistryCheckStatus(rawStatus) ? rawStatus : null;
+  const provider = data?.result_json?.provider || data?.provider;
+  const mock = data?.result_json?.mock === true;
+  let details;
+  if (!status) {
+    details = '확인 결과 없음';
+  } else if (provider) {
+    details = mock
+      ? `법인 기본검증 제공자: ${provider} (mock · 자동 신용등급 조회 아님)`
+      : `법인 기본검증 제공자: ${provider}`;
+  }
+  return {
+    verification_id: data?.verification_id || '',
+    status,
+    company_name: data?.company_name || '',
+    country: data?.country_iso3 || '',
+    verified_at: data?.completed_at || data?.requested_at || '',
+    details,
+  };
+}
+
+function _httpDetail(err) {
+  const detail = err?.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((d) => d?.msg || JSON.stringify(d)).join('; ');
+  }
+  return err?.message || '';
+}
+
+/** Map CV-02 HTTP errors for the BuyerSearch card. Do not treat 404 as "API not deployed". */
+export function mapCompanyVerificationHttpError(err) {
+  if (
+    err?.name === 'AbortError' ||
+    err?.name === 'CanceledError' ||
+    err?.code === 'ERR_CANCELED'
+  ) {
+    return { kind: 'timeout', message: null };
+  }
+  const status = err?.response?.status;
+  const detail = _httpDetail(err);
+  if (status === 401 || status === 403) {
+    return { kind: 'auth', message: '로그인이 필요합니다. 로그인 후 다시 시도해 주세요.' };
+  }
+  if (status === 400 || status === 422) {
+    return { kind: 'invalid', message: detail || '요청 값이 올바르지 않습니다.' };
+  }
+  if (status === 404) {
+    return { kind: 'not_found', message: '검증 결과를 찾을 수 없습니다.' };
+  }
+  if (status === 503) {
+    return {
+      kind: 'store',
+      message: '검증 저장소를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+    };
+  }
+  if (status === 502 || status === 504) {
+    return {
+      kind: 'provider',
+      message: '외부 조회가 지연되거나 실패했습니다. 잠시 후 다시 시도해 주세요.',
+    };
+  }
+  if (status === 500) {
+    return { kind: 'server', message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.' };
+  }
+  return { kind: 'unknown', message: detail || '검증 요청에 실패했습니다.' };
+}
+
+export const COMPANY_VERIFICATION_INTRO =
+  '현재 결과는 법적 실체와 등록정보에 대한 기본확인입니다. 재무상태, 결제이력, 신용등급 및 지급능력 확인은 별도의 신용조사가 필요합니다.';
+
 /** 국가별 그룹핑 — 실측 가능한 값(건수·평균점수·연락처 보유 수)만 집계한다. */
 export function groupBuyersByCountry(buyers) {
   const groups = new Map();
@@ -213,3 +400,4 @@ export function groupBuyersByCountry(buyers) {
   }
   return result.sort((a, b) => b.avgScore - a.avgScore);
 }
+

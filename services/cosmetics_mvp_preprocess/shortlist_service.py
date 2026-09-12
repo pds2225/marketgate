@@ -366,6 +366,10 @@ def shortlist_buyers(
             {
                 "buyer_name": normalize_text(buyer.get("normalized_name")) or normalize_text(buyer.get("title")),
                 "source_dataset": normalize_text(buyer.get("source_dataset")),
+                "record_type": normalize_text(buyer.get("record_type")),
+                "source_file": normalize_text(buyer.get("source_file")),
+                "source_row_no": normalize_text(buyer.get("source_row_no")),
+                "source_snapshot_date": normalize_text(buyer.get("source_snapshot_date")),
                 "country_norm": normalize_text(buyer.get("country_norm")),
                 "hs_code_norm": normalize_text(buyer.get("hs_code_norm")),
                 "keywords_norm": normalize_text(buyer.get("keywords_norm")),

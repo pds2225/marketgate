@@ -122,3 +122,5 @@ def me(user: dict = Depends(get_current_user)):
         # 가산 필드 — 관리자 메뉴 노출 여부 판단용 (기존 키 불변)
         "role": "admin" if is_admin(user) else "user",
     }
+
+# redeploy trigger after PR #108 merge 2026-08-11T04:56:47Z

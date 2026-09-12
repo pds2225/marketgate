@@ -3,9 +3,17 @@ import assert from 'node:assert/strict';
 import {
   mapApiBuyersToViewModels,
   deriveContactStatus,
+  transitionContactOwnershipState,
+  hasOwnershipVerificationProof,
   deriveTradeStatus,
   deriveCreditStatus,
   groupBuyersByCountry,
+  resolveBuyerCountryIso3,
+  mapCompanyVerificationResponse,
+  mapCompanyVerificationHttpError,
+  EXTERNAL_LOOKUP_LINKS,
+  REGISTRY_CHECK_STATUSES,
+  COMPANY_VERIFICATION_INTRO,
   CONTACT_STATUS_LABELS,
 } from '../src/pages/BuyerSearch/buyerViewModel.js';
 
@@ -127,6 +135,78 @@ test('L010: 원본(CSV/API) 필드만으로는 ownership_verified 를 부여하�
   }
 });
 
+test('MG-006: 소유 확인은 요청→대기→challenge 확인 순서로만 승격한다', () => {
+  assert.equal(
+    transitionContactOwnershipState('not_requested', 'verification_requested'),
+    'pending'
+  );
+  assert.equal(
+    transitionContactOwnershipState('pending', 'challenge_confirmed'),
+    'ownership_verified'
+  );
+  assert.equal(
+    transitionContactOwnershipState('not_requested', 'challenge_confirmed'),
+    'not_requested'
+  );
+  assert.equal(
+    transitionContactOwnershipState('ownership_verified', 'verification_revoked'),
+    'revoked'
+  );
+});
+
+test('MG-006: 완전한 이메일 링크 challenge 증거만 ownership_verified 로 표시한다', () => {
+  const proof = {
+    state: 'ownership_verified',
+    previous_state: 'pending',
+    method: 'email_link',
+    challenge_id: 'challenge-123',
+    recipient_fingerprint: 'sha256:ab12cd34',
+    verified_at: '2026-09-01T00:00:00Z',
+  };
+  assert.equal(hasOwnershipVerificationProof(proof), true);
+  assert.equal(
+    deriveContactStatus({
+      has_contact: true,
+      contact_email: 'owner@example.com',
+      contact_ownership_verification: proof,
+    }),
+    'ownership_verified'
+  );
+});
+
+test('MG-006: pending·실패·불완전 증거와 임의 verified 플래그는 승격하지 않는다', () => {
+  const base = {
+    state: 'ownership_verified',
+    previous_state: 'pending',
+    method: 'sms_otp',
+    challenge_id: 'challenge-456',
+    recipient_fingerprint: 'sha256:ef56gh78',
+    verified_at: '2026-09-01T00:00:00Z',
+  };
+  const invalidProofs = [
+    { ...base, state: 'pending' },
+    { ...base, state: 'failed' },
+    { ...base, previous_state: 'not_requested' },
+    { ...base, method: 'csv_flag' },
+    { ...base, challenge_id: '' },
+    { ...base, recipient_fingerprint: '' },
+    { ...base, verified_at: '' },
+  ];
+  for (const proof of invalidProofs) {
+    assert.equal(hasOwnershipVerificationProof(proof), false);
+    assert.notEqual(
+      deriveContactStatus({
+        has_contact: true,
+        contact_email: 'owner@example.com',
+        ownership_verified: true,
+        verified: true,
+        contact_ownership_verification: proof,
+      }),
+      'ownership_verified'
+    );
+  }
+});
+
 test('L010: has_contact 만으로는 소유검증(검증 완료) 라벨이 노출되지 않는다', () => {
   const status = deriveContactStatus({ has_contact: true });
   assert.equal(status, 'discovered');
@@ -155,3 +235,103 @@ test('국가 그룹핑은 실측값(건수·평균점수·연락처 보유 수)�
   assert.ok(!('totalImportValue' in de), 'no fabricated country import totals');
   assert.ok(!('avgGrowthRate' in de), 'no fabricated growth rates');
 });
+
+test('L029: countryIso3 comes from API ISO3 fields, not display country label', () => {
+  const withIso = mapApiBuyersToViewModels(
+    [{ ...API_ITEMS[0], source_target_country_iso3: 'DEU' }],
+    '330499',
+    'K-뷰티',
+  )[0];
+  assert.equal(withIso.countryIso3, 'DEU');
+  assert.equal(resolveBuyerCountryIso3(withIso), 'DEU');
+
+  const fromCountryIso3 = mapApiBuyersToViewModels(
+    [{ ...API_ITEMS[1], country_iso3: 'vnm' }],
+    '330499',
+    'K-뷰티',
+  )[0];
+  assert.equal(fromCountryIso3.countryIso3, 'VNM');
+
+  const [noIso] = mapApiBuyersToViewModels(API_ITEMS, '330499', 'K-뷰티');
+  assert.equal(noIso.countryIso3, '');
+  assert.equal(resolveBuyerCountryIso3(noIso), '');
+  // Display label must not be treated as ISO3 (would 422 against CV-02)
+  assert.notEqual(resolveBuyerCountryIso3({ country: noIso.country }), 'GERMANY');
+});
+
+test('L029: mapCompanyVerificationResponse aligns CV-02 API → CV-03 UI fields', () => {
+  const view = mapCompanyVerificationResponse({
+    verification_id: 'x',
+    company_name: 'Acme',
+    country_iso3: 'USA',
+    registry_check_status: 'BASIC_CONFIRMED',
+    result_json: { provider: 'opencorporates', match_status: 'BASIC_CONFIRMED', mock: true },
+    provider: 'opencorporates',
+    requested_at: '2026-01-01T00:00:00+00:00',
+    completed_at: '2026-01-01T01:00:00+00:00',
+  });
+  assert.equal(view.status, 'BASIC_CONFIRMED');
+  assert.equal(view.country, 'USA');
+  assert.equal(view.verified_at, '2026-01-01T01:00:00+00:00');
+  assert.equal(view.company_name, 'Acme');
+  assert.match(view.details, /opencorporates/);
+  assert.match(view.details, /자동 신용등급 조회 아님/);
+  assert.equal(view.status && view.country && view.verified_at ? 'ok' : 'broken', 'ok');
+});
+
+test('MG-003: registry_check_status is not mixed with contact/trade/credit', () => {
+  const [buyer] = mapApiBuyersToViewModels(
+    [{ ...API_ITEMS[0], source_target_country_iso3: 'DEU' }],
+    '330499',
+    'K-뷰티',
+  );
+  assert.equal(buyer.contactStatus, 'format_validated');
+  assert.equal(buyer.tradeStatus, 'source_confirmed');
+  assert.equal(buyer.creditStatus, 'not_requested');
+  assert.equal(buyer.creditStatus in CONTACT_STATUS_LABELS, false);
+  for (const status of REGISTRY_CHECK_STATUSES) {
+    assert.notEqual(status, buyer.contactStatus);
+    assert.notEqual(status, buyer.tradeStatus);
+    assert.notEqual(status, buyer.creditStatus);
+  }
+  const mixed = mapCompanyVerificationResponse({
+    registry_check_status: 'BASIC_PARTIAL',
+    contactStatus: 'ownership_verified',
+    tradeStatus: 'recent_activity_confirmed',
+    creditStatus: 'report_received',
+    credit_grade: 'A',
+  });
+  assert.equal(mixed.status, 'BASIC_PARTIAL');
+  assert.equal(mixed.contactStatus, undefined);
+  assert.equal(mixed.tradeStatus, undefined);
+  assert.equal(mixed.creditStatus, undefined);
+  assert.equal(mixed.credit_grade, undefined);
+});
+
+test('MG-003: unknown registry status maps to 확인 결과 없음 (no fake grade)', () => {
+  const unknown = mapCompanyVerificationResponse({
+    registry_check_status: 'VERIFIED',
+    company_name: 'Ghost',
+    country_iso3: 'USA',
+  });
+  assert.equal(unknown.status, null);
+  assert.equal(unknown.details, '확인 결과 없음');
+  assert.ok(!('contactStatus' in unknown));
+  assert.ok(!('creditStatus' in unknown));
+  const notFound = mapCompanyVerificationHttpError({ response: { status: 404, data: { detail: 'verification_not_found' } } });
+  assert.equal(notFound.kind, 'not_found');
+  assert.doesNotMatch(notFound.message, /CV-02 배포/);
+  const storeDown = mapCompanyVerificationHttpError({ response: { status: 503, data: { detail: 'verification_store_unavailable' } } });
+  assert.equal(storeDown.kind, 'store');
+});
+
+test('MG-003: D&B/K-SURE links are official lookup pages only', () => {
+  assert.match(COMPANY_VERIFICATION_INTRO, /별도/);
+  assert.doesNotMatch(COMPANY_VERIFICATION_INTRO, /데이터 소스를 참조/);
+  assert.equal(EXTERNAL_LOOKUP_LINKS.dunsLookup.href, 'https://www.dnb.com/duns-number/lookup.html');
+  assert.equal(EXTERNAL_LOOKUP_LINKS.ksureSight.href, 'https://ksight.ksure.or.kr/find-buyer');
+  assert.equal(EXTERNAL_LOOKUP_LINKS.ksureCredit.href, 'https://www.ksure.or.kr/rh-kr/cntnts/i-115/web.do');
+  assert.doesNotMatch(EXTERNAL_LOOKUP_LINKS.ksureSight.href, /ksure\.go\.kr/);
+  assert.notEqual(EXTERNAL_LOOKUP_LINKS.dunsLookup.href, 'https://www.dnb.com');
+});
+

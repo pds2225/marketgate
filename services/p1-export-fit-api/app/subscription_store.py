@@ -4,6 +4,8 @@ import tempfile
 import threading
 from datetime import datetime, timezone, timedelta
 
+from app.db_conn import get_conn, put_conn, is_available, in_transaction
+
 SUBSCRIPTIONS_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "subscriptions.json")
 _lock = threading.Lock()
 
@@ -54,7 +56,50 @@ def _save(data: dict) -> None:
         raise
 
 
+def _sub_dict(plan: str, started_at, expires_at) -> dict:
+    return {
+        "plan": plan,
+        "started_at": started_at.isoformat() if hasattr(started_at, "isoformat") and started_at else started_at,
+        "expires_at": expires_at.isoformat() if hasattr(expires_at, "isoformat") and expires_at else expires_at,
+    }
+
+
+def _db_get_subscription(user_id: str) -> dict:
+    conn = get_conn()
+    if conn is None:
+        raise RuntimeError("postgres_unavailable")
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT plan, started_at, expires_at FROM subscriptions "
+                "WHERE user_id = %s FOR UPDATE",
+                (user_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"plan": "Basic", "started_at": None, "expires_at": None}
+            plan, started_at, expires_at = row
+            if expires_at is not None:
+                expires = expires_at
+                if expires.tzinfo is None:
+                    expires = expires.replace(tzinfo=timezone.utc)
+                if datetime.now(timezone.utc) > expires:
+                    cur.execute(
+                        "UPDATE subscriptions SET plan=%s, started_at=NULL, "
+                        "expires_at=NULL, updated_at=%s WHERE user_id=%s",
+                        ("Basic", datetime.now(timezone.utc), user_id),
+                    )
+                    if not in_transaction():
+                        conn.commit()
+                    return {"plan": "Basic", "started_at": None, "expires_at": None}
+            return _sub_dict(plan, started_at, expires_at)
+    finally:
+        put_conn(conn)
+
+
 def get_subscription(user_id: str) -> dict:
+    if is_available():
+        return _db_get_subscription(user_id)
     with _lock:
         data = _load()
         if user_id not in data:
@@ -73,6 +118,18 @@ def get_subscription(user_id: str) -> dict:
 
 def delete_user(user_id: str) -> bool:
     """Remove an isolated user's subscription during E2E cleanup."""
+    if is_available():
+        conn = get_conn()
+        if conn is None:
+            return False
+        try:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM subscriptions WHERE user_id = %s", (user_id,))
+                deleted = cur.rowcount > 0
+            conn.commit()
+            return deleted
+        finally:
+            put_conn(conn)
     with _lock:
         data = _load()
         if user_id not in data:
@@ -85,10 +142,32 @@ def delete_user(user_id: str) -> bool:
 def change_plan(user_id: str, plan: str) -> dict:
     if plan not in PLANS:
         raise ValueError(f"invalid plan: {plan}")
+    now = datetime.now(timezone.utc)
+    expires = (now + timedelta(days=30)).replace(
+        hour=23, minute=59, second=59, microsecond=0
+    )
+    if is_available():
+        conn = get_conn()
+        if conn is None:
+            raise RuntimeError("postgres_unavailable")
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO subscriptions "
+                    "(user_id, plan, started_at, expires_at, updated_at) "
+                    "VALUES (%s, %s, %s, %s, %s) "
+                    "ON CONFLICT (user_id) DO UPDATE SET "
+                    "plan = EXCLUDED.plan, started_at = EXCLUDED.started_at, "
+                    "expires_at = EXCLUDED.expires_at, updated_at = EXCLUDED.updated_at",
+                    (user_id, plan, now, expires, now),
+                )
+            if not in_transaction():
+                conn.commit()
+            return _sub_dict(plan, now, expires)
+        finally:
+            put_conn(conn)
     with _lock:
         data = _load()
-        now = datetime.now(timezone.utc)
-        expires = (now + timedelta(days=30)).replace(hour=23, minute=59, second=59, microsecond=0)
         data[user_id] = {
             "plan": plan,
             "started_at": now.isoformat(),

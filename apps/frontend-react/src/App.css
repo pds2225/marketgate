@@ -2019,6 +2019,26 @@
   margin-right: 2px;
 }
 
+.landing-search-alt-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.landing-search-alt {
+  border: 0;
+  background: transparent;
+  color: #1463f3;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.landing-search-alt:hover {
+  text-decoration: underline;
+}
+
 .landing-search-chip {
   display: inline-flex;
   align-items: center;
@@ -2493,6 +2513,10 @@
   color: #516076;
   font-size: 13px;
   font-weight: 700;
+}
+
+.landing-search-alt-row {
+  justify-content: center;
 }
 
 .landing-search-chip {
