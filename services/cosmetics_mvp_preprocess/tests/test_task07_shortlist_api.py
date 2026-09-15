@@ -292,3 +292,71 @@ def test_tc_api_4_include_rejected_does_not_hide_low_hs_match_candidates() -> No
         assert "Serum Lab" in item_names
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
+
+
+def test_shortlist_api_preserves_has_contact_when_csv_uses_one_zero() -> None:
+    """Production buyer_candidate.csv encodes has_contact as 0/1, not true/false.
+
+    Serializing with ``== "true"`` previously forced every row to has_contact=False,
+    so BuyerSearch marked all contactable buyers as unavailable.
+    """
+    from shortlist_service import clear_shortlist_cache, shortlist_buyers
+
+    output_dir = _build_output_dir()
+    try:
+        pd.DataFrame(
+            [
+                {
+                    "normalized_name": "One Flag Buyer",
+                    "title": "One Flag Buyer",
+                    "country_norm": "미국",
+                    "hs_code_norm": "330499",
+                    "keywords_norm": "serum | cream",
+                    "has_contact": "1",
+                    "contact_email": "one@example.com",
+                    "contact_email_estimated": "False",
+                },
+                {
+                    "normalized_name": "Zero Flag Buyer",
+                    "title": "Zero Flag Buyer",
+                    "country_norm": "미국",
+                    "hs_code_norm": "330499",
+                    "keywords_norm": "serum | cream",
+                    "has_contact": "0",
+                    "contact_email": "",
+                    "contact_email_estimated": "False",
+                },
+            ]
+        ).to_csv(output_dir / "buyer_candidate.csv", index=False, encoding="utf-8-sig")
+        pd.DataFrame(
+            [
+                {
+                    "title": "Skincare serum inquiry",
+                    "country_norm": "미국",
+                    "valid_until": "2025-11-30",
+                    "signal_type": "inquiry",
+                    "keywords_norm": "serum | cream",
+                    "product_name_norm": "Skincare serum",
+                }
+            ]
+        ).to_csv(output_dir / "opportunity_item.csv", index=False, encoding="utf-8-sig")
+
+        clear_shortlist_cache()
+        result = shortlist_buyers(
+            output_dir=output_dir,
+            supplier_profile={
+                "supplier_name": "K-Beauty Supplier",
+                "target_country_norm": "미국",
+                "target_hs_code_norm": "330499",
+                "target_keywords_norm": "serum | cream",
+            },
+            reference_date=date(2025, 6, 1),
+            limit=10,
+            include_rejected=True,
+        )
+        by_name = {item["buyer_name"]: item for item in result["items"]}
+        assert by_name["One Flag Buyer"]["has_contact"] is True
+        assert by_name["Zero Flag Buyer"]["has_contact"] is False
+    finally:
+        clear_shortlist_cache()
+        shutil.rmtree(output_dir, ignore_errors=True)
