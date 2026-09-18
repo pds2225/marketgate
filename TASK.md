@@ -1549,7 +1549,46 @@ PENDING_TASKS:
 - `country_iso3` 정상 매핑 = 33,654건.
 - country 품질 감사: VALID_COUNTRY 33,654건, COUNTRY_ALIAS 1,117건, ADDRESS_IN_COUNTRY 27건, OTHER_INVALID 1,443건.
 - processed metadata의 source_file 11종 중 저장소 `output/raw`와 정확히 일치하는 원본 파일은 1종만 확인됨. 다수 raw snapshot 및 ITC 원본은 현재 저장소에 없음.
-- Production `/v1/demo/buyers`는 축약 source만 노출하며 `source_dataset/source_file/source_row_no/source_snapshot_date`는 현재 API에서 소실됨.
+
+### 연결 실측 — 2026-09-11
+
+코드 호출 관계와 Production 응답으로만 확인. 추측 없음. Gobiz 기능/데이터는 미변경.
+
+DATA
+`services/cosmetics_mvp_preprocess/output/buyer_candidate.csv` : CONNECTED
+- 파일 존재, 36,241 rows (헤더 제외). 더미/빈 파일 아님.
+- source_dataset: KOTRA SNS 33,446 / NIPA ICT 1,847 / K-SURE 화장품 386 / K-SURE 바이어검색 235 / (기타는 기존 CSV에 이미 존재, 이번 작업에서 미변경)
+
+LOADER
+경로 : `services/cosmetics_mvp_preprocess/shortlist_service.py` `load_buyer_frame` → `_load_frame_cached("buyer_candidate.csv")`
+상태 : CONNECTED
+- 로컬 로드 36,241 rows. Production `GET /v1/demo/summary` total=36,241, bySource KOTRA SNS 33,446 + K-SURE 화장품 386 + K-SURE 바이어검색 235.
+
+SERVICE
+경로 : `shortlist_service.shortlist_buyers` → `score_buyers` / `app/services/buyer_shortlist.py` `build_buyer_shortlist`
+상태 : CONNECTED
+- `shortlist_buyers`가 `load_buyer_frame`으로 동일 CSV를 읽는다.
+- `opportunity_item.csv`는 git에 없음(0건). `build_buyer_shortlist`가 빈 파일을 임시 생성한 뒤 shortlist를 진행한다.
+- 베트남-only shortlist 반환 10건 전부 `대한무역투자진흥공사_SNS 마케팅 수집 바이어 정보`. 표본 GEMSIMEX = CSV 동일 source_dataset.
+
+API
+경로 : `services/p1-export-fit-api/main.py` `POST /v1/predict` → `build_buyer_shortlist`
+상태 : CONNECTED
+- Production predict(hs=330499, KOR) HTTP 200, buyers.status=ok, filtered_buyer_rows=5210, items=10.
+- 동일 CSV 레코드 전달 확인: `Beauti Control Csmtcs Inc.` / `ITC_TradeMap_ImportingCompanies` / `Trade_Map_USA_HS3304_20260506.csv` / source_row_no=1. 로컬 CSV 1행과 buyer_name·source 일치.
+- Production `GET /v1/demo/buyers` 1번째 행 = CSV 1번째 K-SURE 행 `VIETMYSINGINTERNATIONALJOINTSTOCKCOMPANY...` / source_file=`한국무역보험공사_화장품 바이어 정보_20200812.csv` / source_row_no=126. provenance 필드(`source_dataset/source_file/source_row_no/source_snapshot_date`) 유지됨.
+
+FRONTEND
+경로 : `apps/frontend-react/src/pages/BuyerSearch/index.tsx` `requestPredict` → `POST /v1/predict` → `mapApiBuyersToViewModels` (`buyerViewModel.js`)
+상태 : CONNECTED
+- BuyerSearch는 `data.buyers.items`만 사용. demo 쇼케이스는 `GET /v1/demo/snapshot` (`MarketGateDemo.jsx` / `demo.html`).
+- 뷰모델은 `buyer_name`·`source_dataset`·`source_file`·`source_row_no`를 화면 필드로 전달한다.
+
+최종:
+K-SURE/KOTRA 실제 Buyer 데이터가 Production 화면에서 사용됨: YES
+- 풀: Production demo summary 36,241건, KOTRA SNS 33,446 + K-SURE 621이 loader/service 입력이다.
+- Buyer Shortlist(predict)도 같은 풀을 국가 필터 후 점수 정렬한다. 기본 HS 330499 검색의 반환 top 10은 기존 HS 관련성·출처 신뢰 정렬 결과로 ITC 11건이 앞선다. 매칭/scoring은 이번 작업에서 변경하지 않음.
+- 끊긴 지점 없음. 코드 수정 없음.
 
 현재 판정:
 
@@ -1557,6 +1596,7 @@ PENDING_TASKS:
 - `RAW_SOURCE_RECOVERY_BACKLOG`
 - `DATA_QUALITY_BACKLOG`
 - Opportunity는 `BLOCKED_NO_DATA`
+- Buyer CSV → loader → shortlist → `/v1/predict`·`/v1/demo/*` → BuyerSearch/demo : `CONNECTED`
 
 raw snapshot이 없다는 이유만으로 Buyer Matching 전체를 중단하지 않는다. 단, 원본 검증 완료라고 표현하거나 허위 출처를 생성하면 안 된다.
 
