@@ -564,6 +564,7 @@ DEPENDS_ON:
 - 원인: 공개 데모 `/v1/demo/snapshot|buyers`의 `_DEFAULT_BUYER_LIMIT=60` (MAX는 이미 200). BuyerSearch `/v1/predict` top_n(≤10)과는 무관.
 - #118에서 demo default를 200으로 올림. 본 작업에서 원인 기록 + regression 테스트로 demo/search 계약 분리 고정.
 - REQUEST_SOLVED=YES
+- 잔여 브랜치 `night/buyer-60-limit` (`2292305`)는 #118 squash (`f6d2b11`)와 동일 수정. main이 provenance 주석까지 더 진행되어 재머지 시 `demo_snapshot.py` 주석만 충돌하고 limit 값 차이는 없음. 2026-09-22 재머지 없이 브랜치 삭제.
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
@@ -613,7 +614,7 @@ MG-001과 파일군이 겹치지 않으면 병렬 가능.
 - buyer limit 상수/쿼리/프론트 호출 계약
 - 관련 regression test
 
-검수 대상 브랜치: `night/buyer-60-limit` (`2292305`)
+검수 대상 브랜치: 종료. `night/buyer-60-limit` (`2292305`)는 #118로 main에 반영된 뒤 삭제. 재머지 금지.
 
 기존 구조를 최대한 유지하고 최소 변경한다.
 
