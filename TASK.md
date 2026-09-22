@@ -1259,7 +1259,8 @@ REQUEST_SOLVED=NO — 실제 buyer 1건의 deal lifecycle을 E2E로 확인한 �
 
 - POST `/v1/inquiries` + `/submit` 이후 고객용 상태/이력 조회와 관리자 dry-run dispatch를 main에 반영했다 (MG-007 merge `91861e25`).
 - 잔여 브랜치 `codex/mg-007-inquiry-status-rebased` (`6072996`, #143)와 동일 팁 `050a203`인 `codex/mg-007-inquiry-status`, `codex/mg-007-inquiry-status-ready`, `codex/merge/mg-007-inquiry-status`는 inquiry 파일이 main과 같다. 재머지하면 main의 이후 변경이 빠진다. 2026-09-22 재머지 없이 삭제.
-- 실제 SMTP/provider 발송은 명시적 비운영 dry-run 외에는 fail-closed로 비활성화되어 있으며, 운영 파일럿에는 SMTP와 `ADMIN_EMAILS`가 필요하다.
+- 실제 SMTP/provider 발송은 명시적 비운영 dry-run 외에는 fail-closed로 비활성화되어 있다. `ADMIN_EMAILS`는 `render.yaml`에 `ekth3691@gmail.com`으로 넣었다. SMTP 비밀번호는 아직 없어 실발송은 그대로 막혀 있다.
+- P2 원본 `tradekorea.csv`, `kita.csv`, `kotra_trade_office.csv`는 git에 없다. `input/p2_optional/`에는 `.csv.example` 헤더만 있다.
 - REQUEST_SOLVED=NO / BLOCKED (운영 발송 자격증명·수신 메일함 미제공).
 
 ### 8-5. MUST
