@@ -564,6 +564,7 @@ DEPENDS_ON:
 - 원인: 공개 데모 `/v1/demo/snapshot|buyers`의 `_DEFAULT_BUYER_LIMIT=60` (MAX는 이미 200). BuyerSearch `/v1/predict` top_n(≤10)과는 무관.
 - #118에서 demo default를 200으로 올림. 본 작업에서 원인 기록 + regression 테스트로 demo/search 계약 분리 고정.
 - REQUEST_SOLVED=YES
+- 잔여 브랜치 `night/buyer-60-limit` (`2292305`)는 #118 squash (`f6d2b11`)와 동일 수정. main이 provenance 주석까지 더 진행되어 재머지 시 `demo_snapshot.py` 주석만 충돌하고 limit 값 차이는 없음. 2026-09-22 재머지 없이 브랜치 삭제.
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
@@ -613,7 +614,7 @@ MG-001과 파일군이 겹치지 않으면 병렬 가능.
 - buyer limit 상수/쿼리/프론트 호출 계약
 - 관련 regression test
 
-검수 대상 브랜치: `night/buyer-60-limit` (`2292305`)
+검수 대상 브랜치: 종료. `night/buyer-60-limit` (`2292305`)는 #118로 main에 반영된 뒤 삭제. 재머지 금지.
 
 기존 구조를 최대한 유지하고 최소 변경한다.
 
@@ -1257,7 +1258,9 @@ REQUEST_SOLVED=NO — 실제 buyer 1건의 deal lifecycle을 E2E로 확인한 �
 ### 8-4. 현재상태
 
 - POST `/v1/inquiries` + `/submit` 이후 고객용 상태/이력 조회와 관리자 dry-run dispatch를 main에 반영했다 (MG-007 merge `91861e25`).
-- 실제 SMTP/provider 발송은 명시적 비운영 dry-run 외에는 fail-closed로 비활성화되어 있으며, 운영 파일럿에는 SMTP와 `ADMIN_EMAILS`가 필요하다.
+- 잔여 브랜치 `codex/mg-007-inquiry-status-rebased` (`6072996`, #143)와 동일 팁 `050a203`인 `codex/mg-007-inquiry-status`, `codex/mg-007-inquiry-status-ready`, `codex/merge/mg-007-inquiry-status`는 inquiry 파일이 main과 같다. 재머지하면 main의 이후 변경이 빠진다. 2026-09-22 재머지 없이 삭제.
+- 실제 SMTP/provider 발송은 명시적 비운영 dry-run 외에는 fail-closed로 비활성화되어 있다. `ADMIN_EMAILS`는 `render.yaml`에 `ekth3691@gmail.com`으로 넣었다. SMTP 비밀번호는 아직 없어 실발송은 그대로 막혀 있다.
+- P2 원본 `tradekorea.csv`, `kita.csv`, `kotra_trade_office.csv`는 git에 없다. `input/p2_optional/`에는 `.csv.example` 헤더만 있다.
 - REQUEST_SOLVED=NO / BLOCKED (운영 발송 자격증명·수신 메일함 미제공).
 
 ### 8-5. MUST
@@ -1294,6 +1297,7 @@ P2 바이어 소스를 CSV로 넣어 실제 검색에 쓰이게 한다
 ### 8-4. 현재상태
 
 - P2 CSV drop-in fail-closed validator와 merge preflight를 main에 반영했다 (MG-008 merge `3909f1b5`).
+- 잔여 브랜치 `codex/merge/mg-008-p2-preflight`와 `codex/mg-008-p2-dropin-preflight` (둘 다 `b2311cd`, #139)는 drop-in 도구가 main과 같다. 재머지하면 main의 이후 변경이 빠진다. 2026-09-22 재머지 없이 삭제.
 - 실제 P2 CSV 원본이 아직 제공되지 않아 검색 데이터 연결은 보류하며, 없는 값을 합성하지 않는다.
 - REQUEST_SOLVED=NO / BLOCKED (사용자가 제공할 라이선스·원본 CSV 필요).
 
