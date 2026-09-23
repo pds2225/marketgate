@@ -1,6 +1,7 @@
 # marketgate
 
-> 이 파일은 이 GitHub 레포의 유일한 AI 작업지시 기준이다.
+> 이 파일은 이 GitHub 레포의 유일한 개발 작업 SSOT다. 공식 기준은 `origin/main:TASK.md`다.
+> Dashboard·RESUME·HANDOFF·실행로그·외부 미러는 파생정보이며 TASK 상태·우선순위를 덮어쓸 수 없다.
 > Google Tasks와는 완전히 별개이며 Google Tasks의 항목을 조회·복사·동기화하지 않는다.
 
 
@@ -93,6 +94,7 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 [ ] MG-010 | 수출마진계산기를 실제 견적 판단에 쓸 수 있게 한다
 [ ] MG-011 | 크레딧 과금을 외부 유료사용 검증 후 켤 수 있게 한다
 [ ] MG-012 | Buyer Contact와 Deal Tracking을 실제 영업 흐름으로 연결한다
+[x] MG-013 | TASK.md를 단일 작업 SSOT로 고정하고 Codex·Claude 시작 순서를 통일한다
 [x] T-20260814-01 | 코드 머지 전에 제품 테스트가 통과해야 한다
 [ ] TASK-001 | 바이어 검색 결과에서 실제 원천데이터와 출처를 확인할 수 있게 한다
 
@@ -109,7 +111,8 @@ REMOTE: https://github.com/pds2225/marketgate
 
 실행 기준은 이 파일 하나뿐이다.
 
-- `TASK.md`만 작업지시 파일로 사용한다.
+- `origin/main:TASK.md`만 작업지시·상태·우선순위의 공식 SSOT로 사용한다. 작업 브랜치의 TASK 변경은 main 머지 후 공식화된다.
+- 세션/자동개발 시작 시 `git fetch origin --prune` 후 `origin/main:TASK.md`를 먼저 읽는다.
 - `NEXT_TASK.md`는 없다. 실행 기준은 TASK.md만.
 - 별도의 CURRENT_TASK.md / NEW_TASK.md / NEXT_TASK.md를 만들지 않는다.
 - 다른 레포 TASK, Google Tasks, 과거 채팅 내용을 임의 실행하지 않는다.
@@ -139,7 +142,7 @@ Google Tasks는 이 개발 TASK 시스템과 무관하다.
 
 작업 시작 전 반드시:
 
-1. `git fetch --all --prune`
+1. `git fetch origin --prune`
 2. `git remote get-url origin` — 이 파일 `# 1. REPOSITORY`의 REPO와 일치하는지 확인
 3. `git branch --show-current`
 4. `git status --short`
@@ -337,6 +340,37 @@ TASK-A
 ---
 
 # 8. TASK DETAILS
+
+## MG-013
+
+### 8-1. 사용자 원문 요청
+v_up walk mail marketgate도 TASK.md 단일 SSOT로 통일해
+
+### 8-2. 비개발자용 1줄 요약
+MarketGate의 개발 할 일·상태·우선순위를 `origin/main:TASK.md` 하나에서만 관리한다.
+
+### 8-3. 사용자가 원하는 최종 결과
+Codex·Claude·기타 에이전트가 시작할 때 같은 TASK 원장을 먼저 읽고, 다른 문서나 로그를 독립 작업 원본으로 사용하지 않는다.
+
+### 8-5. MUST — 반드시 구현
+- 공식 SSOT = `origin/main:TASK.md`
+- 시작 순서 = `git fetch origin --prune` → TASK.md 확인
+- 작업 브랜치 TASK 변경은 main 머지 후 공식화
+- AGENTS.md와 CLAUDE.md가 동일한 TASK-first 규칙 사용
+
+### 8-8. FORBIDDEN — 금지
+- Dashboard/RESUME/HANDOFF/로그/외부 미러에서 독립 TASK 생성
+- 파생정보가 TASK 상태·우선순위를 덮어씀
+- 별도 CURRENT_TASK.md / NEW_TASK.md / NEXT_TASK.md 생성
+- `git fetch --all`의 보조 remote 오류로 전체 시작 차단
+
+### 8-15. VERIFY
+- TASK.md / AGENTS.md / CLAUDE.md의 SSOT 및 시작 순서 일치
+- BASE=main, 공식 기준=`origin/main:TASK.md`
+
+### 8-16. DONE
+REQUEST_SOLVED=YES
+
 
 <!--
 TASK LIST 한 줄 요약과 아래 상세 TASK는 TASK_ID로 연결한다.
