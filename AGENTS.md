@@ -1,5 +1,14 @@
 # Codex Working Rules
 
+## TASK SSOT — 세션 시작 규칙
+
+- 공식 개발 작업 SSOT는 `origin/main:TASK.md` 하나다.
+- 세션/자동개발 시작 시 `git fetch origin --prune` 후 TASK.md를 먼저 읽는다.
+- 사용자의 새 개발 요청은 TASK.md에 등록한 뒤 실행한다.
+- 작업 브랜치에서 갱신한 TASK는 main 머지 후 공식 상태가 된다.
+- Dashboard·RESUME·HANDOFF·실행로그·외부 미러는 파생정보이며 TASK 상태·우선순위를 덮어쓰지 않는다.
+- 별도 CURRENT_TASK.md / NEW_TASK.md / NEXT_TASK.md를 만들지 않는다.
+
 ## 절대 원칙
 - 전체 프로젝트를 탐색하지 마라.
 - Explore 사용 금지.
