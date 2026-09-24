@@ -20,7 +20,7 @@ from task05_shortlist import (
     normalize_text,
     parse_date,
 )
-from task06_fit_score import score_buyers
+from task06_fit_score import _normalize_bool, score_buyers
 from task08_recommendation import build_recommendation_lines
 
 
@@ -251,8 +251,7 @@ def _serialize_opportunity_signal(
             or normalize_text(record.get("contact_phone"))
             or normalize_text(record.get("contact_website"))
             or normalize_text(record.get("contact_name"))
-            or record.get("has_contact") is True
-            or str(record.get("has_contact", "")).strip().lower() in {"1", "true", "yes"}
+            or _normalize_bool(record.get("has_contact"))
         ),
         "opportunity_contact_name": normalize_text(record.get("contact_name")),
         "opportunity_contact_email": normalize_text(record.get("contact_email")),
@@ -373,9 +372,11 @@ def shortlist_buyers(
                 "country_norm": normalize_text(buyer.get("country_norm")),
                 "hs_code_norm": normalize_text(buyer.get("hs_code_norm")),
                 "keywords_norm": normalize_text(buyer.get("keywords_norm")),
-                "has_contact": str(buyer.get("has_contact", "")).strip().lower() == "true",
+                # buyer_candidate.csv stores flags as "0"/"1"; "== true" alone
+                # zeroed out every contactable buyer (2220 rows with has_contact=1).
+                "has_contact": _normalize_bool(buyer.get("has_contact")),
                 "contact_email": normalize_text(buyer.get("contact_email")),
-                "contact_email_estimated": str(buyer.get("contact_email_estimated", "")).strip().lower() == "true",
+                "contact_email_estimated": _normalize_bool(buyer.get("contact_email_estimated")),
                 "contact_name": normalize_text(buyer.get("contact_name")),
                 "contact_phone": normalize_text(buyer.get("contact_phone")),
                 "contact_website": normalize_text(buyer.get("contact_website")),
