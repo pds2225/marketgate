@@ -83,6 +83,11 @@ def get_token_payload(
     return _decode_token(credentials.credentials, "access")
 
 
+def decode_access(token: str) -> dict:
+    """Decode a bearer access token; raises HTTPException on failure."""
+    return _decode_token(token, "access")
+
+
 def get_current_user(payload: dict = Depends(get_token_payload)) -> dict:
     user = find_user_by_id(payload["sub"])
     if not user:
