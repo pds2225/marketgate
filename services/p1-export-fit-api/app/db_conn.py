@@ -51,6 +51,15 @@ def put_conn(conn):
         return
     pool = _get_pool()
     if pool is not None and conn is not None:
+        # End any open/aborted transaction before reuse. Callers that
+        # SELECT … FOR UPDATE (credits, subscriptions) or fail mid-statement
+        # otherwise return a locked/aborted connection to ThreadedConnectionPool
+        # (maxconn=4), blocking later checkouts until process restart.
+        # Successful paths already commit(); rollback after commit is a no-op.
+        try:
+            conn.rollback()
+        except Exception:
+            logger.warning("put_conn rollback failed", exc_info=True)
         pool.putconn(conn)
 
 

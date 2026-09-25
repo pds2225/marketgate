@@ -136,6 +136,13 @@ def create_verification(
                 ),
             )
         conn.commit()
+    except Exception:
+        # Clear aborted txn before pool return (put_conn also rollbacks).
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
     finally:
         put_conn(conn)
     return _public_record(
