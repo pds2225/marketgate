@@ -1,7 +1,74 @@
 # marketgate
 
-> 이 파일은 이 GitHub 레포의 유일한 AI 작업지시 기준이다.
+> 이 파일은 이 GitHub 레포의 유일한 개발 작업 SSOT다. 공식 기준은 `origin/main:TASK.md`다.
+> Dashboard·RESUME·HANDOFF·실행로그·외부 미러는 파생정보이며 TASK 상태·우선순위를 덮어쓸 수 없다.
 > Google Tasks와는 완전히 별개이며 Google Tasks의 항목을 조회·복사·동기화하지 않는다.
+
+
+# GLOBAL DEFAULT GUARDRAILS — 모든 TASK 기본 안전장치
+
+> 아래 규칙은 이 저장소의 **모든 현재/미래 TASK와 실행 프롬프트에 자동 적용**한다.
+> 새 TASK마다 같은 문구를 반복 복사할 필요는 없다.
+> TASK별로 더 강한 안전조건을 추가할 수는 있지만, 사용자의 명시적 승인 없이 아래 기본값을 약화하지 않는다.
+
+## 자율수행 / 사용자 개입 최소화
+- 조사 → 분석 → 구현 → 테스트 → 회귀검증 → 문서화 → commit → push → PR → Checks 확인 → 허용된 자동병합까지 안전하게 가능한 범위는 AI가 연속 수행한다.
+- 중간 진행상황 확인만을 이유로 사용자를 호출하지 않는다.
+- 코드·테스트·데이터·기존 아키텍처 근거로 안전하게 결정 가능한 선택은 AI가 스스로 결정한다.
+- 사용자 판단/입력이 정말 필요한 항목만 `HUMAN_BATCH`에 누적해 가능한 한 한 번에 요청한다.
+- 개발자가 스스로 해결할 수 있는 Git 상태, 테스트 실패, 일반 오류는 HUMAN_BATCH에 넣지 않는다.
+
+## 즉시 사용자 승인이 필요한 예외
+- 데이터 손실 위험, Secret/보안/개인정보 문제, 실제 비용 발생, 되돌리기 어려운 운영 변경, 제품/사업정책 변경, 법적·계약상 승인 필요 작업.
+
+## 중단/재개 안전성
+- 장시간·다단계 TASK는 단계별 CHECKPOINT를 남긴다.
+- CHECKPOINT에는 최소 TASK_ID, 기준 base/code SHA, 완료 단계, 다음 단계, 핵심 산출물 위치를 재구성할 수 있는 정보가 있어야 한다.
+- 세션 만료, 컨텍스트 손실, PC 종료 후에도 최신 remote 상태와 TASK.md만 읽고 재개 가능해야 한다.
+- 가능한 경우 의미 있는 단계 완료마다 이번 TASK 관련 파일만 commit/push한다.
+
+## 재실행 / 중복 방지
+- 반복 실행 가능성이 있는 작업은 가능한 한 idempotent하게 구현한다.
+- 동일 입력 재실행 시 데이터 중복 추가, 지표 이중계산, 규칙 중복적용, 동일 파일 중복생성이 발생하지 않게 한다.
+- 필요한 경우 input snapshot/fingerprint, code/config SHA, run_id를 기록한다.
+- 이미 완료·검증된 단계는 재사용한다.
+
+## 무한루프 / 과도한 자동개발 방지
+- retry/agent loop/자동개선은 반드시 종료조건을 둔다.
+- 동일 실패를 근거 없이 무한 반복하지 않는다.
+- 한 후보/실험 실패 때문에 이미 검증된 전체 checkpoint를 되돌리지 않는다.
+
+## Git / 사용자 데이터 보존
+- 사용자 변경 삭제 금지.
+- `git reset --hard`, force push, `git clean -fd`, 무단 stash/drop 금지.
+- `git add -A` 금지. 이번 TASK에 필요한 파일만 stage한다.
+- 위험한 main 직접수정보다 작업 브랜치 + PR을 기본으로 한다.
+- 원격 main 변경 시 안전하게 통합 후 필요한 검증을 다시 한다.
+- 기존 사용자 데이터·정답 데이터·운영 설정은 근거 없이 덮어쓰거나 삭제하지 않는다.
+
+## Secret / 외부효과 / 비용
+- Secret, 토큰, 비밀번호, 개인정보를 출력·커밋하지 않는다.
+- 실제 이메일 발송, 삭제, 결제, 유료 API, production 데이터 변경 등 외부효과는 명시적 허용이 없으면 dry-run/preview/staging을 우선한다.
+- 비용 발생 또는 되돌리기 어려운 외부 작업은 사용자 승인 전에 실행하지 않는다.
+
+## 검증 / DONE 기준
+- 코드 작성, 테스트 PASS, build PASS, PR 생성만으로 DONE 처리하지 않는다.
+- 사용자 요청이 실제로 해결됐는지 USER_E2E 또는 그에 준하는 실제 경로로 확인한다.
+- 정상경로, 주요 경계값, 오류상태, 관련 회귀를 검증한다.
+- 데이터/평가/모델 성능 TASK는 가능한 범위에서 tuning 데이터와 최종 평가 데이터를 분리한다.
+- 수치 개선은 동일 기준 데이터/동일 조건에서 변경 전후를 비교한다.
+- 실패·목표 미달 수치를 숨기지 않는다.
+
+## 부분 장애
+- CI 실패, 외부 사이트 일시 오류, 일부 데이터 미접근 등 부분 장애가 생겨도 안전하게 가능한 독립 작업은 계속한다.
+- 이미 검증된 산출물과 checkpoint를 보존한다.
+- 정말 사용자 입력이 필요한 항목만 `HUMAN_BATCH` 또는 `BLOCKED_INPUT`으로 분리한다.
+
+## 새 TASK 생성 규칙
+- 모든 새 TASK/실행 프롬프트는 이 전역 안전장치를 자동 상속한다.
+- TASK 특성상 필요한 추가 안전장치(checkpoint/resume, idempotency, bounded retry, rollback, HUMAN_BATCH, dry-run, reproducibility)를 필요한 만큼만 보강한다.
+- 단순 문서 수정처럼 의미 없는 안전장치는 억지 구현하지 않고 N/A로 판단한다.
+- 전역 안전장치를 약화하거나 예외 처리하려면 사용자의 명시적 요청과 이유를 TASK에 남긴다.
 
 ---
 
@@ -23,6 +90,11 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 [x] MG-006 | 연락처가 실제 수신자 소유인지 확인하는 절차를 만든다
 [!] MG-007 | 인콰이어리를 고객이 제출한 뒤 실제 발송까지 이어지게 한다
 [!] MG-008 | P2 바이어 소스를 CSV로 넣어 실제 검색에 쓰이게 한다
+[ ] MG-009 | K-뷰티 1품목 기준으로 실제 E2E PoC를 완성한다
+[ ] MG-010 | 수출마진계산기를 실제 견적 판단에 쓸 수 있게 한다
+[ ] MG-011 | 크레딧 과금을 외부 유료사용 검증 후 켤 수 있게 한다
+[ ] MG-012 | Buyer Contact와 Deal Tracking을 실제 영업 흐름으로 연결한다
+[x] MG-013 | TASK.md를 단일 작업 SSOT로 고정하고 Codex·Claude 시작 순서를 통일한다
 [x] T-20260814-01 | 코드 머지 전에 제품 테스트가 통과해야 한다
 [ ] TASK-001 | 바이어 검색 결과에서 실제 원천데이터와 출처를 확인할 수 있게 한다
 
@@ -39,7 +111,8 @@ REMOTE: https://github.com/pds2225/marketgate
 
 실행 기준은 이 파일 하나뿐이다.
 
-- `TASK.md`만 작업지시 파일로 사용한다.
+- `origin/main:TASK.md`만 작업지시·상태·우선순위의 공식 SSOT로 사용한다. 작업 브랜치의 TASK 변경은 main 머지 후 공식화된다.
+- 세션/자동개발 시작 시 `git fetch origin --prune` 후 `origin/main:TASK.md`를 먼저 읽는다.
 - `NEXT_TASK.md`는 없다. 실행 기준은 TASK.md만.
 - 별도의 CURRENT_TASK.md / NEW_TASK.md / NEXT_TASK.md를 만들지 않는다.
 - 다른 레포 TASK, Google Tasks, 과거 채팅 내용을 임의 실행하지 않는다.
@@ -69,7 +142,7 @@ Google Tasks는 이 개발 TASK 시스템과 무관하다.
 
 작업 시작 전 반드시:
 
-1. `git fetch --all --prune`
+1. `git fetch origin --prune`
 2. `git remote get-url origin` — 이 파일 `# 1. REPOSITORY`의 REPO와 일치하는지 확인
 3. `git branch --show-current`
 4. `git status --short`
@@ -267,6 +340,37 @@ TASK-A
 ---
 
 # 8. TASK DETAILS
+
+## MG-013
+
+### 8-1. 사용자 원문 요청
+v_up walk mail marketgate도 TASK.md 단일 SSOT로 통일해
+
+### 8-2. 비개발자용 1줄 요약
+MarketGate의 개발 할 일·상태·우선순위를 `origin/main:TASK.md` 하나에서만 관리한다.
+
+### 8-3. 사용자가 원하는 최종 결과
+Codex·Claude·기타 에이전트가 시작할 때 같은 TASK 원장을 먼저 읽고, 다른 문서나 로그를 독립 작업 원본으로 사용하지 않는다.
+
+### 8-5. MUST — 반드시 구현
+- 공식 SSOT = `origin/main:TASK.md`
+- 시작 순서 = `git fetch origin --prune` → TASK.md 확인
+- 작업 브랜치 TASK 변경은 main 머지 후 공식화
+- AGENTS.md와 CLAUDE.md가 동일한 TASK-first 규칙 사용
+
+### 8-8. FORBIDDEN — 금지
+- Dashboard/RESUME/HANDOFF/로그/외부 미러에서 독립 TASK 생성
+- 파생정보가 TASK 상태·우선순위를 덮어씀
+- 별도 CURRENT_TASK.md / NEW_TASK.md / NEXT_TASK.md 생성
+- `git fetch --all`의 보조 remote 오류로 전체 시작 차단
+
+### 8-15. VERIFY
+- TASK.md / AGENTS.md / CLAUDE.md의 SSOT 및 시작 순서 일치
+- BASE=main, 공식 기준=`origin/main:TASK.md`
+
+### 8-16. DONE
+REQUEST_SOLVED=YES
+
 
 <!--
 TASK LIST 한 줄 요약과 아래 상세 TASK는 TASK_ID로 연결한다.
@@ -494,6 +598,7 @@ DEPENDS_ON:
 - 원인: 공개 데모 `/v1/demo/snapshot|buyers`의 `_DEFAULT_BUYER_LIMIT=60` (MAX는 이미 200). BuyerSearch `/v1/predict` top_n(≤10)과는 무관.
 - #118에서 demo default를 200으로 올림. 본 작업에서 원인 기록 + regression 테스트로 demo/search 계약 분리 고정.
 - REQUEST_SOLVED=YES
+- 잔여 브랜치 `night/buyer-60-limit` (`2292305`)는 #118 squash (`f6d2b11`)와 동일 수정. main이 provenance 주석까지 더 진행되어 재머지 시 `demo_snapshot.py` 주석만 충돌하고 limit 값 차이는 없음. 2026-09-22 재머지 없이 브랜치 삭제.
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
@@ -543,7 +648,7 @@ MG-001과 파일군이 겹치지 않으면 병렬 가능.
 - buyer limit 상수/쿼리/프론트 호출 계약
 - 관련 regression test
 
-검수 대상 브랜치: `night/buyer-60-limit` (`2292305`)
+검수 대상 브랜치: 종료. `night/buyer-60-limit` (`2292305`)는 #118로 main에 반영된 뒤 삭제. 재머지 금지.
 
 기존 구조를 최대한 유지하고 최소 변경한다.
 
@@ -1021,6 +1126,154 @@ DEPENDS_ON: 없음. 발송(MG-007)보다 먼저 하는 것이 안전.
 
 ---
 
+## 2026-09-20 TASK REVIEW
+
+검토 결론:
+
+- 현재 MG-007/008은 외부 SMTP·원본 CSV가 필요한 BLOCKED 작업으로 그대로 유지한다.
+- TASK-001의 실제 원천데이터/출처 확인은 신뢰성 기반이므로 선행 우선순위를 높게 유지한다.
+- 현재 제품 로드맵의 K-뷰티 1품목 PoC, 수출마진계산기, 크레딧 과금, Buyer Contact + Deal Tracking이 TASK LIST에 빠져 있어 MG-009~012로 보완한다.
+- 외부 유료 사용은 아직 검증 전이므로 크레딧 과금은 조건부로 둔다.
+- 가짜 buyer/가짜 source/근거 없는 margin 값 생성은 금지한다.
+
+---
+
+## MG-009
+
+### 8-1. 사용자 원문 요청
+
+> 화장품 1품목 PoC로 실제 사용 기준을 검증한다.
+
+### 8-2. 비개발자용 1줄 요약
+
+K-뷰티 1개 품목을 넣어 국가선정부터 바이어 확인까지 실제 한 흐름으로 검증한다.
+
+### 8-3. 최종 결과
+
+- 실제 화장품 1품목 입력
+- 국가/시장 후보 확인
+- 실제 buyer_candidate 기반 바이어 후보 노출
+- 원천데이터/출처 확인
+- 기업/연락처 검증 상태 확인
+- 수출마진 판단에 필요한 기본 입력 연결
+- Deal 후보 생성까지 dry-run
+- 외부 유료 데이터 호출 없이 재현 가능
+
+### 8-5. MUST
+
+- [ ] TASK-001의 실제 source trace와 연결
+- [ ] mock/demo buyer를 실제 데이터처럼 표시하지 않음
+- [ ] 1품목 입력 → 국가 → 바이어 → 검증 → 다음 액션 E2E
+- [ ] buyer 후보와 source_dataset/source_file/source_row_no 추적
+- [ ] 외부 유료 API 없이 가능한 범위부터 검증
+- [ ] 실패/미확인 단계는 REVIEW_REQUIRED로 표시
+
+### 8-8. VERIFY
+
+- [ ] 실제 1품목으로 사용자 E2E 1회
+- [ ] 실제 buyer row 1건 이상 원본 대조
+- [ ] 데이터 없는 단계는 합성하지 않음
+- [ ] 기존 검색/검증 회귀 없음
+
+### 8-9. DONE
+
+REQUEST_SOLVED=NO — 실제 1품목 E2E를 끝까지 재현한 뒤 YES.
+
+---
+
+## MG-010
+
+### 8-1. 사용자 원문 요청
+
+> Wave2 수출마진계산기를 실제 사용 기준으로 만든다.
+
+### 8-2. 비개발자용 1줄 요약
+
+수출 조건을 넣으면 품목별 예상 수익성과 주요 비용을 계산할 수 있게 한다.
+
+### MUST
+
+- [ ] 판매가/매입가/수량/환율/물류/관세·세금/플랫폼·결제/기타비용 입력 구조
+- [ ] 원가·비용·예상매출·예상마진·마진율 계산
+- [ ] 값의 출처/사용자입력/가정 구분
+- [ ] 환율·세율 unknown을 임의 숫자로 확정하지 않음
+- [ ] 시나리오 비교 가능
+- [ ] K-뷰티 1품목 PoC와 연결
+
+### VERIFY
+
+- [ ] 계산식 단위테스트
+- [ ] 0/음수/누락/환율 없음 경계값
+- [ ] 동일 입력 재실행 결과 동일
+- [ ] 실제 1품목 예시 E2E
+
+### DONE
+
+REQUEST_SOLVED=NO — 실제 품목 기준 계산·비교가 재현되면 YES.
+
+---
+
+## MG-011
+
+### 8-1. 사용자 원문 요청
+
+> Wave3 크레딧 과금.
+
+### 8-2. 비개발자용 1줄 요약
+
+외부 유료사용이 검증된 뒤 기능별 크레딧 차감과 사용내역을 안전하게 켠다.
+
+### 현재상태
+
+STATUS=READY_CONDITIONAL
+DEPENDS_ON=외부 유료사용 Go 결정
+
+### MUST
+
+- [ ] 과금 전에 무료/내부 PoC 흐름 유지
+- [ ] 기능별 credit cost 설정 가능
+- [ ] 이중차감 방지/idempotency
+- [ ] 실패 요청은 차감 확정 금지
+- [ ] 사용내역/잔액/환불·보정 audit trail
+- [ ] 실제 결제 연동은 사용자 승인 전 실행 금지
+
+### DONE
+
+REQUEST_SOLVED=NO — 유료사용 Go 이후 별도 승인과 E2E가 있어야 YES.
+
+---
+
+## MG-012
+
+### 8-1. 사용자 원문 요청
+
+> Wave4 Buyer Contact + Deal Tracking.
+
+### 8-2. 비개발자용 1줄 요약
+
+검증된 바이어를 영업대상으로 저장하고 접촉·후속조치·딜 상태를 추적한다.
+
+### MUST
+
+- [ ] buyer_candidate/기업검증 결과에서 deal/contact 시작
+- [ ] 연락처 검증 상태를 함께 표시
+- [ ] contact attempt / response / next_action / deal_stage / notes / updated_at 기록
+- [ ] 동일 buyer 중복 deal 방지
+- [ ] 미확인 연락처 대량발송 금지
+- [ ] MG-007 실제 발송이 BLOCKED여도 수동 접촉/상태관리 dry-run 가능
+
+### VERIFY
+
+- [ ] 실제 buyer 1건 → deal 생성 → 상태변경 → 다음 액션
+- [ ] 동일 buyer 중복생성 방지
+- [ ] 사용자 격리/권한 회귀 없음
+
+### DONE
+
+REQUEST_SOLVED=NO — 실제 buyer 1건의 deal lifecycle을 E2E로 확인한 뒤 YES.
+
+---
+
 ## MG-007
 
 ### 8-1. 사용자 원문 요청
@@ -1039,7 +1292,9 @@ DEPENDS_ON: 없음. 발송(MG-007)보다 먼저 하는 것이 안전.
 ### 8-4. 현재상태
 
 - POST `/v1/inquiries` + `/submit` 이후 고객용 상태/이력 조회와 관리자 dry-run dispatch를 main에 반영했다 (MG-007 merge `91861e25`).
-- 실제 SMTP/provider 발송은 명시적 비운영 dry-run 외에는 fail-closed로 비활성화되어 있으며, 운영 파일럿에는 SMTP와 `ADMIN_EMAILS`가 필요하다.
+- 잔여 브랜치 `codex/mg-007-inquiry-status-rebased` (`6072996`, #143)와 동일 팁 `050a203`인 `codex/mg-007-inquiry-status`, `codex/mg-007-inquiry-status-ready`, `codex/merge/mg-007-inquiry-status`는 inquiry 파일이 main과 같다. 재머지하면 main의 이후 변경이 빠진다. 2026-09-22 재머지 없이 삭제.
+- 실제 SMTP/provider 발송은 명시적 비운영 dry-run 외에는 fail-closed로 비활성화되어 있다. `ADMIN_EMAILS`는 `render.yaml`에 `ekth3691@gmail.com`으로 넣었다. SMTP 비밀번호는 아직 없어 실발송은 그대로 막혀 있다.
+- P2 원본 `tradekorea.csv`, `kita.csv`, `kotra_trade_office.csv`는 git에 없다. `input/p2_optional/`에는 `.csv.example` 헤더만 있다.
 - REQUEST_SOLVED=NO / BLOCKED (운영 발송 자격증명·수신 메일함 미제공).
 
 ### 8-5. MUST
@@ -1076,6 +1331,7 @@ P2 바이어 소스를 CSV로 넣어 실제 검색에 쓰이게 한다
 ### 8-4. 현재상태
 
 - P2 CSV drop-in fail-closed validator와 merge preflight를 main에 반영했다 (MG-008 merge `3909f1b5`).
+- 잔여 브랜치 `codex/merge/mg-008-p2-preflight`와 `codex/mg-008-p2-dropin-preflight` (둘 다 `b2311cd`, #139)는 drop-in 도구가 main과 같다. 재머지하면 main의 이후 변경이 빠진다. 2026-09-22 재머지 없이 삭제.
 - 실제 P2 CSV 원본이 아직 제공되지 않아 검색 데이터 연결은 보류하며, 없는 값을 합성하지 않는다.
 - REQUEST_SOLVED=NO / BLOCKED (사용자가 제공할 라이선스·원본 CSV 필요).
 
