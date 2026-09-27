@@ -85,7 +85,7 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 [x] MG-001 | 해외기업 기본검증 상태값을 맞추고 다른 사용자 결과가 보이지 않게 한다
 [x] MG-002 | 바이어가 60개까지만 보이는 원인을 찾아 고친다
 [x] MG-003 | 기업검증 화면을 실제 조회 결과와 연결한다
-[x] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
+[!] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
 [x] MG-005 | 랜딩에서 입력한 HS로 구매신호를 바로 보게 한다
 [x] MG-006 | 연락처가 실제 수신자 소유인지 확인하는 절차를 만든다
 [!] MG-007 | 인콰이어리를 고객이 제출한 뒤 실제 발송까지 이어지게 한다
@@ -904,6 +904,8 @@ CV-05 → BUYER-60 → CV-02 → CV-03
     - 기업검증: **PASS** — POST 200, BASIC_* 라벨 표시, D-U-N-S/K-SURE 공식 링크 3종 전부 노출. `검증 실패` 문구 없음. 스크린샷: `apps/frontend-react/test-results/mg004-prod-verification-.../mg004-prod-verification.png`
     - KEEP: 위 로그인·검색·상세가 같은 세션에서 그대로 통과해 기존 흐름 회귀 없음 확인
   - **REQUEST_SOLVED=YES.** `marketgate-e2e.onrender.com`(AC-7, SHOULD)은 확인 결과 아직 이 fix가 안 올라가 있음 — 같은 `mg004-prod-verification.spec.js`를 PR #149 Preview CI가 e2e 서비스에 대고 자동 실행해 503으로 재현(`marketgate.onrender.com`과 별개 Render 서비스라 재배포 타이밍이 다름). Preview deployed E2E는 `docs-gate`·`W-020`처럼 필수 체크가 아니라 병합은 진행하되, `marketgate-e2e` 재배포는 별도 후속으로 남김.
+
+- **2026-09-27 회귀:** 운영 `POST /v1/company-verifications`는 다시 500 `Internal Server Error`. 격리 `marketgate-e2e.onrender.com`은 503 `verification_store_unavailable`. 인콰이어리 초안 생성은 운영에서 200이라 저장 실패는 기업검증에 한정된다. 로컬 `http://127.0.0.1:5173` + `http://127.0.0.1:8000` MG-004 Playwright는 mock 없이 통과하고 최종 화면은 `기본 확인 완료`. 수정은 PR #166 (`cursor/e2e-company-verification-f9f1`)에 있으며, DB·파일 쓰기 실패 시에도 소유자 GET이 되도록 폴백한다. Render 대시보드가 로그인 벽이라 이 환경에서는 `marketgate`와 `marketgate-e2e`에 배포하지 못했다. 배포 전 운영 REQUEST_SOLVED=NO.
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
