@@ -428,3 +428,98 @@ def test_post_then_get_succeeds_via_real_store_when_db_unavailable(tmp_path, mon
     get_res = client.get(f"/v1/company-verifications/{vid}")
     assert get_res.status_code == 200
     assert get_res.json()["company_name"] == "RouterFallbackCo"
+
+
+class _RaisingCursor:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def execute(self, *args, **kwargs):
+        raise Exception('relation "core.company_registry_checks" does not exist')
+
+
+class _RaisingConn:
+    def __init__(self):
+        self.rolled_back = False
+
+    def cursor(self):
+        return _RaisingCursor()
+
+    def commit(self):
+        raise AssertionError("failed insert must not commit")
+
+    def rollback(self):
+        self.rolled_back = True
+
+
+def _patch_failing_db(monkeypatch, tmp_path):
+    monkeypatch.setattr(cv_store, "_VERIFICATIONS_PATH", str(tmp_path / "company_verifications.json"))
+    monkeypatch.setattr(cv_store, "_memory", {})
+    conn = _RaisingConn()
+    monkeypatch.setattr(cv_store, "get_conn", lambda: conn)
+    monkeypatch.setattr(cv_store, "put_conn", lambda c: None)
+    return conn
+
+
+def test_db_write_failure_falls_back_to_file(tmp_path, monkeypatch):
+    """Missing core.company_registry_checks must not 500; the record stays readable."""
+    conn = _patch_failing_db(monkeypatch, tmp_path)
+    rec = cv_store.create_verification(
+        user_id="user-1",
+        company_name="MissingTableCo",
+        country_iso3="USA",
+        registration_number=None,
+        provider="opencorporates",
+        registry_check_status="BASIC_PARTIAL",
+        result_json={"provider": "opencorporates", "mock": True},
+    )
+    assert conn.rolled_back is True
+    fetched = cv_store.get_verification(rec["verification_id"], "user-1")
+    assert fetched is not None
+    assert fetched["company_name"] == "MissingTableCo"
+    assert fetched["registry_check_status"] == "BASIC_PARTIAL"
+    assert cv_store.get_verification(rec["verification_id"], "other-user") is None
+
+
+def test_db_and_disk_failure_keeps_record_in_memory(tmp_path, monkeypatch):
+    _patch_failing_db(monkeypatch, tmp_path)
+
+    def fail_replace(source, destination):
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr(cv_store.os, "replace", fail_replace)
+    rec = cv_store.create_verification(
+        user_id="user-1",
+        company_name="MemoryFallbackCo",
+        country_iso3="USA",
+        registration_number=None,
+        provider="opencorporates",
+        registry_check_status="BASIC_CONFIRMED",
+        result_json={"mock": True},
+    )
+    fetched = cv_store.get_verification(rec["verification_id"], "user-1")
+    assert fetched is not None
+    assert fetched["company_name"] == "MemoryFallbackCo"
+    assert cv_store.get_verification(rec["verification_id"], "other-user") is None
+
+
+def test_registry_migration_creates_core_schema():
+    sql = _REGISTRY_SQL.read_text(encoding="utf-8")
+    assert "CREATE SCHEMA IF NOT EXISTS core" in sql
+
+
+def test_bundled_migrations_match_repo_sql():
+    bundled = (
+        _REPO_ROOT / "services" / "p1-export-fit-api" / "app" / "migrations"
+    )
+    for name in (
+        "0004_auth_users.sql",
+        "0005_payment_credits.sql",
+        "0006_company_registry_checks.sql",
+    ):
+        assert (bundled / name).read_text(encoding="utf-8") == (
+            _REPO_ROOT / "db" / "migrations" / name
+        ).read_text(encoding="utf-8")

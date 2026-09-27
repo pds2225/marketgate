@@ -12,11 +12,10 @@ import process from 'node:process'
  * E2E_API_BASE_URL points at the isolated e2e service, otherwise left (prod
  * has no cleanup route and the account is inert e2e-*@example.com).
  *
- * Observed 2026-09-04: navigation + auth + search + detail all PASS on prod
- * (Render is redeployed, routes present). POST /v1/company-verifications
- * returns 503 "verification_store_unavailable" because company_verification_store
- * is DB-only ("DB-only, no file fallback") and Render prod has no DATABASE_URL.
- * This test stays RED until prod gets a Postgres or CV-02 gains a fallback.
+ * The API request context must outlive a Render free-tier cold start.
+ * Playwright's 20s actionTimeout is shorter than that wake-up, so register
+ * sets its own timeout. Company verification must return 200 with a BASIC_*
+ * label; a 500 means the registry store could not be read back.
  */
 const writeEnabled = process.env.E2E_WRITE_ENABLED === 'true'
 const BASIC_LABELS = [
@@ -54,9 +53,15 @@ test.describe('MG-004 production company verification', () => {
       }
     })
 
-    const api = await requestFactory.newContext({ baseURL: apiBase })
+    const api = await requestFactory.newContext({
+      baseURL: apiBase,
+      timeout: 120_000,
+    })
     try {
-      const reg = await api.post('/v1/auth/register', { data: { email, password } })
+      const reg = await api.post('/v1/auth/register', {
+        data: { email, password },
+        timeout: 120_000,
+      })
       expect(reg.ok(), `register ${reg.status()}`).toBeTruthy()
       const tokens = await reg.json()
 
