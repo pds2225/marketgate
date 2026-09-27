@@ -166,6 +166,14 @@ def _rollback(conn) -> None:
         return
 
 
+def _release(conn) -> None:
+    # A broken connection must not replace the file/memory record with a 500.
+    try:
+        put_conn(conn)
+    except Exception:
+        return
+
+
 def create_verification(
     *,
     user_id: str,
@@ -228,7 +236,7 @@ def create_verification(
             return _as_public(rec)
         return _as_public(rec)
     finally:
-        put_conn(conn)
+        _release(conn)
 
 
 def _row_to_public(row) -> dict:
@@ -273,4 +281,4 @@ def get_verification(check_id: str, user_id: str) -> dict | None:
             return _read_fallback(check_id, user_id)
         return _row_to_public(row)
     finally:
-        put_conn(conn)
+        _release(conn)

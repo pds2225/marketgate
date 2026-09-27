@@ -485,6 +485,30 @@ def test_db_write_failure_falls_back_to_file(tmp_path, monkeypatch):
     assert cv_store.get_verification(rec["verification_id"], "other-user") is None
 
 
+def test_db_fallback_survives_connection_release_failure(tmp_path, monkeypatch):
+    """Returning a broken connection to the pool must not hide the saved record."""
+    _patch_failing_db(monkeypatch, tmp_path)
+
+    def fail_release(_conn):
+        raise Exception("putconn failed")
+
+    monkeypatch.setattr(cv_store, "put_conn", fail_release)
+    rec = cv_store.create_verification(
+        user_id="user-1",
+        company_name="ReleaseFailCo",
+        country_iso3="USA",
+        registration_number=None,
+        provider="opencorporates",
+        registry_check_status="DATA_MISMATCH",
+        result_json={"mock": True},
+    )
+    assert rec["registry_check_status"] == "DATA_MISMATCH"
+    fetched = cv_store.get_verification(rec["verification_id"], "user-1")
+    assert fetched is not None
+    assert fetched["company_name"] == "ReleaseFailCo"
+    assert cv_store.get_verification("00000000-0000-0000-0000-000000000000", "user-1") is None
+
+
 def test_db_and_disk_failure_keeps_record_in_memory(tmp_path, monkeypatch):
     _patch_failing_db(monkeypatch, tmp_path)
 
