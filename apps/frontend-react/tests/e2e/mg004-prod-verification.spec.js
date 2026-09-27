@@ -45,6 +45,21 @@ test.describe('MG-004 production company verification', () => {
 
     const email = runEmail()
     const password = 'MgE2E-2026-safe-password'
+    const shareJwt = String(process.env.E2E_VERCEL_JWT || '')
+    if (shareJwt) {
+      const origin = new URL(String(process.env.E2E_BASE_URL || ''))
+      await page.context().addCookies([
+        {
+          name: '_vercel_jwt',
+          value: shareJwt,
+          domain: origin.hostname,
+          path: '/',
+          secure: true,
+          httpOnly: true,
+          sameSite: 'Lax',
+        },
+      ])
+    }
     const oidc = String(process.env.VERCEL_OIDC_TOKEN || '')
     if (oidc) {
       const pageOrigin = String(process.env.E2E_BASE_URL || '').replace(/\/+$/, '')
