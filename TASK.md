@@ -905,7 +905,7 @@ CV-05 → BUYER-60 → CV-02 → CV-03
     - KEEP: 위 로그인·검색·상세가 같은 세션에서 그대로 통과해 기존 흐름 회귀 없음 확인
   - **REQUEST_SOLVED=YES.** `marketgate-e2e.onrender.com`(AC-7, SHOULD)은 확인 결과 아직 이 fix가 안 올라가 있음 — 같은 `mg004-prod-verification.spec.js`를 PR #149 Preview CI가 e2e 서비스에 대고 자동 실행해 503으로 재현(`marketgate.onrender.com`과 별개 Render 서비스라 재배포 타이밍이 다름). Preview deployed E2E는 `docs-gate`·`W-020`처럼 필수 체크가 아니라 병합은 진행하되, `marketgate-e2e` 재배포는 별도 후속으로 남김.
 
-- **2026-09-27 회귀:** 운영 `POST /v1/company-verifications`는 다시 500 `Internal Server Error`. 격리 `marketgate-e2e.onrender.com`은 503 `verification_store_unavailable`. 인콰이어리 초안 생성은 운영에서 200이라 저장 실패는 기업검증에 한정된다. 로컬 `http://127.0.0.1:5173` + `http://127.0.0.1:8000` MG-004 Playwright는 mock 없이 통과하고 최종 화면은 `기본 확인 완료`. 수정은 PR #166 (`cursor/e2e-company-verification-f9f1`)에 있으며, DB·파일 쓰기 실패 시에도 소유자 GET이 되도록 폴백한다. Render 대시보드가 로그인 벽이라 이 환경에서는 `marketgate`와 `marketgate-e2e`에 배포하지 못했다. 배포 전 운영 REQUEST_SOLVED=NO.
+- **2026-09-27 회귀:** 운영 `POST /v1/company-verifications`는 회사명과 무관하게 500 `Internal Server Error`이고, 없는 ID의 GET도 500이다. 파일 폴백이면 없는 ID는 404이므로 운영은 DB 조회/쓰기 예외를 삼키지 못하는 코드가 돌고 있다. 격리 `marketgate-e2e.onrender.com`은 503 `verification_store_unavailable`. 인콰이어리 초안 생성은 운영에서 200이라 저장 실패는 기업검증에 한정된다. 로컬 `http://127.0.0.1:5173` + `http://127.0.0.1:8000` MG-004 Playwright는 mock 없이 통과하고 최종 화면은 `기본 확인 완료`. 수정은 PR #166 (`cursor/e2e-company-verification-f9f1`)에 있으며, DB·파일 쓰기 실패 시에도 소유자 GET이 되도록 폴백한다. Render 대시보드가 로그인 벽이라 이 환경에서는 `marketgate`와 `marketgate-e2e`에 배포하지 못했다. 배포 전 운영 REQUEST_SOLVED=NO.
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
