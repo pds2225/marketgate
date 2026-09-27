@@ -45,6 +45,17 @@ test.describe('MG-004 production company verification', () => {
 
     const email = runEmail()
     const password = 'MgE2E-2026-safe-password'
+    const oidc = String(process.env.VERCEL_OIDC_TOKEN || '')
+    if (oidc) {
+      const pageOrigin = String(process.env.E2E_BASE_URL || '').replace(/\/+$/, '')
+      await page.route('**/*', async (route) => {
+        const headers = { ...route.request().headers() }
+        if (pageOrigin && route.request().url().startsWith(pageOrigin)) {
+          headers['x-vercel-trusted-oidc-idp-token'] = oidc
+        }
+        await route.continue({ headers })
+      })
+    }
     const verifyResponses = []
     page.on('response', (r) => {
       const p = new URL(r.url()).pathname
