@@ -398,16 +398,17 @@ def test_file_fallback_atomic_write_keeps_previous_json_on_failure(tmp_path, mon
         raise OSError("simulated replace failure")
 
     monkeypatch.setattr(cv_store.os, "replace", fail_replace)
-    with pytest.raises(OSError, match="simulated replace failure"):
-        cv_store.create_verification(
-            user_id="user-1", company_name="SecondCo", country_iso3="KOR",
-            registration_number=None, provider="opencorporates",
-            registry_check_status="BASIC_CONFIRMED", result_json={"mock": True},
-        )
+    second = cv_store.create_verification(
+        user_id="user-1", company_name="SecondCo", country_iso3="KOR",
+        registration_number=None, provider="opencorporates",
+        registry_check_status="BASIC_CONFIRMED", result_json={"mock": True},
+    )
 
     persisted = json.loads(path.read_text(encoding="utf-8"))
     assert list(persisted) == [first["verification_id"]]
     assert list(tmp_path.glob(".company-verifications-*.tmp")) == []
+    assert cv_store.get_verification(first["verification_id"], "user-1")["company_name"] == "FirstCo"
+    assert cv_store.get_verification(second["verification_id"], "user-1")["company_name"] == "SecondCo"
 
 
 def test_post_then_get_succeeds_via_real_store_when_db_unavailable(tmp_path, monkeypatch):

@@ -189,7 +189,10 @@ def create_verification(
     except Exception:
         conn = None
     if conn is None:
-        _write_file(rec)
+        try:
+            _write_file(rec)
+        except OSError:
+            _write_memory(rec)
         return _as_public(rec)
     try:
         try:
