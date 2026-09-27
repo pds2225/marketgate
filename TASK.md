@@ -1846,6 +1846,18 @@ K-SURE/KOTRA 실제 Buyer 데이터가 Production 화면에서 사용됨: YES
 - Buyer Shortlist(predict)도 같은 풀을 국가 필터 후 점수 정렬한다. 기본 HS 330499 검색의 반환 top 10은 기존 HS 관련성·출처 신뢰 정렬 결과로 ITC 11건이 앞선다. 매칭/scoring은 이번 작업에서 변경하지 않음.
 - 끊긴 지점 없음. 코드 수정 없음.
 
+### 재실측 — 2026-09-27
+
+`origin/main`의 loader/shortlist/demo/predict/BuyerSearch 파일은 `ac756e1` 이후 diff 없음. CSV blob `1e46f920` 동일. 로컬 36,241 rows. 1행은 K-SURE `source_row_no=126`.
+
+Production (`marketgate.onrender.com`, 2026-09-28 01:13 KST):
+
+- `GET /v1/demo/summary` total=36241. KOTRA SNS 33446, K-SURE 화장품 386, K-SURE 바이어검색 235.
+- `GET /v1/demo/buyers` item[0] = CSV 1행. `source_dataset/source_file/source_row_no/source_snapshot_date` 유지.
+- `POST /v1/predict` hs=330499 HTTP 200. `filtered_buyer_rows=5210`, items=10, provenance 10/10. item[0]=`Beauti Control Csmtcs Inc.` / `ITC_TradeMap_ImportingCompanies` / `source_row_no=1`.
+
+판정 유지: CONNECTED. 매칭/scoring/CSV/Gobiz 미변경. 기본 HS 330499 top 10은 ITC.
+
 현재 판정:
 
 - `INTERNAL_PROVENANCE_PARTIAL`
