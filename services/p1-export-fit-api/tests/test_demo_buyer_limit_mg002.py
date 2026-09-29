@@ -49,3 +49,24 @@ def test_mg002_predict_shortlist_limit_independent_of_demo_cap():
     assert limit == 10
     assert demo._DEFAULT_BUYER_LIMIT == 200
     assert limit != demo._DEFAULT_BUYER_LIMIT
+
+
+def test_demo_buyers_keep_ksure_kotra_provenance():
+    """L028: demo snapshot must keep CSV provenance and K-SURE/KOTRA counts."""
+    summary = demo.get_demo_summary()
+    assert summary["total"] == 36241
+    by_source = {row["name"]: row["count"] for row in summary["bySource"]}
+    assert by_source["KOTRA SNS"] == 33446
+    assert by_source["K-SURE 화장품"] == 386
+    assert by_source["K-SURE 바이어검색"] == 235
+
+    buyers = demo.get_demo_buyers(3)
+    first = buyers[0]
+    assert first["source_dataset"] == "한국무역보험공사_화장품 바이어 정보"
+    assert first["source_file"] == "한국무역보험공사_화장품 바이어 정보_20200812.csv"
+    assert first["source_row_no"] == "126"
+    assert first["source_snapshot_date"] == "2020-08-12"
+    for item in buyers:
+        assert str(item.get("source_dataset") or "").strip()
+        assert str(item.get("source_file") or "").strip()
+        assert str(item.get("source_row_no") or "").strip()
