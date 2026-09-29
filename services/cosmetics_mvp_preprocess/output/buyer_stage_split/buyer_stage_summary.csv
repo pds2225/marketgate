@@ -1,0 +1,5 @@
+﻿bucket,rule,rows,pct
+sales_ready,name+country+HS+real_contact,373,1.03
+enrich_contact,"name+country+HS, no real_contact",33419,92.21
+hold,name but missing country/HS,2082,5.74
+exclude,empty normalized_name,367,1.01
