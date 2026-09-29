@@ -302,14 +302,12 @@ export function mapCompanyVerificationResponse(data) {
   const rawStatus = data?.registry_check_status;
   const status = isRegistryCheckStatus(rawStatus) ? rawStatus : null;
   const provider = data?.result_json?.provider || data?.provider;
-  const mock = data?.result_json?.mock === true;
+  const sample = data?.result_json?.mock === true;
   let details;
   if (!status) {
     details = '확인 결과 없음';
   } else if (provider) {
-    details = mock
-      ? `법인 기본검증 제공자: ${provider} (mock · 자동 신용등급 조회 아님)`
-      : `법인 기본검증 제공자: ${provider}`;
+    details = `법인 기본검증 제공자: ${provider} (자동 신용등급 조회 아님)`;
   }
   return {
     verification_id: data?.verification_id || '',
@@ -318,6 +316,7 @@ export function mapCompanyVerificationResponse(data) {
     country: data?.country_iso3 || '',
     verified_at: data?.completed_at || data?.requested_at || '',
     details,
+    sample,
   };
 }
 
@@ -329,6 +328,9 @@ function _httpDetail(err) {
   }
   return err?.message || '';
 }
+
+export const COMPANY_VERIFICATION_AUTH_MESSAGE =
+  '로그인이 필요합니다. 로그인 후 다시 시도해 주세요.';
 
 /** Map CV-02 HTTP errors for the BuyerSearch card. Do not treat 404 as "API not deployed". */
 export function mapCompanyVerificationHttpError(err) {
@@ -342,7 +344,7 @@ export function mapCompanyVerificationHttpError(err) {
   const status = err?.response?.status;
   const detail = _httpDetail(err);
   if (status === 401 || status === 403) {
-    return { kind: 'auth', message: '로그인이 필요합니다. 로그인 후 다시 시도해 주세요.' };
+    return { kind: 'auth', message: COMPANY_VERIFICATION_AUTH_MESSAGE };
   }
   if (status === 400 || status === 422) {
     return { kind: 'invalid', message: detail || '요청 값이 올바르지 않습니다.' };
@@ -370,6 +372,10 @@ export function mapCompanyVerificationHttpError(err) {
 
 export const COMPANY_VERIFICATION_INTRO =
   '현재 결과는 법적 실체와 등록정보에 대한 기본확인입니다. 재무상태, 결제이력, 신용등급 및 지급능력 확인은 별도의 신용조사가 필요합니다.';
+
+/** Shown when CV-02 result_json.mock is true. Do not present that record as a live registry lookup. */
+export const COMPANY_VERIFICATION_SAMPLE_NOTE =
+  '샘플 검증 데이터입니다. 실시간 법인 등기 조회 결과가 아닙니다.';
 
 /** 국가별 그룹핑 — 실측 가능한 값(건수·평균점수·연락처 보유 수)만 집계한다. */
 export function groupBuyersByCountry(buyers) {
