@@ -175,6 +175,16 @@ test.describe('CV-04 company verification journey', () => {
     )
     await expect(page.locator('a[href*="ksure.go.kr"]')).toHaveCount(0)
     expect(BASIC_STATUSES.has('BASIC_PARTIAL')).toBeTruthy()
+
+    const card = page.getByTestId('company-verification-sample-note').locator('xpath=ancestor::div[contains(@class,"rounded-xl")][1]')
+    await page.getByRole('link', { name: 'D-U-N-S 조회' }).scrollIntoViewIfNeeded()
+    const badge = page.getByText(STATUS_LABELS.BASIC_PARTIAL)
+    const badgeBox = await badge.boundingBox()
+    const viewport = page.viewportSize()
+    expect(badgeBox, 'status badge has a box').toBeTruthy()
+    expect(badgeBox.y).toBeGreaterThanOrEqual(0)
+    expect(badgeBox.y + badgeBox.height).toBeLessThanOrEqual(viewport.height)
+    await card.screenshot({ path: test.info().outputPath('cv04-verification-card.png') })
     await page.screenshot({ path: test.info().outputPath('cv04-verification-result.png'), fullPage: true })
   })
 

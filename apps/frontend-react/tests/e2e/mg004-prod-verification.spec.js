@@ -168,10 +168,13 @@ test.describe('MG-004 production company verification', () => {
       for (const name of ['D-U-N-S 조회', 'K-SURE 기업 조회', 'K-SURE 신용조사 신청']) {
         await expect(page.getByRole('link', { name })).toBeVisible()
       }
+      await page.getByRole('link', { name: 'D-U-N-S 조회' }).scrollIntoViewIfNeeded()
 
-      await page.screenshot({
+      const card = page
+        .getByTestId('company-verification-sample-note')
+        .locator('xpath=ancestor::div[contains(@class,"rounded-xl")][1]')
+      await card.screenshot({
         path: test.info().outputPath('mg004-prod-verification.png'),
-        fullPage: true,
       })
     } finally {
       if (adminToken.length >= 32) {
