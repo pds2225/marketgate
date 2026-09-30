@@ -160,14 +160,21 @@ test.describe('MG-004 production company verification', () => {
       ).toBe(200)
       expect(seen, `no BASIC_* label; body had: ${body.slice(0, 300)}`).not.toHaveLength(0)
       expect(body.includes('검증 실패')).toBeFalsy()
+      expect(
+        body.includes('샘플 검증 데이터'),
+        'CV-02 is still an OpenCorporates mock; the card must say so'
+      ).toBeTruthy()
 
       for (const name of ['D-U-N-S 조회', 'K-SURE 기업 조회', 'K-SURE 신용조사 신청']) {
         await expect(page.getByRole('link', { name })).toBeVisible()
       }
+      await page.getByRole('link', { name: 'D-U-N-S 조회' }).scrollIntoViewIfNeeded()
 
-      await page.screenshot({
+      const card = page
+        .getByTestId('company-verification-sample-note')
+        .locator('xpath=ancestor::div[contains(@class,"rounded-xl")][1]')
+      await card.screenshot({
         path: test.info().outputPath('mg004-prod-verification.png'),
-        fullPage: true,
       })
     } finally {
       if (adminToken.length >= 32) {
