@@ -907,6 +907,8 @@ CV-05 → BUYER-60 → CV-02 → CV-03
 
 - **2026-09-27 회귀:** 운영 `POST /v1/company-verifications`는 회사명과 무관하게 500 `Internal Server Error`이고, 없는 ID의 GET도 500이다. 파일 폴백이면 없는 ID는 404이므로 운영은 DB 조회/쓰기 예외를 삼키지 못하는 코드가 돌고 있다. 격리 `marketgate-e2e.onrender.com`은 503 `verification_store_unavailable`. 인콰이어리 초안 생성은 운영에서 200이라 저장 실패는 기업검증에 한정된다. 로컬 `http://127.0.0.1:5173` + `http://127.0.0.1:8000` MG-004 Playwright는 mock 없이 통과하고 최종 화면은 `기본 확인 완료`. 수정은 PR #166 (`cursor/e2e-company-verification-f9f1`)에 있으며, DB·파일 쓰기 실패 시에도 소유자 GET이 되도록 폴백한다. Render 대시보드가 로그인 벽이라 이 환경에서는 `marketgate`와 `marketgate-e2e`에 배포하지 못했다. 배포 전 운영 REQUEST_SOLVED=NO.
 
+- **2026-09-30 재검증 (CV-04, production):** Vercel production `dpl_EMt9WtotTCkCEnAmntFV2wQLTF8v` = `a2ed05e` (#167). 번들 `index-CtJDHmPK.js`에 샘플 안내·`로그인 필요` 포함. Render `marketgate.onrender.com`은 커밋 SHA를 응답하지 않는다. 백엔드 트리는 `b2e22e4`(#166)와 `a2ed05e`가 같고, 일회용 계정 기준 POST 200 / 소유자 GET 200 / 없는 id GET 404 / `mock:true`라 #166 이후 코드가 서빙 중이다. Vercel `/api` 프록시 동일. Playwright: `company-verification.spec.js` 2 passed, `mg004-prod-verification.spec.js` 1 passed (live, `E2E_WRITE_ENABLED=true`). 실화면 카드: `기본 확인 완료`, 샘플 검증 안내, D-U-N-S·K-SURE 공식 링크. 회귀 없음. 운영 REQUEST_SOLVED=YES. `marketgate-e2e`는 이번 범위 밖.
+
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
 ### 8-5. MUST — 반드시 구현
