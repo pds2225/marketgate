@@ -77,22 +77,38 @@ def _db_get_subscription(user_id: str) -> dict:
             )
             row = cur.fetchone()
             if not row:
-                return {"plan": "Basic", "started_at": None, "expires_at": None}
-            plan, started_at, expires_at = row
-            if expires_at is not None:
-                expires = expires_at
-                if expires.tzinfo is None:
-                    expires = expires.replace(tzinfo=timezone.utc)
-                if datetime.now(timezone.utc) > expires:
-                    cur.execute(
-                        "UPDATE subscriptions SET plan=%s, started_at=NULL, "
-                        "expires_at=NULL, updated_at=%s WHERE user_id=%s",
-                        ("Basic", datetime.now(timezone.utc), user_id),
-                    )
-                    if not in_transaction():
-                        conn.commit()
-                    return {"plan": "Basic", "started_at": None, "expires_at": None}
-            return _sub_dict(plan, started_at, expires_at)
+                result = {"plan": "Basic", "started_at": None, "expires_at": None}
+            else:
+                plan, started_at, expires_at = row
+                if expires_at is not None:
+                    expires = expires_at
+                    if expires.tzinfo is None:
+                        expires = expires.replace(tzinfo=timezone.utc)
+                    if datetime.now(timezone.utc) > expires:
+                        cur.execute(
+                            "UPDATE subscriptions SET plan=%s, started_at=NULL, "
+                            "expires_at=NULL, updated_at=%s WHERE user_id=%s",
+                            ("Basic", datetime.now(timezone.utc), user_id),
+                        )
+                        result = {"plan": "Basic", "started_at": None, "expires_at": None}
+                    else:
+                        result = _sub_dict(plan, started_at, expires_at)
+                else:
+                    result = _sub_dict(plan, started_at, expires_at)
+            # FOR UPDATE holds the row lock until commit/rollback. Returning the
+            # connection to the pool (maxconn=4 on Render) without ending the
+            # transaction leaves paid users' subscription rows locked and can
+            # block change_plan / require_plan until process restart.
+            if not in_transaction():
+                conn.commit()
+            return result
+    except Exception:
+        if not in_transaction():
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        raise
     finally:
         put_conn(conn)
 
