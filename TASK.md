@@ -909,6 +909,8 @@ CV-05 → BUYER-60 → CV-02 → CV-03
 
 - **2026-09-30 재검증 (CV-04, production):** Vercel production `dpl_EMt9WtotTCkCEnAmntFV2wQLTF8v` = `a2ed05e` (#167). 번들 `index-CtJDHmPK.js`에 샘플 안내·`로그인 필요` 포함. Render `marketgate.onrender.com`은 커밋 SHA를 응답하지 않는다. 백엔드 트리는 `b2e22e4`(#166)와 `a2ed05e`가 같고, 일회용 계정 기준 POST 200 / 소유자 GET 200 / 없는 id GET 404 / `mock:true`라 #166 이후 코드가 서빙 중이다. Vercel `/api` 프록시 동일. Playwright: `company-verification.spec.js` 2 passed, `mg004-prod-verification.spec.js` 1 passed (live, `E2E_WRITE_ENABLED=true`). 실화면 카드: `기본 확인 완료`, 샘플 검증 안내, D-U-N-S·K-SURE 공식 링크. 회귀 없음. 운영 REQUEST_SOLVED=YES. `marketgate-e2e`는 이번 범위 밖.
 
+- **2026-10-02 재검증 (CV-04, production):** Vercel production `dpl_EMt9WtotTCkCEnAmntFV2wQLTF8v` = `a2ed05e` 유지. 번들 `index-CtJDHmPK.js`에 샘플 안내·`로그인 필요`·D-U-N-S/K-SURE 공식 href 3종 포함. Render `/v1/health`·`/health` 200, 커밋 SHA 미노출. 일회용 계정(`e2e-cv04-*@example.com`) `Acme Ltd`/USA: POST 200 (`result_json.mock=true`) / 소유자 GET 200 (같은 id) / 임의 UUID GET 404 / 토큰 없는 POST 401. Playwright(chromium, origin/main worktree): `company-verification.spec.js` 2 passed (17.2s, API mock), `mg004-prod-verification.spec.js` 1 passed (2.0m, live, `E2E_WRITE_ENABLED=true`). 실화면 카드 `기본 확인 완료`, 샘플 검증 안내, D-U-N-S·K-SURE 공식 링크. 회귀 없음.
+
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
 ### 8-5. MUST — 반드시 구현
