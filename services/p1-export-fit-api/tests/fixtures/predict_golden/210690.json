@@ -1,0 +1,92 @@
+{
+  "request": {
+    "hs_code": "210690",
+    "exporter_country_iso3": "KOR",
+    "top_n": 5,
+    "year": 2023
+  },
+  "response": {
+    "status": "ok",
+    "data": {
+      "input": {
+        "hs_code": "210690",
+        "exporter_country_iso3": "KOR",
+        "top_n": 5,
+        "year": 2023
+      },
+      "results": [],
+      "diagnostics": {
+        "candidate_count": 151,
+        "eligible_count": 0,
+        "returned_count": 0,
+        "hard_filter_reason_counts": {
+          "NO_TRADE_DATA": 151,
+          "NO_DISTANCE_DATA": 5
+        },
+        "missing_indicator_counts": {
+          "trade_missing": 151,
+          "distance_missing": 5,
+          "gdp_missing": 6,
+          "growth_missing": 6
+        },
+        "zero_result_reasons": [
+          "NO_DISTANCE_DATA",
+          "NO_TRADE_DATA"
+        ],
+        "quality_warnings": [
+          "GDP_DATA_PARTIALLY_MISSING",
+          "GDP_GROWTH_DATA_PARTIALLY_MISSING"
+        ],
+        "trade_signal_counts": {},
+        "sample_countries_by_reason": {
+          "NO_TRADE_DATA": [
+            "AFG",
+            "AGO",
+            "ALB"
+          ],
+          "NO_DISTANCE_DATA": [
+            "COD",
+            "GUM",
+            "MNE"
+          ]
+        },
+        "coverage_status": "HS_NOT_IN_TRADE_COVERAGE",
+        "coverage_message": "이 품목은 무역 데이터 커버리지에 없어 추천을 만들 수 없습니다. (데이터 미보유 — 바이어가 없다는 뜻이 아닙니다)"
+      },
+      "buyers": {
+        "status": "ok",
+        "target_country_iso3": "",
+        "target_country_name": null,
+        "source_countries": [],
+        "meta": {
+          "returned_count": 0,
+          "shortlist_count": 0,
+          "candidate_count": 0,
+          "rejected_count": 0,
+          "filtered_buyer_rows": 0,
+          "scored_rows": 0,
+          "merged_country_count": 0,
+          "deduped_item_count": 0,
+          "selected_opportunity_titles": [],
+          "selected_opportunity_countries": [],
+          "selected_opportunity_signal_types": [],
+          "selected_opportunity_match_scores": [],
+          "opportunity_signals": [],
+          "soft_penalty_distribution": {},
+          "country_shortlist_before_merge": {},
+          "country_shortlist_after_merge": {},
+          "country_shortlist_delta": {},
+          "country_shortlist_comparison": {},
+          "buyer_country_mismatch": null,
+          "contactable_count": 0,
+          "verified_contactable_count": 0,
+          "returned_total_count": 0,
+          "contactable_summary": "연락 가능 0/0",
+          "match_relevance_distribution": {}
+        },
+        "items": [],
+        "error": null
+      }
+    }
+  }
+}

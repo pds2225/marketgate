@@ -96,6 +96,7 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 [ ] MG-012 | Buyer Contact와 Deal Tracking을 실제 영업 흐름으로 연결한다
 [x] MG-013 | TASK.md를 단일 작업 SSOT로 고정하고 Codex·Claude 시작 순서를 통일한다
 [x] MG-014 | Vercel Node 20 지원 종료에 대응해 Node 24로 빌드·검증하고 PR을 연다
+[x] MG-015 | 바이어 검색 결과를 유지하며 CPU 반복 연산과 요청 시간을 줄이고 성능 PR을 연다
 [x] T-20260814-01 | 코드 머지 전에 제품 테스트가 통과해야 한다
 [ ] TASK-001 | 바이어 검색 결과에서 실제 원천데이터와 출처를 확인할 수 있게 한다
 
@@ -341,6 +342,60 @@ TASK-A
 ---
 
 # 8. TASK DETAILS
+
+## MG-015
+
+### 사용자 요청 / MUST
+- `POST /v1/predict` 성능 개선: 모든 PredictRequest 필드 기반 in-process LRU+TTL 캐시, 반환 deep copy, 요청별 request_id/timestamp 재생성.
+- 공급자 키워드 1회 계산, 바이어 키워드 최초 사용 캐시, regex compile 및 차단/약한 키워드 alternation; 국가 데이터 로드 1회 정규화 및 인덱스; 불필요한 DataFrame copy 제거.
+- 국가 순위·바이어·점수·정렬·응답 필드를 완전히 유지한다. 부동소수 계산 순서도 보존한다.
+- origin/main 원본 대표 HS 330499/854140/210690/620343 JSON 골든 생성, 수정 후 miss/hit 완전 비교 pytest, 양쪽 백엔드 및 프론트 전체 테스트, 로컬 전후 시간 측정.
+- 커밋 후 `git push -u origin perf/buyer-search`, `gh pr create --base main`으로 한국어 제목의 일반 PR 생성.
+
+### KEEP / FORBIDDEN
+- 파일 변경은 `D:\mg-perf`에 한정. 다른 worktree 및 stash, PR #168 보존.
+- merge/force push/main push/운영 Render·Vercel 쓰기 요청/secret 출력 금지.
+- 새 라이브러리·API 응답 구조·원본 CSV·환경파일·workflow 변경 금지.
+
+### CHECKPOINT / VERIFY
+- TASK_START_SHA: `09ae2f7c49da503c9be221e85f885434affb42df`; WORK_BRANCH: `perf/buyer-search`; base: `main`.
+- 최초 시작 상태: 작업 트리 clean, HEAD=origin/main. 중단 재개 시 기존 MG-015 변경을 보존·검토하고 이어서 검증했다. HEAD=origin/main=`09ae2f7`; 열린 PR에 동일 성능 작업 없음.
+- 지정 소스와 예측 endpoint 및 직접 관련 테스트만 확인. 기존 TASK의 다른 과업은 실행하지 않는다.
+- 구현: 모델 전체+user_id+날짜 키의 LRU 128건/TTL 300초, 저장/적중 deep copy, 동일 키 single-flight, 데이터 로드 실패는 캐시 제외. request_id/timestamp는 매 호출 생성한다.
+- 키워드: 고정 regex 및 차단/약한 substring alternation, 내용 키의 immutable frozenset LRU(65,536건), 공급자 terms는 국가별 batch 1회 계산.
+- 국가 데이터: 로드 시 HS/year/ISO 그룹 인덱스, 필요한 WB/거리 평균은 첫 참조 시 1회 계산. 원래 행 순서의 pandas Series.sum/mean 및 KOTRA Python sum을 유지하며 DataFrame을 변형하지 않는다.
+- 후보 추출: 내부에서 캐시 frame을 읽고 country row 위치를 재사용해 전체 frame copy를 제거. 외부 public loader의 방어 copy는 유지한다.
+- 원본 `09ae2f7`에서 HS 330499/854140/210690/620343 및 필터 변형 1건의 전체 JSON을 먼저 캡처했다. 재개 후 Git 객체의 원본 4개 모듈을 불러와 기존 골든을 다시 비교했고, 수정본 miss/hit 10개 응답도 exact equality PASS(request_id/timestamp만 제외).
+- 골든은 기준일 `2026-10-03` 고정 및 dataset SHA256 manifest 포함. ignored 빈 opportunity CSV(94 bytes)는 fixture로 보존해 깨끗한 체크아웃에서도 테스트를 재현할 수 있게 했다. 기존 응답 골든 5개 SHA256은 보존했다.
+- 추가 검증: cache TTL/LRU/deepcopy/사용자 분리/동시 요청/인증 401, 키워드 원본 알고리즘 동등성/공급자 1회 계산, float 합산·평균·NaN·HS4 우선·프레임 비변형 PASS. 수정 코드의 `--capture` 거부와 원본 골든 SHA 보존도 직접 확인했다.
+- 재개 후 원본 전체 suite: API 276 passed/1 skipped(113.27s), 전처리 102 passed(9.13s). 수정 후 전체 suite: API 299 passed/1 skipped(23.02s), 전처리 161 passed(7.18s). 프론트 단위 32 passed, `npm run build` PASS(11.55s). 프론트 소스·테스트는 원본과 동일하다.
+- PostgreSQL E2E 1건은 DATABASE_URL 미제공으로 원본/수정본 모두 skipped. 이 항목은 PASS가 아니다.
+- 중단 전 frontend 전체 E2E 최초 실행(localhost/127.0.0.1 혼용)은 원본·수정본 모두 6 passed/1 failed(ERR_BLOCKED_BY_CLIENT, 회원가입 허용 origin 불일치). 코드 수정 없이 주소를 localhost로 통일해 재개 후 원본 7 passed(2.6m), 수정본 7 passed(36.0s). skip 없이 전체 실행했다.
+- 실제 localhost 로그인→바이어 검색→결과 표시, 회원가입→분석→인콰이어리→재로그인→계정 정리 경로 PASS. 외부 기업검증 provider 및 결제 recovery 테스트는 기존 mock 경로이며 운영 검증·실제 결제/발송 PASS를 뜻하지 않는다.
+- `npm run lint` FAIL: 기존 ComparePage.jsx:7, demo.jsx:6의 react-refresh 오류 2개. 프론트가 원본과 동일하므로 이번 변경으로 생긴 실패가 아니다. 범위 밖 프론트 코드를 수정하지 않았다.
+- 로컬 환경: Windows, Python 3.14.7/pandas 2.3.3/FastAPI 0.136.3, Node v26.3.0/npm 11.16.0. Node 24 운영/CI 실행은 별도 확인 대상이다.
+- 측정은 별도 새 Python 프로세스, 동일 CSV 및 요청, data warm 이후 TestClient POST 전체 JSON 응답 시간이다. 인증만 로컬 override, 국가/바이어는 실제 데이터·실제 코드다. 데이터 load는 별도 측정했다.
+
+| 로컬 측정 | 원본 | 수정 후 |
+|---|---:|---:|
+| 데이터 로드/초기 인덱스 | 2.15582초 | 4.01777초 |
+| HS 330499 첫 요청(결과 캐시 miss) | 23.55100초 | 7.27471초 |
+| HS 330499 반복 요청(수정 후 cache hit) | 20.95455초 | 0.01106초 |
+| HS 854140 첫 요청 | 0.67565초 | 0.01078초 |
+
+- HS 330499 첫 요청 69.11% 감소. 초기 데이터 로드 증가도 공개한다(로드+첫 요청: 원본 25.70681초, 수정 11.29247초). 중단 전 측정(19.5574→4.8922초, hit 0.01254초)과 분리해 이번 재개 후 실제 측정값을 표에 기록했다. 운영 47~55초에 대한 배포 후 실측은 미실행이다.
+- 재현 도구: `tools/mg015_predict_benchmark.py`(`--baseline`은 Git 원본, 미지정은 수정본), `tools/mg015_run_tests.py`(원본/수정본 전체 backend suite, 외부 소켓 차단), `tools/mg015_local_api.py`(로컬 격리 store 및 외부 연결 차단). 임시 로그/계정/토큰은 tools/.mg015 내부 ignored로 두며 커밋하지 않는다.
+- 실행 명령(위치 D:\mg-perf): `python tools/mg015_predict_benchmark.py --baseline --output tools/.mg015/resume-before.json`; `python tools/mg015_predict_benchmark.py --output tools/.mg015/resume-after.json`; `python tools/mg015_run_tests.py api --baseline`; `python tools/mg015_run_tests.py preprocess --baseline`; 원본 플래그 없이 양쪽 suite 재실행.
+- frontend 실행(위치 apps/frontend-react): `npm run test:unit`; `npm run build`; `npm run lint`; `npm run test:e2e -- --reporter=list`(원본/수정본). E2E_BASE_URL=http://localhost:5173, E2E_API_BASE_URL=http://localhost:8000, E2E_WRITE_ENABLED=true. 격리 server의 임시 admin token은 읽어 환경에만 전달하고 출력하지 않았다.
+- 소스 AST/secret-pattern scan 18개 파일 0 findings, `git diff --check` PASS. read-only PR safety 검토에서 확정 blocker 없음. 다른 worktree의 작업 파일·stash·PR #168 수정 명령은 실행하지 않았다.
+- 구현 commit: `84259a2` (`perf/buyer-search`), `git push -u origin perf/buyer-search` 성공.
+- 일반 PR: [#170](https://github.com/pds2225/marketgate/pull/170), base=`main`, head=`perf/buyer-search`, draft 아님. `gh pr create --base main` 실행 완료. 병합·force push·main push·PR #168 수정 없음.
+- 다음: 리뷰 후 정책에 따른 운영 반영과 배포 후 실측은 별도 작업이다. 이번 세션의 격리 로컬 API/React server는 테스트 종료 후 중지했다.
+
+### 상태
+REQUEST_SOLVED=YES — 기존 변경을 이어서 구현·로컬 동일성/전체 회귀/E2E 검증·전후 측정·commit/push·일반 PR 생성 완료. 운영 병합·배포·운영 실측은 요청 범위 밖이며 미실행이다. 원본/수정본 PostgreSQL skipped 1건 및 기존 frontend lint FAIL 2건은 위에 별도 기록했다.
+
+---
 
 ## MG-014
 

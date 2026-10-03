@@ -1,0 +1,584 @@
+{
+  "request": {
+    "hs_code": "330499",
+    "exporter_country_iso3": "KOR",
+    "top_n": 3,
+    "year": 2023,
+    "filters": {
+      "exclude_countries_iso3": [
+        "USA"
+      ],
+      "min_trade_value_usd": 1000
+    }
+  },
+  "response": {
+    "status": "ok",
+    "data": {
+      "input": {
+        "hs_code": "330499",
+        "exporter_country_iso3": "KOR",
+        "top_n": 3,
+        "year": 2023
+      },
+      "results": [
+        {
+          "rank": 1,
+          "partner_country_iso3": "CHN",
+          "fit_score": 92.2,
+          "score_components": {
+            "trade_volume_score": 1.0,
+            "growth_score": 0.6878,
+            "gdp_score": 1.0,
+            "distance_score": 1.0,
+            "soft_adjustment": 0.0,
+            "compliance_penalty": 0.0
+          },
+          "explanation": {
+            "top_factors": [
+              {
+                "factor": "historical_trade_value_usd",
+                "direction": "positive"
+              },
+              {
+                "factor": "partner_gdp_usd",
+                "direction": "positive"
+              }
+            ],
+            "data_sources": [
+              "KOTRA(csv)",
+              "MOFA(csv)",
+              "World Bank(csv)",
+              "CEPII(csv)",
+              "TradeData(csv)"
+            ],
+            "filters_applied": [
+              "exclude_USA",
+              "min_trade_value_usd>=1000",
+              "trade_fallback=world_total_allocated_by_kotra_score"
+            ],
+            "trade_signal_source": "partner_observed",
+            "kotra_weight_score": 22.242,
+            "missing_indicators": {
+              "gdp_missing": false,
+              "growth_missing": false
+            }
+          },
+          "compliance": null,
+          "data_coverage": {
+            "confidence": 0.8,
+            "confidence_level": "high",
+            "missing_rate": 0.2,
+            "total_fields": 5,
+            "available_fields": 4,
+            "missing_fields": [
+              "news_risk"
+            ],
+            "available_data": {
+              "export_score": 22.241999999999997,
+              "gdp": 18300000000000.0,
+              "growth_rate": 5.414843301,
+              "market_size": 2376887681.0
+            },
+            "data_source_status": {
+              "export_score": "success",
+              "gdp": "success",
+              "growth_rate": "success",
+              "market_size": "success",
+              "news_risk": "failed"
+            },
+            "risk_assessed": false,
+            "display_confidence_level": "medium",
+            "risk_note": "리스크(뉴스/제재 동향) 미평가 — 신뢰도 상한 medium"
+          },
+          "warnings": [
+            {
+              "code": "RISK_NOT_ASSESSED",
+              "severity": "low",
+              "message": "리스크(뉴스·제재 동향)가 평가되지 않아 신뢰도 표시 상한이 medium입니다 ('high' 아님)."
+            }
+          ]
+        },
+        {
+          "rank": 2,
+          "partner_country_iso3": "JPN",
+          "fit_score": 52.6,
+          "score_components": {
+            "trade_volume_score": 0.2807,
+            "growth_score": 0.2614,
+            "gdp_score": 1.0,
+            "distance_score": 0.9892,
+            "soft_adjustment": 0.0,
+            "compliance_penalty": 0.0
+          },
+          "explanation": {
+            "top_factors": [
+              {
+                "factor": "partner_gdp_usd",
+                "direction": "positive"
+              },
+              {
+                "factor": "distance_km",
+                "direction": "positive"
+              }
+            ],
+            "data_sources": [
+              "KOTRA(csv)",
+              "MOFA(csv)",
+              "World Bank(csv)",
+              "CEPII(csv)",
+              "TradeData(csv)"
+            ],
+            "filters_applied": [
+              "exclude_USA",
+              "min_trade_value_usd>=1000",
+              "trade_fallback=world_total_allocated_by_kotra_score"
+            ],
+            "trade_signal_source": "partner_observed",
+            "kotra_weight_score": 21.954,
+            "missing_indicators": {
+              "gdp_missing": false,
+              "growth_missing": false
+            }
+          },
+          "compliance": null,
+          "data_coverage": {
+            "confidence": 0.8,
+            "confidence_level": "high",
+            "missing_rate": 0.2,
+            "total_fields": 5,
+            "available_fields": 4,
+            "missing_fields": [
+              "news_risk"
+            ],
+            "available_data": {
+              "export_score": 21.954,
+              "gdp": 4210000000000.0,
+              "growth_rate": 1.475034811,
+              "market_size": 667166636.0
+            },
+            "data_source_status": {
+              "export_score": "success",
+              "gdp": "success",
+              "growth_rate": "success",
+              "market_size": "success",
+              "news_risk": "failed"
+            },
+            "risk_assessed": false,
+            "display_confidence_level": "medium",
+            "risk_note": "리스크(뉴스/제재 동향) 미평가 — 신뢰도 상한 medium"
+          },
+          "warnings": [
+            {
+              "code": "RISK_NOT_ASSESSED",
+              "severity": "low",
+              "message": "리스크(뉴스·제재 동향)가 평가되지 않아 신뢰도 표시 상한이 medium입니다 ('high' 아님)."
+            }
+          ]
+        },
+        {
+          "rank": 3,
+          "partner_country_iso3": "VNM",
+          "fit_score": 41.3,
+          "score_components": {
+            "trade_volume_score": 0.1871,
+            "growth_score": 0.6499,
+            "gdp_score": 0.1976,
+            "distance_score": 0.9044,
+            "soft_adjustment": 0.0,
+            "compliance_penalty": 0.0
+          },
+          "explanation": {
+            "top_factors": [
+              {
+                "factor": "partner_gdp_growth_pct",
+                "direction": "positive"
+              },
+              {
+                "factor": "distance_km",
+                "direction": "positive"
+              }
+            ],
+            "data_sources": [
+              "KOTRA(csv)",
+              "MOFA(csv)",
+              "World Bank(csv)",
+              "CEPII(csv)",
+              "TradeData(csv)"
+            ],
+            "filters_applied": [
+              "exclude_USA",
+              "min_trade_value_usd>=1000",
+              "trade_fallback=world_total_allocated_by_kotra_score"
+            ],
+            "trade_signal_source": "partner_observed",
+            "kotra_weight_score": 20.372,
+            "missing_indicators": {
+              "gdp_missing": false,
+              "growth_missing": false
+            }
+          },
+          "compliance": null,
+          "data_coverage": {
+            "confidence": 0.8,
+            "confidence_level": "high",
+            "missing_rate": 0.2,
+            "total_fields": 5,
+            "available_fields": 4,
+            "missing_fields": [
+              "news_risk"
+            ],
+            "available_data": {
+              "export_score": 20.372,
+              "gdp": 434000000000.0,
+              "growth_rate": 5.065023915,
+              "market_size": 444690105.0
+            },
+            "data_source_status": {
+              "export_score": "success",
+              "gdp": "success",
+              "growth_rate": "success",
+              "market_size": "success",
+              "news_risk": "failed"
+            },
+            "risk_assessed": false,
+            "display_confidence_level": "medium",
+            "risk_note": "리스크(뉴스/제재 동향) 미평가 — 신뢰도 상한 medium"
+          },
+          "warnings": [
+            {
+              "code": "RISK_NOT_ASSESSED",
+              "severity": "low",
+              "message": "리스크(뉴스·제재 동향)가 평가되지 않아 신뢰도 표시 상한이 medium입니다 ('high' 아님)."
+            }
+          ]
+        }
+      ],
+      "diagnostics": {
+        "candidate_count": 166,
+        "eligible_count": 148,
+        "returned_count": 3,
+        "hard_filter_reason_counts": {
+          "MIN_TRADE_VALUE": 12,
+          "NO_DISTANCE_DATA": 6,
+          "USER_EXCLUDED": 1
+        },
+        "missing_indicator_counts": {
+          "trade_missing": 0,
+          "distance_missing": 6,
+          "gdp_missing": 8,
+          "growth_missing": 7
+        },
+        "zero_result_reasons": [],
+        "quality_warnings": [
+          "TRADE_SIGNAL_USES_WORLD_TOTAL_FALLBACK",
+          "GDP_DATA_PARTIALLY_MISSING",
+          "GDP_GROWTH_DATA_PARTIALLY_MISSING"
+        ],
+        "trade_signal_counts": {
+          "partner_observed": 139,
+          "world_total_allocated": 9
+        },
+        "sample_countries_by_reason": {
+          "MIN_TRADE_VALUE": [
+            "ABW",
+            "COD",
+            "ETH"
+          ],
+          "NO_DISTANCE_DATA": [
+            "COD",
+            "GUM",
+            "MNE"
+          ],
+          "USER_EXCLUDED": [
+            "USA"
+          ]
+        },
+        "coverage_status": "OK",
+        "coverage_message": ""
+      },
+      "buyers": {
+        "status": "ok",
+        "target_country_iso3": "CHN",
+        "target_country_name": "중국",
+        "source_countries": [
+          {
+            "rank": 1,
+            "partner_country_iso3": "CHN",
+            "target_country_name": "중국",
+            "fit_score": 92.2
+          },
+          {
+            "rank": 2,
+            "partner_country_iso3": "JPN",
+            "target_country_name": "일본",
+            "fit_score": 52.6
+          },
+          {
+            "rank": 3,
+            "partner_country_iso3": "VNM",
+            "target_country_name": "베트남",
+            "fit_score": 41.3
+          }
+        ],
+        "meta": {
+          "returned_count": 3,
+          "shortlist_count": 0,
+          "candidate_count": 2893,
+          "rejected_count": 0,
+          "filtered_buyer_rows": 2893,
+          "scored_rows": 2893,
+          "merged_country_count": 3,
+          "deduped_item_count": 3,
+          "selected_opportunity_titles": [],
+          "selected_opportunity_countries": [],
+          "selected_opportunity_signal_types": [],
+          "selected_opportunity_match_scores": [
+            {
+              "country_iso3": "CHN",
+              "opportunity_title": "",
+              "match_score": -40,
+              "opportunity_country_norm": "",
+              "opportunity_signal_type": "",
+              "opportunity_hs_code_norm": "",
+              "opportunity_keywords_norm": "",
+              "opportunity_valid_until": "",
+              "opportunity_signal_usable": false,
+              "scoring_opportunity_applied": false,
+              "opportunity_source_dataset": "",
+              "opportunity_source_file": ""
+            },
+            {
+              "country_iso3": "JPN",
+              "opportunity_title": "",
+              "match_score": -40,
+              "opportunity_country_norm": "",
+              "opportunity_signal_type": "",
+              "opportunity_hs_code_norm": "",
+              "opportunity_keywords_norm": "",
+              "opportunity_valid_until": "",
+              "opportunity_signal_usable": false,
+              "scoring_opportunity_applied": false,
+              "opportunity_source_dataset": "",
+              "opportunity_source_file": ""
+            },
+            {
+              "country_iso3": "VNM",
+              "opportunity_title": "",
+              "match_score": -40,
+              "opportunity_country_norm": "",
+              "opportunity_signal_type": "",
+              "opportunity_hs_code_norm": "",
+              "opportunity_keywords_norm": "",
+              "opportunity_valid_until": "",
+              "opportunity_signal_usable": false,
+              "scoring_opportunity_applied": false,
+              "opportunity_source_dataset": "",
+              "opportunity_source_file": ""
+            }
+          ],
+          "opportunity_signals": [],
+          "soft_penalty_distribution": {
+            "hs_mismatch": 2376,
+            "missing_certification": 2893,
+            "missing_contact": 2761,
+            "partial_missing_data": 85,
+            "unclear_moq": 2893
+          },
+          "country_shortlist_before_merge": {
+            "CHN": 0,
+            "JPN": 0,
+            "VNM": 0
+          },
+          "country_shortlist_after_merge": {
+            "CHN": 3,
+            "JPN": 0,
+            "VNM": 0
+          },
+          "country_shortlist_delta": {
+            "CHN": 3,
+            "JPN": 0,
+            "VNM": 0
+          },
+          "country_shortlist_comparison": {
+            "CHN": {
+              "country_name": "중국",
+              "before_merge_shortlist_count": 0,
+              "after_merge_returned_count": 3,
+              "delta": 3
+            },
+            "JPN": {
+              "country_name": "일본",
+              "before_merge_shortlist_count": 0,
+              "after_merge_returned_count": 0,
+              "delta": 0
+            },
+            "VNM": {
+              "country_name": "베트남",
+              "before_merge_shortlist_count": 0,
+              "after_merge_returned_count": 0,
+              "delta": 0
+            }
+          },
+          "buyer_country_mismatch": null,
+          "contactable_count": 0,
+          "verified_contactable_count": 0,
+          "returned_total_count": 3,
+          "contactable_summary": "연락 가능 0/3",
+          "match_relevance_distribution": {
+            "strong": 3
+          }
+        },
+        "items": [
+          {
+            "buyer_name": "LAZADA",
+            "source_dataset": "대한무역투자진흥공사_SNS 마케팅 수집 바이어 정보",
+            "record_type": "buyer_candidate",
+            "source_file": "대한무역투자진흥공사_SNS 마케팅 수집 바이어 정보_20251127.csv",
+            "source_row_no": "4326",
+            "source_snapshot_date": "2025-11-27",
+            "country_norm": "중국",
+            "source_target_country_iso3": "CHN",
+            "source_target_country_name": "중국",
+            "source_target_country_rank": 1,
+            "hs_code_norm": "330499.0",
+            "keywords_norm": "cosmetics | 기타 | 330499 | lazada",
+            "has_contact": false,
+            "contact_email": "",
+            "contact_name": "",
+            "contact_phone": "",
+            "contact_website": "",
+            "final_score": 45.0,
+            "decision": "candidate",
+            "score_breakdown": {
+              "country_match_score": 1.0,
+              "hs_match_score": 1.0,
+              "contact_score": 0.0,
+              "activity_score": 0.0,
+              "opportunity_signal_score": 0.0,
+              "soft_penalty_score": 10.0,
+              "final_weighted_score": 45.0,
+              "hs_match_type": "hs_exact",
+              "matched_terms": []
+            },
+            "recommendation_lines": [
+              "제품 적합도가 높습니다 (330499 vs 330499).",
+              "타깃 국가 중국과 buyer 국가 중국이 일치합니다.",
+              "contact 정보 부족으로 감점됐습니다, 인증 정보가 없어 감점됐습니다, MOQ 정보가 불명확합니다."
+            ],
+            "explanation_reasons": [
+              "제품 적합도가 높습니다 (330499 vs 330499).",
+              "타깃 국가 중국과 buyer 국가 중국이 일치합니다.",
+              "contact 정보 부족으로 감점됐습니다, 인증 정보가 없어 감점됐습니다, MOQ 정보가 불명확합니다."
+            ],
+            "matched_by": "hs_exact",
+            "matched_terms": [],
+            "source_verification": "unverified",
+            "source_verified": false,
+            "contact_email_estimated": false,
+            "match_relevance": "strong",
+            "has_verified_contact": false
+          },
+          {
+            "buyer_name": "CUFFSNLASHES",
+            "source_dataset": "대한무역투자진흥공사_SNS 마케팅 수집 바이어 정보",
+            "record_type": "buyer_candidate",
+            "source_file": "대한무역투자진흥공사_SNS 마케팅 수집 바이어 정보_20251127.csv",
+            "source_row_no": "6845",
+            "source_snapshot_date": "2025-11-27",
+            "country_norm": "중국",
+            "source_target_country_iso3": "CHN",
+            "source_target_country_name": "중국",
+            "source_target_country_rank": 1,
+            "hs_code_norm": "330499.0",
+            "keywords_norm": "cosmetic | 기타 | 330499 | cuffsnlashes",
+            "has_contact": false,
+            "contact_email": "",
+            "contact_name": "",
+            "contact_phone": "",
+            "contact_website": "",
+            "final_score": 45.0,
+            "decision": "candidate",
+            "score_breakdown": {
+              "country_match_score": 1.0,
+              "hs_match_score": 1.0,
+              "contact_score": 0.0,
+              "activity_score": 0.0,
+              "opportunity_signal_score": 0.0,
+              "soft_penalty_score": 10.0,
+              "final_weighted_score": 45.0,
+              "hs_match_type": "hs_exact",
+              "matched_terms": []
+            },
+            "recommendation_lines": [
+              "제품 적합도가 높습니다 (330499 vs 330499).",
+              "타깃 국가 중국과 buyer 국가 중국이 일치합니다.",
+              "contact 정보 부족으로 감점됐습니다, 인증 정보가 없어 감점됐습니다, MOQ 정보가 불명확합니다."
+            ],
+            "explanation_reasons": [
+              "제품 적합도가 높습니다 (330499 vs 330499).",
+              "타깃 국가 중국과 buyer 국가 중국이 일치합니다.",
+              "contact 정보 부족으로 감점됐습니다, 인증 정보가 없어 감점됐습니다, MOQ 정보가 불명확합니다."
+            ],
+            "matched_by": "hs_exact",
+            "matched_terms": [],
+            "source_verification": "unverified",
+            "source_verified": false,
+            "contact_email_estimated": false,
+            "match_relevance": "strong",
+            "has_verified_contact": false
+          },
+          {
+            "buyer_name": "MV",
+            "source_dataset": "대한무역투자진흥공사_SNS 마케팅 수집 바이어 정보",
+            "record_type": "buyer_candidate",
+            "source_file": "대한무역투자진흥공사_SNS 마케팅 수집 바이어 정보_20251127.csv",
+            "source_row_no": "9972",
+            "source_snapshot_date": "2025-11-27",
+            "country_norm": "중국",
+            "source_target_country_iso3": "CHN",
+            "source_target_country_name": "중국",
+            "source_target_country_rank": 1,
+            "hs_code_norm": "330499.0",
+            "keywords_norm": "cosmetic | 기타 | 330499 | mv",
+            "has_contact": false,
+            "contact_email": "",
+            "contact_name": "",
+            "contact_phone": "",
+            "contact_website": "",
+            "final_score": 45.0,
+            "decision": "candidate",
+            "score_breakdown": {
+              "country_match_score": 1.0,
+              "hs_match_score": 1.0,
+              "contact_score": 0.0,
+              "activity_score": 0.0,
+              "opportunity_signal_score": 0.0,
+              "soft_penalty_score": 10.0,
+              "final_weighted_score": 45.0,
+              "hs_match_type": "hs_exact",
+              "matched_terms": []
+            },
+            "recommendation_lines": [
+              "제품 적합도가 높습니다 (330499 vs 330499).",
+              "타깃 국가 중국과 buyer 국가 중국이 일치합니다.",
+              "contact 정보 부족으로 감점됐습니다, 인증 정보가 없어 감점됐습니다, MOQ 정보가 불명확합니다."
+            ],
+            "explanation_reasons": [
+              "제품 적합도가 높습니다 (330499 vs 330499).",
+              "타깃 국가 중국과 buyer 국가 중국이 일치합니다.",
+              "contact 정보 부족으로 감점됐습니다, 인증 정보가 없어 감점됐습니다, MOQ 정보가 불명확합니다."
+            ],
+            "matched_by": "hs_exact",
+            "matched_terms": [],
+            "source_verification": "unverified",
+            "source_verified": false,
+            "contact_email_estimated": false,
+            "match_relevance": "strong",
+            "has_verified_contact": false
+          }
+        ],
+        "error": null
+      }
+    }
+  }
+}

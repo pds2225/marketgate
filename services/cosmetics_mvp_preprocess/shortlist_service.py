@@ -67,8 +67,16 @@ def _load_frame_cached(output_dir_str: str, filename: str) -> pd.DataFrame:
     return _read_frame(Path(output_dir_str) / filename)
 
 
+@lru_cache(maxsize=8)
+def _buyer_country_positions(output_dir_str: str) -> dict[str, Any]:
+    buyers = _load_frame_cached(output_dir_str, "buyer_candidate.csv")
+    # groupby indices retain original row order, including equal-score ties.
+    return buyers.groupby(buyers["country_norm"].astype(str), sort=False).indices
+
+
 def clear_shortlist_cache() -> None:
     _load_frame_cached.cache_clear()
+    _buyer_country_positions.cache_clear()
 
 
 def load_buyer_frame(output_dir: Path | None = None) -> pd.DataFrame:
@@ -275,15 +283,17 @@ def shortlist_buyers(
     opportunity_country_norm: str = "",
     include_rejected: bool = False,
 ) -> dict[str, Any]:
-    buyers = load_buyer_frame(output_dir=output_dir)
-    opportunities = load_opportunity_frame(output_dir=output_dir)
+    base_dir = str(output_dir or (ROOT / "output"))
+    # Internal readers never write to the shared frames. Public loaders keep
+    # defensive copies for callers that intentionally edit their data.
+    buyers = _load_frame_cached(base_dir, "buyer_candidate.csv")
+    opportunities = _load_frame_cached(base_dir, "opportunity_item.csv")
 
     target_country = normalize_text(supplier_profile.get("target_country_norm"))
     filtered_buyers = buyers
     if target_country:
-        filtered_buyers = filtered_buyers[
-            filtered_buyers["country_norm"].astype(str).eq(target_country)
-        ].copy()
+        positions = _buyer_country_positions(base_dir).get(target_country, [])
+        filtered_buyers = buyers.iloc[positions]
 
     selected_opportunity = _select_opportunity(
         opportunities,
