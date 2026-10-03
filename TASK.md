@@ -96,7 +96,7 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 [ ] MG-012 | Buyer Contact와 Deal Tracking을 실제 영업 흐름으로 연결한다
 [x] MG-013 | TASK.md를 단일 작업 SSOT로 고정하고 Codex·Claude 시작 순서를 통일한다
 [x] MG-014 | Vercel Node 20 지원 종료에 대응해 Node 24로 빌드·검증하고 PR을 연다
-[~] MG-015 | 바이어 검색 결과를 유지하며 CPU 반복 연산과 요청 시간을 줄이고 성능 PR을 연다
+[x] MG-015 | 바이어 검색 결과를 유지하며 CPU 반복 연산과 요청 시간을 줄이고 성능 PR을 연다
 [x] T-20260814-01 | 코드 머지 전에 제품 테스트가 통과해야 한다
 [ ] TASK-001 | 바이어 검색 결과에서 실제 원천데이터와 출처를 확인할 수 있게 한다
 
@@ -388,10 +388,12 @@ TASK-A
 - 실행 명령(위치 D:\mg-perf): `python tools/mg015_predict_benchmark.py --baseline --output tools/.mg015/resume-before.json`; `python tools/mg015_predict_benchmark.py --output tools/.mg015/resume-after.json`; `python tools/mg015_run_tests.py api --baseline`; `python tools/mg015_run_tests.py preprocess --baseline`; 원본 플래그 없이 양쪽 suite 재실행.
 - frontend 실행(위치 apps/frontend-react): `npm run test:unit`; `npm run build`; `npm run lint`; `npm run test:e2e -- --reporter=list`(원본/수정본). E2E_BASE_URL=http://localhost:5173, E2E_API_BASE_URL=http://localhost:8000, E2E_WRITE_ENABLED=true. 격리 server의 임시 admin token은 읽어 환경에만 전달하고 출력하지 않았다.
 - 소스 AST/secret-pattern scan 18개 파일 0 findings, `git diff --check` PASS. read-only PR safety 검토에서 확정 blocker 없음. 다른 worktree의 작업 파일·stash·PR #168 수정 명령은 실행하지 않았다.
-- 다음: 이번 TASK 파일만 commit/push → base main 일반 PR 생성 → TASK에 PR 링크·최종 상태 기록. 병합/운영 쓰기 검증은 수행하지 않는다.
+- 구현 commit: `84259a2` (`perf/buyer-search`), `git push -u origin perf/buyer-search` 성공.
+- 일반 PR: [#170](https://github.com/pds2225/marketgate/pull/170), base=`main`, head=`perf/buyer-search`, draft 아님. `gh pr create --base main` 실행 완료. 병합·force push·main push·PR #168 수정 없음.
+- 다음: 리뷰 후 정책에 따른 운영 반영과 배포 후 실측은 별도 작업이다. 이번 세션의 격리 로컬 API/React server는 테스트 종료 후 중지했다.
 
 ### 상태
-REQUEST_SOLVED=NO — 진행 중. PR 생성까지가 이번 요청 범위이며 운영 병합·배포는 제외한다.
+REQUEST_SOLVED=YES — 기존 변경을 이어서 구현·로컬 동일성/전체 회귀/E2E 검증·전후 측정·commit/push·일반 PR 생성 완료. 운영 병합·배포·운영 실측은 요청 범위 밖이며 미실행이다. 원본/수정본 PostgreSQL skipped 1건 및 기존 frontend lint FAIL 2건은 위에 별도 기록했다.
 
 ---
 
