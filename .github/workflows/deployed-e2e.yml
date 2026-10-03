@@ -65,10 +65,10 @@ jobs:
         with:
           ref: ${{ github.event_name == 'deployment_status' && github.event.deployment.sha || github.ref }}
 
-      - name: Set up Node 20
+      - name: Set up Node 24
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '24.x'
           cache: npm
           cache-dependency-path: apps/frontend-react/package-lock.json
 
@@ -195,10 +195,10 @@ jobs:
         with:
           ref: ${{ github.event_name == 'deployment_status' && github.event.deployment.sha || github.ref }}
 
-      - name: Set up Node 20
+      - name: Set up Node 24
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '24.x'
           cache: npm
           cache-dependency-path: apps/frontend-react/package-lock.json
 
@@ -249,10 +249,10 @@ jobs:
         with:
           ref: ${{ github.event_name == 'deployment_status' && github.event.deployment.sha || github.ref }}
 
-      - name: Set up Node 20
+      - name: Set up Node 24
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '24.x'
           cache: npm
           cache-dependency-path: apps/frontend-react/package-lock.json
 

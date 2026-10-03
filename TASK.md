@@ -95,6 +95,7 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 [ ] MG-011 | 크레딧 과금을 외부 유료사용 검증 후 켤 수 있게 한다
 [ ] MG-012 | Buyer Contact와 Deal Tracking을 실제 영업 흐름으로 연결한다
 [x] MG-013 | TASK.md를 단일 작업 SSOT로 고정하고 Codex·Claude 시작 순서를 통일한다
+[x] MG-014 | Vercel Node 20 지원 종료에 대응해 Node 24로 빌드·검증하고 PR을 연다
 [x] T-20260814-01 | 코드 머지 전에 제품 테스트가 통과해야 한다
 [ ] TASK-001 | 바이어 검색 결과에서 실제 원천데이터와 출처를 확인할 수 있게 한다
 
@@ -340,6 +341,45 @@ TASK-A
 ---
 
 # 8. TASK DETAILS
+
+## MG-014
+
+### 사용자 원문 요청
+목표: pds2225/marketgate의 Vercel 빌드가 Node 20 지원 중단으로 실패하는 문제를 Node 24로 올려 해결하고 PR을 연다.
+
+### 목표 / MUST
+- PR #168 (`8181f9e`) 미리보기 `dpl_DqdidHNEoiPtA1Zo8izMQcQjNBVE`의 `BUILD_UTILS_NODE_VERSION_DISCONTINUED (ignoreStep)` 원인에 대응한다.
+- 지정한 Node 설정만 조사하고 Vercel 프론트엔드와 관련 CI를 `24.x`로 맞춘다.
+- Node 24에서 `apps/frontend-react`의 `npm ci`, `npm run build`, 기존 단위 테스트를 실제 실행한다.
+- 요청한 커밋 메시지로 commit/push 후 base `main` PR을 연다. 원인·수정 파일·실행 명령·결과를 PR에 기록한다.
+- push 확인 뒤 `git worktree remove D:\mg-node24`로 이번 작업 공간만 정리한다.
+
+### KEEP / REMOVE / FORBIDDEN
+- `D:\marketgate`의 미커밋·미추적 파일, 기존 worktree·stash를 보존한다. 수정은 `D:\mg-node24`에서만 수행한다.
+- 제품 코드·API·동작·의존성 버전은 유지한다. lockfile은 루트 engines 메타데이터만 맞춘다.
+- merge, force push, stash/reset/덮어쓰기, PR #168 및 `cursor/cv04-prod-status-da47` 수정 금지.
+- production 쓰기 E2E 금지. Vercel 확인은 PR preview 상태와 build 로그의 읽기 전용 확인으로 한정한다.
+- root `RESUME.md`는 사용자 보호 미추적 파일이므로 자동 체크포인트 대신 이 TASK에 진행 상태를 기록한다.
+
+### CHECKPOINT / VERIFY
+- TASK_START_SHA: `a2ed05ef4c276dce0fe6afb6309ae02800245f6b`
+- TASK_BLOB_SHA: `8e5ee56ddcf042cb633b9600c513c2c3735aa735`
+- WORK_BRANCH: `fix/vercel-node24`; WORKTREE: `D:\mg-node24`
+- 최초 시스템 Node: `v26.3.0`; 작업 공간의 공식 portable `v24.21.0` / npm `11.19.0`에서 검증했다. 공식 SHA256 대조 PASS.
+- 수정 대상: frontend package.json / package-lock.json, `.github/workflows/deployed-e2e.yml`, 이 TASK 등록.
+- 검증 PASS: `npm ci`, `npm run build`, `npm run test:unit`(32/32), 전체 `tests/*.test.mjs`(32/32), `git diff --check`.
+- 로컬 React `http://localhost:5173/`: 읽기 전용 Playwright 랜딩 smoke PASS(1440/390px), HTTP 200, 수평 잘림·미처리 JS 오류 없음. 쓰기 요청 0건.
+- 기존 lock 의존성 유지. 설치 audit 15건(2 low/4 moderate/8 high/1 critical), Browserslist 데이터 경고는 별도 후속.
+- 설정 commit: `81e12e77b964dd15aa4ea9875f60320b377bbb07`; origin branch SHA 일치 확인. PR: https://github.com/pds2225/marketgate/pull/169 (base main, OPEN, auto-merge 없음).
+- 실제 Vercel preview: `dpl_DJuE8JuqE9DdhtNRJCrycv5Yju8r`, `fix/vercel-node24` / `81e12e7`, `READY`. 보호 preview GET은 HTTP 200 / MarketGate title / 배포 assets 확인.
+- GitHub: Vercel SUCCESS, docs-gate SUCCESS, W-020 SUCCESS. 자동 Preview deployed E2E는 후속 확인 대상이며 Set up Node 24·npm ci 단계 SUCCESS. production job 2개는 SKIPPED.
+- Vercel CLI `vercel inspect <preview-url> --logs --scope ekth3691-8902s-projects` PASS: Node version `20.x` → `24.x`로 cache 생략, Vite build PASS, `Build Completed` / `Deployment completed` / `Ready` 로그 직접 확인.
+- 마무리: 이 검증 기록을 push하고 원격 SHA를 재확인한 뒤 이번 worktree만 `git worktree remove D:\mg-node24`로 정리한다. 기존 worktree·stash·원본 파일은 그대로 보존한다.
+
+### DONE
+REQUEST_SOLVED=YES — Node 24 로컬 검증과 PR 생성, 실제 Vercel preview READY 확인 완료. production 반영 및 main 병합은 사용자가 금지한 별도 후속이다.
+
+---
 
 ## MG-013
 
