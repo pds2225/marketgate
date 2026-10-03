@@ -1,7 +1,9 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
+from threading import RLock
 from typing import Dict, List, Optional
+import weakref
 import pandas as pd
 
 from app.config import Files
@@ -21,6 +23,78 @@ class DataStore:
 
 _DATASTORE: Optional[DataStore] = None
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_DATASTORE_LOCK = RLock()
+_LOOKUP_LOCK = RLock()
+_FRAME_LOOKUPS: dict[int, tuple[weakref.ReferenceType, dict]] = {}
+
+
+def _frame_lookup(frame: pd.DataFrame, name: str, build):
+    """Index immutable loader frames once, without attaching mutable attrs.
+
+    Weak references release indexes with replaced/test frames and guard against
+    Python object-id reuse. Normalization never changes the source DataFrame.
+    """
+    identity = id(frame)
+    with _LOOKUP_LOCK:
+        entry = _FRAME_LOOKUPS.get(identity)
+        if entry is None or entry[0]() is not frame:
+            def release(reference):
+                with _LOOKUP_LOCK:
+                    current = _FRAME_LOOKUPS.get(identity)
+                    if current is not None and current[0] is reference:
+                        del _FRAME_LOOKUPS[identity]
+            entry = (weakref.ref(frame, release), {})
+            _FRAME_LOOKUPS[identity] = entry
+        if name not in entry[1]:
+            entry[1][name] = build()
+        return entry[1][name]
+
+
+def _trade_index(trade: pd.DataFrame) -> dict:
+    def build():
+        keys = pd.DataFrame({
+            "year": trade["refYear"].astype(int),
+            "reporter": trade["reporterISO"].astype(str).str.upper().str.strip(),
+            "partner": trade["partnerISO"].astype(str).str.upper().str.strip(),
+            "hs": trade["cmdCode"].astype(str).str.strip(),
+        })
+        groups = keys.groupby(["year", "reporter", "partner", "hs"], sort=False).indices
+        # Use the original pandas Series.sum per group (not groupby.sum's
+        # different accumulation) to preserve the exact floating-point result.
+        return {key: float(trade["trade_value_usd"].iloc[positions].fillna(0).sum())
+                for key, positions in groups.items() if len(key[3]) in (2, 4)}
+    return _frame_lookup(trade, "trade", build)
+
+
+def _numeric_mean_index(frame: pd.DataFrame, *, distance: bool = False) -> dict:
+    def build():
+        if distance:
+            keys = pd.DataFrame({
+                "origin": frame["origin_country"].astype(str).str.upper(),
+                "target": frame["target_country"].astype(str).str.upper(),
+            })
+        else:
+            keys = pd.DataFrame({
+                "iso": frame["REF_AREA"].astype(str).str.upper(),
+                "year": frame["TIME_PERIOD"].astype(int),
+            })
+        return keys.groupby(list(keys.columns), sort=False).indices
+    return _frame_lookup(frame, "distance" if distance else "wb", build)
+
+
+def _indexed_mean(frame: pd.DataFrame, key: tuple, *, distance: bool = False) -> Optional[float]:
+    positions = _numeric_mean_index(frame, distance=distance).get(key)
+    if positions is None:
+        return None
+    with _LOOKUP_LOCK:
+        values = _frame_lookup(frame, "distance_means" if distance else "wb_means", dict)
+        if key not in values:
+            # Compute only requested groups, once. Precomputing all 50k
+            # distances would unnecessarily delay startup. Preserve the old
+            # per-group conversion/dropna/mean and its exact float/NaN result.
+            column = "distance_km" if distance else "OBS_VALUE"
+            values[key] = float(pd.to_numeric(frame[column].iloc[positions], errors="coerce").dropna().mean())
+        return values[key]
 
 
 def _resolve_path(file_path: str) -> str:
@@ -80,6 +154,11 @@ def _safe_read_csv(path: str, required_cols: list[str], name: str) -> pd.DataFra
 
 
 def load_datastore() -> DataStore:
+    with _DATASTORE_LOCK:
+        return _load_datastore()
+
+
+def _load_datastore() -> DataStore:
     global _DATASTORE
     if _DATASTORE is not None:
         return _DATASTORE
@@ -122,7 +201,7 @@ def load_datastore() -> DataStore:
     if load_errors:
         logger.warning(f"[DataStore] 누락 데이터: {load_errors}")
 
-    _DATASTORE = DataStore(
+    datastore = DataStore(
         kotra=kotra,
         mofa=mofa,
         trade=trade,
@@ -131,6 +210,13 @@ def load_datastore() -> DataStore:
         distance=distance,
         load_errors=load_errors,
     )
+    _kotra_hs_positions(kotra)
+    _frame_lookup(mofa, "mofa", lambda: _build_mofa_lookup(mofa))
+    _trade_index(trade)
+    _numeric_mean_index(wb_gdp)
+    _numeric_mean_index(wb_growth)
+    _numeric_mean_index(distance, distance=True)
+    _DATASTORE = datastore
     return _DATASTORE
 
 
@@ -150,12 +236,18 @@ def _build_mofa_lookup(mofa: pd.DataFrame) -> Dict[str, List[str]]:
     return {k: sorted(set(v)) for k, v in lookup.items()}
 
 
+def _kotra_hs_positions(kotra: pd.DataFrame) -> dict:
+    return _frame_lookup(kotra, "hs", lambda: kotra.groupby(
+        kotra["HSCD"].astype(str).str.zfill(6), sort=False
+    ).indices)
+
+
 def kotra_candidate_scores(hs_code_6: str, mofa: pd.DataFrame, kotra: pd.DataFrame) -> Dict[str, float]:
-    df = kotra[kotra["HSCD"].astype(str).str.zfill(6) == hs_code_6]
+    df = kotra.iloc[_kotra_hs_positions(kotra).get(hs_code_6, [])]
     if df.empty:
         return {}
 
-    mofa_lookup = _build_mofa_lookup(mofa)
+    mofa_lookup = _frame_lookup(mofa, "mofa", lambda: _build_mofa_lookup(mofa))
     iso3_scores: Dict[str, List[float]] = {}
 
     for row in df[["NAT_NAME", "EXP_BHRC_SCR"]].itertuples(index=False):
@@ -233,8 +325,9 @@ def get_trade_value_usd(
     hs_code_6: str,
 ) -> Optional[float]:
     """HS4 우선, 없으면 HS2 fallback. 중복행 합산."""
-    base = _trade_rows_for_reporter_partner(trade, year, exporter_iso3, partner_iso3)
-    return _match_trade_value_by_hs(base, hs_code_6)
+    values = _trade_index(trade)
+    key = (int(year), exporter_iso3, partner_iso3)
+    return values.get((*key, hs_code_6[:4]), values.get((*key, hs_code_6[:2])))
 
 
 def get_world_trade_value_usd(
@@ -247,25 +340,12 @@ def get_world_trade_value_usd(
     partnerISO 가 W00(세계 합계)만 들어 있는 구조를 지원하기 위한 fallback.
     한국 2023 데이터처럼 국가별 파트너가 빠진 경우 이 값을 후보국별 proxy trade의 기준치로 사용한다.
     """
-    base = _trade_rows_for_reporter_partner(trade, year, exporter_iso3, "W00")
-    return _match_trade_value_by_hs(base, hs_code_6)
+    return get_trade_value_usd(trade, year, exporter_iso3, "W00", hs_code_6)
 
 
 def get_wb_value(wb: pd.DataFrame, year: int, iso3: str) -> Optional[float]:
-    df = wb[
-        (wb["REF_AREA"].astype(str).str.upper() == iso3) &
-        (wb["TIME_PERIOD"].astype(int) == int(year))
-    ]
-    if df.empty:
-        return None
-    return float(pd.to_numeric(df["OBS_VALUE"], errors="coerce").dropna().mean())
+    return _indexed_mean(wb, (iso3, int(year)))
 
 
 def get_distance_km(distance: pd.DataFrame, origin_iso3: str, target_iso3: str) -> Optional[float]:
-    df = distance[
-        (distance["origin_country"].astype(str).str.upper() == origin_iso3) &
-        (distance["target_country"].astype(str).str.upper() == target_iso3)
-    ]
-    if df.empty:
-        return None
-    return float(pd.to_numeric(df["distance_km"], errors="coerce").dropna().mean())
+    return _indexed_mean(distance, (origin_iso3, target_iso3), distance=True)
