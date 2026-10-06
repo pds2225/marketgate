@@ -29,7 +29,7 @@
 - [x] **[CV-01] 해외기업 기본검증 DB 마이그레이션** — 실제 파일은 `db/migrations/0006_company_registry_checks.sql` (0005는 결제·크레딧). 5개 `registry_check_status`, 기존 인증·결제·크레딧 테이블 비변경. 완료: MG-001 #123.
 - [x] **[CV-02] OpenCorporates Mock 기본검증 API** — `POST /v1/company-verifications`, `GET /v1/company-verifications/{verification_id}`. Mock 시나리오 + `get_current_user` + `user_id` 격리. 완료: #119·#123.
 - [x] **[CV-03] BuyerSearch 기본검증 카드** — BuyerSearch 상세 「기업 검증」이 `POST /v1/company-verifications` 후 소유자 `GET /v1/company-verifications/{id}` 결과를 표시. `registry_check_status` 5종 한글 라벨, 로딩·검증 실패·로그인 필요를 분리. `result_json.mock`이면 샘플 검증 데이터로 표시(실시간 등기 결과로 단정하지 않음). D-U-N-S·K-SURE는 공식 외부 링크만. OpenCorporates 실연동은 이후 단계. `fitScore`·`creditStatus`·`core.buyers.verification_status`와 혼합하지 않음.
-- [ ] **[CV-04] 기본검증 테스트·회귀검증** — API/Postgres E2E는 있음. 로그인→바이어검색→상세→기본검증 화면 E2E는 MG-003 이후 MG-004.
+- [x] **[CV-04] 기본검증 테스트·회귀검증** — 2026-09-30 프로덕션 재검증 PASS. Vercel production `a2ed05e` (`dpl_EMt9WtotTCkCEnAmntFV2wQLTF8v`). Render `marketgate.onrender.com`은 git SHA를 노출하지 않으나 #166 이후 동작(POST 200, 소유자 GET 200, 없는 id GET 404, `result_json.mock=true`). 백엔드는 `b2e22e4`와 `a2ed05e`가 동일. Playwright `company-verification.spec.js` 2 passed, `mg004-prod-verification.spec.js` 1 passed (`E2E_WRITE_ENABLED=true`, 일회용 `e2e-*@example.com`). 화면: 한글 상태 `기본 확인 완료`, 샘플 검증 안내, D-U-N-S·K-SURE 공식 링크.
 - [x] **[CV-05] K-SURE·D&B PRD 정정** — 검증되지 않은 API·등급 자동조회 가정 제거, MVP는 공식 외부 링크로 한정. 완료: #117.
 
 ### 🧭 A-MVP — Landing 진입 경로
