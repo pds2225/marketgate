@@ -98,7 +98,7 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 [x] MG-014 | Vercel Node 20 지원 종료에 대응해 Node 24로 빌드·검증하고 PR을 연다
 [x] MG-015 | 바이어 검색 결과를 유지하며 CPU 반복 연산과 요청 시간을 줄이고 성능 PR을 연다
 [x] T-20260814-01 | 코드 머지 전에 제품 테스트가 통과해야 한다
-[ ] TASK-001 | 바이어 검색 결과에서 실제 원천데이터와 출처를 확인할 수 있게 한다
+[~] TASK-001 | 바이어 검색 결과에서 실제 원천데이터와 출처를 확인할 수 있게 한다
 
 
 ---
@@ -1501,6 +1501,13 @@ DEPENDS_ON: 사용자가 넣을 P2 CSV.
 ### DONE
 
 - REQUEST_SOLVED=YES: 사용자가 화면에서 실제 바이어 결과의 원천데이터를 직접 확인하고 최소 1건을 원본 레코드와 대조할 수 있다
+
+### 상태 (2026-10-06 검증)
+
+- API `/v1/predict` → `buyers.items`에 `source_dataset` / `source_file` / `source_row_no` 전달 확인.
+- `buyer_candidate.csv` 1건 대조: Beauti Control Csmtcs Inc. · ITC_TradeMap_ImportingCompanies · Trade_Map_USA_HS3304_20260506.csv · row 1 일치.
+- BuyerSearch 상세 UI에 데이터 출처·원본 파일·원본 행 번호·원천 추적 상태 표시 코드 존재. 미확인 시 `원천 확인 불가`.
+- 남은 것: 사용자가 실제 화면에서 1건 확인. REQUEST_SOLVED=YES 확정 전.
 
 ---
 
