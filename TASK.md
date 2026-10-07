@@ -1,7 +1,74 @@
 # marketgate
 
-> 이 파일은 이 GitHub 레포의 유일한 AI 작업지시 기준이다.
+> 이 파일은 이 GitHub 레포의 유일한 개발 작업 SSOT다. 공식 기준은 `origin/main:TASK.md`다.
+> Dashboard·RESUME·HANDOFF·실행로그·외부 미러는 파생정보이며 TASK 상태·우선순위를 덮어쓸 수 없다.
 > Google Tasks와는 완전히 별개이며 Google Tasks의 항목을 조회·복사·동기화하지 않는다.
+
+
+# GLOBAL DEFAULT GUARDRAILS — 모든 TASK 기본 안전장치
+
+> 아래 규칙은 이 저장소의 **모든 현재/미래 TASK와 실행 프롬프트에 자동 적용**한다.
+> 새 TASK마다 같은 문구를 반복 복사할 필요는 없다.
+> TASK별로 더 강한 안전조건을 추가할 수는 있지만, 사용자의 명시적 승인 없이 아래 기본값을 약화하지 않는다.
+
+## 자율수행 / 사용자 개입 최소화
+- 조사 → 분석 → 구현 → 테스트 → 회귀검증 → 문서화 → commit → push → PR → Checks 확인 → 허용된 자동병합까지 안전하게 가능한 범위는 AI가 연속 수행한다.
+- 중간 진행상황 확인만을 이유로 사용자를 호출하지 않는다.
+- 코드·테스트·데이터·기존 아키텍처 근거로 안전하게 결정 가능한 선택은 AI가 스스로 결정한다.
+- 사용자 판단/입력이 정말 필요한 항목만 `HUMAN_BATCH`에 누적해 가능한 한 한 번에 요청한다.
+- 개발자가 스스로 해결할 수 있는 Git 상태, 테스트 실패, 일반 오류는 HUMAN_BATCH에 넣지 않는다.
+
+## 즉시 사용자 승인이 필요한 예외
+- 데이터 손실 위험, Secret/보안/개인정보 문제, 실제 비용 발생, 되돌리기 어려운 운영 변경, 제품/사업정책 변경, 법적·계약상 승인 필요 작업.
+
+## 중단/재개 안전성
+- 장시간·다단계 TASK는 단계별 CHECKPOINT를 남긴다.
+- CHECKPOINT에는 최소 TASK_ID, 기준 base/code SHA, 완료 단계, 다음 단계, 핵심 산출물 위치를 재구성할 수 있는 정보가 있어야 한다.
+- 세션 만료, 컨텍스트 손실, PC 종료 후에도 최신 remote 상태와 TASK.md만 읽고 재개 가능해야 한다.
+- 가능한 경우 의미 있는 단계 완료마다 이번 TASK 관련 파일만 commit/push한다.
+
+## 재실행 / 중복 방지
+- 반복 실행 가능성이 있는 작업은 가능한 한 idempotent하게 구현한다.
+- 동일 입력 재실행 시 데이터 중복 추가, 지표 이중계산, 규칙 중복적용, 동일 파일 중복생성이 발생하지 않게 한다.
+- 필요한 경우 input snapshot/fingerprint, code/config SHA, run_id를 기록한다.
+- 이미 완료·검증된 단계는 재사용한다.
+
+## 무한루프 / 과도한 자동개발 방지
+- retry/agent loop/자동개선은 반드시 종료조건을 둔다.
+- 동일 실패를 근거 없이 무한 반복하지 않는다.
+- 한 후보/실험 실패 때문에 이미 검증된 전체 checkpoint를 되돌리지 않는다.
+
+## Git / 사용자 데이터 보존
+- 사용자 변경 삭제 금지.
+- `git reset --hard`, force push, `git clean -fd`, 무단 stash/drop 금지.
+- `git add -A` 금지. 이번 TASK에 필요한 파일만 stage한다.
+- 위험한 main 직접수정보다 작업 브랜치 + PR을 기본으로 한다.
+- 원격 main 변경 시 안전하게 통합 후 필요한 검증을 다시 한다.
+- 기존 사용자 데이터·정답 데이터·운영 설정은 근거 없이 덮어쓰거나 삭제하지 않는다.
+
+## Secret / 외부효과 / 비용
+- Secret, 토큰, 비밀번호, 개인정보를 출력·커밋하지 않는다.
+- 실제 이메일 발송, 삭제, 결제, 유료 API, production 데이터 변경 등 외부효과는 명시적 허용이 없으면 dry-run/preview/staging을 우선한다.
+- 비용 발생 또는 되돌리기 어려운 외부 작업은 사용자 승인 전에 실행하지 않는다.
+
+## 검증 / DONE 기준
+- 코드 작성, 테스트 PASS, build PASS, PR 생성만으로 DONE 처리하지 않는다.
+- 사용자 요청이 실제로 해결됐는지 USER_E2E 또는 그에 준하는 실제 경로로 확인한다.
+- 정상경로, 주요 경계값, 오류상태, 관련 회귀를 검증한다.
+- 데이터/평가/모델 성능 TASK는 가능한 범위에서 tuning 데이터와 최종 평가 데이터를 분리한다.
+- 수치 개선은 동일 기준 데이터/동일 조건에서 변경 전후를 비교한다.
+- 실패·목표 미달 수치를 숨기지 않는다.
+
+## 부분 장애
+- CI 실패, 외부 사이트 일시 오류, 일부 데이터 미접근 등 부분 장애가 생겨도 안전하게 가능한 독립 작업은 계속한다.
+- 이미 검증된 산출물과 checkpoint를 보존한다.
+- 정말 사용자 입력이 필요한 항목만 `HUMAN_BATCH` 또는 `BLOCKED_INPUT`으로 분리한다.
+
+## 새 TASK 생성 규칙
+- 모든 새 TASK/실행 프롬프트는 이 전역 안전장치를 자동 상속한다.
+- TASK 특성상 필요한 추가 안전장치(checkpoint/resume, idempotency, bounded retry, rollback, HUMAN_BATCH, dry-run, reproducibility)를 필요한 만큼만 보강한다.
+- 단순 문서 수정처럼 의미 없는 안전장치는 억지 구현하지 않고 N/A로 판단한다.
+- 전역 안전장치를 약화하거나 예외 처리하려면 사용자의 명시적 요청과 이유를 TASK에 남긴다.
 
 ---
 
@@ -18,13 +85,20 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 [x] MG-001 | 해외기업 기본검증 상태값을 맞추고 다른 사용자 결과가 보이지 않게 한다
 [x] MG-002 | 바이어가 60개까지만 보이는 원인을 찾아 고친다
 [x] MG-003 | 기업검증 화면을 실제 조회 결과와 연결한다
-[x] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
+[!] MG-004 | 로그인부터 기업검증까지 실제 사용 흐름으로 확인한다
 [x] MG-005 | 랜딩에서 입력한 HS로 구매신호를 바로 보게 한다
 [x] MG-006 | 연락처가 실제 수신자 소유인지 확인하는 절차를 만든다
 [!] MG-007 | 인콰이어리를 고객이 제출한 뒤 실제 발송까지 이어지게 한다
 [!] MG-008 | P2 바이어 소스를 CSV로 넣어 실제 검색에 쓰이게 한다
+[ ] MG-009 | K-뷰티 1품목 기준으로 실제 E2E PoC를 완성한다
+[ ] MG-010 | 수출마진계산기를 실제 견적 판단에 쓸 수 있게 한다
+[ ] MG-011 | 크레딧 과금을 외부 유료사용 검증 후 켤 수 있게 한다
+[ ] MG-012 | Buyer Contact와 Deal Tracking을 실제 영업 흐름으로 연결한다
+[x] MG-013 | TASK.md를 단일 작업 SSOT로 고정하고 Codex·Claude 시작 순서를 통일한다
+[x] MG-014 | Vercel Node 20 지원 종료에 대응해 Node 24로 빌드·검증하고 PR을 연다
+[x] MG-015 | 바이어 검색 결과를 유지하며 CPU 반복 연산과 요청 시간을 줄이고 성능 PR을 연다
 [x] T-20260814-01 | 코드 머지 전에 제품 테스트가 통과해야 한다
-[ ] TASK-001 | 바이어 검색 결과에서 실제 원천데이터와 출처를 확인할 수 있게 한다
+[x] TASK-001 | 바이어 검색 결과에서 실제 원천데이터와 출처를 확인할 수 있게 한다
 
 
 ---
@@ -39,7 +113,8 @@ REMOTE: https://github.com/pds2225/marketgate
 
 실행 기준은 이 파일 하나뿐이다.
 
-- `TASK.md`만 작업지시 파일로 사용한다.
+- `origin/main:TASK.md`만 작업지시·상태·우선순위의 공식 SSOT로 사용한다. 작업 브랜치의 TASK 변경은 main 머지 후 공식화된다.
+- 세션/자동개발 시작 시 `git fetch origin --prune` 후 `origin/main:TASK.md`를 먼저 읽는다.
 - `NEXT_TASK.md`는 없다. 실행 기준은 TASK.md만.
 - 별도의 CURRENT_TASK.md / NEW_TASK.md / NEXT_TASK.md를 만들지 않는다.
 - 다른 레포 TASK, Google Tasks, 과거 채팅 내용을 임의 실행하지 않는다.
@@ -69,7 +144,7 @@ Google Tasks는 이 개발 TASK 시스템과 무관하다.
 
 작업 시작 전 반드시:
 
-1. `git fetch --all --prune`
+1. `git fetch origin --prune`
 2. `git remote get-url origin` — 이 파일 `# 1. REPOSITORY`의 REPO와 일치하는지 확인
 3. `git branch --show-current`
 4. `git status --short`
@@ -267,6 +342,130 @@ TASK-A
 ---
 
 # 8. TASK DETAILS
+
+## MG-015
+
+### 사용자 요청 / MUST
+- `POST /v1/predict` 성능 개선: 모든 PredictRequest 필드 기반 in-process LRU+TTL 캐시, 반환 deep copy, 요청별 request_id/timestamp 재생성.
+- 공급자 키워드 1회 계산, 바이어 키워드 최초 사용 캐시, regex compile 및 차단/약한 키워드 alternation; 국가 데이터 로드 1회 정규화 및 인덱스; 불필요한 DataFrame copy 제거.
+- 국가 순위·바이어·점수·정렬·응답 필드를 완전히 유지한다. 부동소수 계산 순서도 보존한다.
+- origin/main 원본 대표 HS 330499/854140/210690/620343 JSON 골든 생성, 수정 후 miss/hit 완전 비교 pytest, 양쪽 백엔드 및 프론트 전체 테스트, 로컬 전후 시간 측정.
+- 커밋 후 `git push -u origin perf/buyer-search`, `gh pr create --base main`으로 한국어 제목의 일반 PR 생성.
+
+### KEEP / FORBIDDEN
+- 파일 변경은 `D:\mg-perf`에 한정. 다른 worktree 및 stash, PR #168 보존.
+- merge/force push/main push/운영 Render·Vercel 쓰기 요청/secret 출력 금지.
+- 새 라이브러리·API 응답 구조·원본 CSV·환경파일·workflow 변경 금지.
+
+### CHECKPOINT / VERIFY
+- TASK_START_SHA: `09ae2f7c49da503c9be221e85f885434affb42df`; WORK_BRANCH: `perf/buyer-search`; base: `main`.
+- 최초 시작 상태: 작업 트리 clean, HEAD=origin/main. 중단 재개 시 기존 MG-015 변경을 보존·검토하고 이어서 검증했다. HEAD=origin/main=`09ae2f7`; 열린 PR에 동일 성능 작업 없음.
+- 지정 소스와 예측 endpoint 및 직접 관련 테스트만 확인. 기존 TASK의 다른 과업은 실행하지 않는다.
+- 구현: 모델 전체+user_id+날짜 키의 LRU 128건/TTL 300초, 저장/적중 deep copy, 동일 키 single-flight, 데이터 로드 실패는 캐시 제외. request_id/timestamp는 매 호출 생성한다.
+- 키워드: 고정 regex 및 차단/약한 substring alternation, 내용 키의 immutable frozenset LRU(65,536건), 공급자 terms는 국가별 batch 1회 계산.
+- 국가 데이터: 로드 시 HS/year/ISO 그룹 인덱스, 필요한 WB/거리 평균은 첫 참조 시 1회 계산. 원래 행 순서의 pandas Series.sum/mean 및 KOTRA Python sum을 유지하며 DataFrame을 변형하지 않는다.
+- 후보 추출: 내부에서 캐시 frame을 읽고 country row 위치를 재사용해 전체 frame copy를 제거. 외부 public loader의 방어 copy는 유지한다.
+- 원본 `09ae2f7`에서 HS 330499/854140/210690/620343 및 필터 변형 1건의 전체 JSON을 먼저 캡처했다. 재개 후 Git 객체의 원본 4개 모듈을 불러와 기존 골든을 다시 비교했고, 수정본 miss/hit 10개 응답도 exact equality PASS(request_id/timestamp만 제외).
+- 골든은 기준일 `2026-10-03` 고정 및 dataset SHA256 manifest 포함. ignored 빈 opportunity CSV(94 bytes)는 fixture로 보존해 깨끗한 체크아웃에서도 테스트를 재현할 수 있게 했다. 기존 응답 골든 5개 SHA256은 보존했다.
+- 추가 검증: cache TTL/LRU/deepcopy/사용자 분리/동시 요청/인증 401, 키워드 원본 알고리즘 동등성/공급자 1회 계산, float 합산·평균·NaN·HS4 우선·프레임 비변형 PASS. 수정 코드의 `--capture` 거부와 원본 골든 SHA 보존도 직접 확인했다.
+- 재개 후 원본 전체 suite: API 276 passed/1 skipped(113.27s), 전처리 102 passed(9.13s). 수정 후 전체 suite: API 299 passed/1 skipped(23.02s), 전처리 161 passed(7.18s). 프론트 단위 32 passed, `npm run build` PASS(11.55s). 프론트 소스·테스트는 원본과 동일하다.
+- PostgreSQL E2E 1건은 DATABASE_URL 미제공으로 원본/수정본 모두 skipped. 이 항목은 PASS가 아니다.
+- 중단 전 frontend 전체 E2E 최초 실행(localhost/127.0.0.1 혼용)은 원본·수정본 모두 6 passed/1 failed(ERR_BLOCKED_BY_CLIENT, 회원가입 허용 origin 불일치). 코드 수정 없이 주소를 localhost로 통일해 재개 후 원본 7 passed(2.6m), 수정본 7 passed(36.0s). skip 없이 전체 실행했다.
+- 실제 localhost 로그인→바이어 검색→결과 표시, 회원가입→분석→인콰이어리→재로그인→계정 정리 경로 PASS. 외부 기업검증 provider 및 결제 recovery 테스트는 기존 mock 경로이며 운영 검증·실제 결제/발송 PASS를 뜻하지 않는다.
+- `npm run lint` FAIL: 기존 ComparePage.jsx:7, demo.jsx:6의 react-refresh 오류 2개. 프론트가 원본과 동일하므로 이번 변경으로 생긴 실패가 아니다. 범위 밖 프론트 코드를 수정하지 않았다.
+- 로컬 환경: Windows, Python 3.14.7/pandas 2.3.3/FastAPI 0.136.3, Node v26.3.0/npm 11.16.0. Node 24 운영/CI 실행은 별도 확인 대상이다.
+- 측정은 별도 새 Python 프로세스, 동일 CSV 및 요청, data warm 이후 TestClient POST 전체 JSON 응답 시간이다. 인증만 로컬 override, 국가/바이어는 실제 데이터·실제 코드다. 데이터 load는 별도 측정했다.
+
+| 로컬 측정 | 원본 | 수정 후 |
+|---|---:|---:|
+| 데이터 로드/초기 인덱스 | 2.15582초 | 4.01777초 |
+| HS 330499 첫 요청(결과 캐시 miss) | 23.55100초 | 7.27471초 |
+| HS 330499 반복 요청(수정 후 cache hit) | 20.95455초 | 0.01106초 |
+| HS 854140 첫 요청 | 0.67565초 | 0.01078초 |
+
+- HS 330499 첫 요청 69.11% 감소. 초기 데이터 로드 증가도 공개한다(로드+첫 요청: 원본 25.70681초, 수정 11.29247초). 중단 전 측정(19.5574→4.8922초, hit 0.01254초)과 분리해 이번 재개 후 실제 측정값을 표에 기록했다. 운영 47~55초에 대한 배포 후 실측은 미실행이다.
+- 재현 도구: `tools/mg015_predict_benchmark.py`(`--baseline`은 Git 원본, 미지정은 수정본), `tools/mg015_run_tests.py`(원본/수정본 전체 backend suite, 외부 소켓 차단), `tools/mg015_local_api.py`(로컬 격리 store 및 외부 연결 차단). 임시 로그/계정/토큰은 tools/.mg015 내부 ignored로 두며 커밋하지 않는다.
+- 실행 명령(위치 D:\mg-perf): `python tools/mg015_predict_benchmark.py --baseline --output tools/.mg015/resume-before.json`; `python tools/mg015_predict_benchmark.py --output tools/.mg015/resume-after.json`; `python tools/mg015_run_tests.py api --baseline`; `python tools/mg015_run_tests.py preprocess --baseline`; 원본 플래그 없이 양쪽 suite 재실행.
+- frontend 실행(위치 apps/frontend-react): `npm run test:unit`; `npm run build`; `npm run lint`; `npm run test:e2e -- --reporter=list`(원본/수정본). E2E_BASE_URL=http://localhost:5173, E2E_API_BASE_URL=http://localhost:8000, E2E_WRITE_ENABLED=true. 격리 server의 임시 admin token은 읽어 환경에만 전달하고 출력하지 않았다.
+- 소스 AST/secret-pattern scan 18개 파일 0 findings, `git diff --check` PASS. read-only PR safety 검토에서 확정 blocker 없음. 다른 worktree의 작업 파일·stash·PR #168 수정 명령은 실행하지 않았다.
+- 구현 commit: `84259a2` (`perf/buyer-search`), `git push -u origin perf/buyer-search` 성공.
+- 일반 PR: [#170](https://github.com/pds2225/marketgate/pull/170), base=`main`, head=`perf/buyer-search`, draft 아님. `gh pr create --base main` 실행 완료. 병합·force push·main push·PR #168 수정 없음.
+- 다음: 리뷰 후 정책에 따른 운영 반영과 배포 후 실측은 별도 작업이다. 이번 세션의 격리 로컬 API/React server는 테스트 종료 후 중지했다.
+
+### 상태
+REQUEST_SOLVED=YES — 기존 변경을 이어서 구현·로컬 동일성/전체 회귀/E2E 검증·전후 측정·commit/push·일반 PR 생성 완료. 운영 병합·배포·운영 실측은 요청 범위 밖이며 미실행이다. 원본/수정본 PostgreSQL skipped 1건 및 기존 frontend lint FAIL 2건은 위에 별도 기록했다.
+
+---
+
+## MG-014
+
+### 사용자 원문 요청
+목표: pds2225/marketgate의 Vercel 빌드가 Node 20 지원 중단으로 실패하는 문제를 Node 24로 올려 해결하고 PR을 연다.
+
+### 목표 / MUST
+- PR #168 (`8181f9e`) 미리보기 `dpl_DqdidHNEoiPtA1Zo8izMQcQjNBVE`의 `BUILD_UTILS_NODE_VERSION_DISCONTINUED (ignoreStep)` 원인에 대응한다.
+- 지정한 Node 설정만 조사하고 Vercel 프론트엔드와 관련 CI를 `24.x`로 맞춘다.
+- Node 24에서 `apps/frontend-react`의 `npm ci`, `npm run build`, 기존 단위 테스트를 실제 실행한다.
+- 요청한 커밋 메시지로 commit/push 후 base `main` PR을 연다. 원인·수정 파일·실행 명령·결과를 PR에 기록한다.
+- push 확인 뒤 `git worktree remove D:\mg-node24`로 이번 작업 공간만 정리한다.
+
+### KEEP / REMOVE / FORBIDDEN
+- `D:\marketgate`의 미커밋·미추적 파일, 기존 worktree·stash를 보존한다. 수정은 `D:\mg-node24`에서만 수행한다.
+- 제품 코드·API·동작·의존성 버전은 유지한다. lockfile은 루트 engines 메타데이터만 맞춘다.
+- merge, force push, stash/reset/덮어쓰기, PR #168 및 `cursor/cv04-prod-status-da47` 수정 금지.
+- production 쓰기 E2E 금지. Vercel 확인은 PR preview 상태와 build 로그의 읽기 전용 확인으로 한정한다.
+- root `RESUME.md`는 사용자 보호 미추적 파일이므로 자동 체크포인트 대신 이 TASK에 진행 상태를 기록한다.
+
+### CHECKPOINT / VERIFY
+- TASK_START_SHA: `a2ed05ef4c276dce0fe6afb6309ae02800245f6b`
+- TASK_BLOB_SHA: `8e5ee56ddcf042cb633b9600c513c2c3735aa735`
+- WORK_BRANCH: `fix/vercel-node24`; WORKTREE: `D:\mg-node24`
+- 최초 시스템 Node: `v26.3.0`; 작업 공간의 공식 portable `v24.21.0` / npm `11.19.0`에서 검증했다. 공식 SHA256 대조 PASS.
+- 수정 대상: frontend package.json / package-lock.json, `.github/workflows/deployed-e2e.yml`, 이 TASK 등록.
+- 검증 PASS: `npm ci`, `npm run build`, `npm run test:unit`(32/32), 전체 `tests/*.test.mjs`(32/32), `git diff --check`.
+- 로컬 React `http://localhost:5173/`: 읽기 전용 Playwright 랜딩 smoke PASS(1440/390px), HTTP 200, 수평 잘림·미처리 JS 오류 없음. 쓰기 요청 0건.
+- 기존 lock 의존성 유지. 설치 audit 15건(2 low/4 moderate/8 high/1 critical), Browserslist 데이터 경고는 별도 후속.
+- 설정 commit: `81e12e77b964dd15aa4ea9875f60320b377bbb07`; origin branch SHA 일치 확인. PR: https://github.com/pds2225/marketgate/pull/169 (base main, OPEN, auto-merge 없음).
+- 실제 Vercel preview: `dpl_DJuE8JuqE9DdhtNRJCrycv5Yju8r`, `fix/vercel-node24` / `81e12e7`, `READY`. 보호 preview GET은 HTTP 200 / MarketGate title / 배포 assets 확인.
+- GitHub: Vercel SUCCESS, docs-gate SUCCESS, W-020 SUCCESS. 자동 Preview deployed E2E는 후속 확인 대상이며 Set up Node 24·npm ci 단계 SUCCESS. production job 2개는 SKIPPED.
+- Vercel CLI `vercel inspect <preview-url> --logs --scope ekth3691-8902s-projects` PASS: Node version `20.x` → `24.x`로 cache 생략, Vite build PASS, `Build Completed` / `Deployment completed` / `Ready` 로그 직접 확인.
+- 마무리: 이 검증 기록을 push하고 원격 SHA를 재확인한 뒤 이번 worktree만 `git worktree remove D:\mg-node24`로 정리한다. 기존 worktree·stash·원본 파일은 그대로 보존한다.
+
+### DONE
+REQUEST_SOLVED=YES — Node 24 로컬 검증과 PR 생성, 실제 Vercel preview READY 확인 완료. production 반영 및 main 병합은 사용자가 금지한 별도 후속이다.
+
+---
+
+## MG-013
+
+### 8-1. 사용자 원문 요청
+v_up walk mail marketgate도 TASK.md 단일 SSOT로 통일해
+
+### 8-2. 비개발자용 1줄 요약
+MarketGate의 개발 할 일·상태·우선순위를 `origin/main:TASK.md` 하나에서만 관리한다.
+
+### 8-3. 사용자가 원하는 최종 결과
+Codex·Claude·기타 에이전트가 시작할 때 같은 TASK 원장을 먼저 읽고, 다른 문서나 로그를 독립 작업 원본으로 사용하지 않는다.
+
+### 8-5. MUST — 반드시 구현
+- 공식 SSOT = `origin/main:TASK.md`
+- 시작 순서 = `git fetch origin --prune` → TASK.md 확인
+- 작업 브랜치 TASK 변경은 main 머지 후 공식화
+- AGENTS.md와 CLAUDE.md가 동일한 TASK-first 규칙 사용
+
+### 8-8. FORBIDDEN — 금지
+- Dashboard/RESUME/HANDOFF/로그/외부 미러에서 독립 TASK 생성
+- 파생정보가 TASK 상태·우선순위를 덮어씀
+- 별도 CURRENT_TASK.md / NEW_TASK.md / NEXT_TASK.md 생성
+- `git fetch --all`의 보조 remote 오류로 전체 시작 차단
+
+### 8-15. VERIFY
+- TASK.md / AGENTS.md / CLAUDE.md의 SSOT 및 시작 순서 일치
+- BASE=main, 공식 기준=`origin/main:TASK.md`
+
+### 8-16. DONE
+REQUEST_SOLVED=YES
+
 
 <!--
 TASK LIST 한 줄 요약과 아래 상세 TASK는 TASK_ID로 연결한다.
@@ -494,6 +693,7 @@ DEPENDS_ON:
 - 원인: 공개 데모 `/v1/demo/snapshot|buyers`의 `_DEFAULT_BUYER_LIMIT=60` (MAX는 이미 200). BuyerSearch `/v1/predict` top_n(≤10)과는 무관.
 - #118에서 demo default를 200으로 올림. 본 작업에서 원인 기록 + regression 테스트로 demo/search 계약 분리 고정.
 - REQUEST_SOLVED=YES
+- 잔여 브랜치 `night/buyer-60-limit` (`2292305`)는 #118 squash (`f6d2b11`)와 동일 수정. main이 provenance 주석까지 더 진행되어 재머지 시 `demo_snapshot.py` 주석만 충돌하고 limit 값 차이는 없음. 2026-09-22 재머지 없이 브랜치 삭제.
 
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
@@ -543,7 +743,7 @@ MG-001과 파일군이 겹치지 않으면 병렬 가능.
 - buyer limit 상수/쿼리/프론트 호출 계약
 - 관련 regression test
 
-검수 대상 브랜치: `night/buyer-60-limit` (`2292305`)
+검수 대상 브랜치: 종료. `night/buyer-60-limit` (`2292305`)는 #118로 main에 반영된 뒤 삭제. 재머지 금지.
 
 기존 구조를 최대한 유지하고 최소 변경한다.
 
@@ -800,6 +1000,8 @@ CV-05 → BUYER-60 → CV-02 → CV-03
     - KEEP: 위 로그인·검색·상세가 같은 세션에서 그대로 통과해 기존 흐름 회귀 없음 확인
   - **REQUEST_SOLVED=YES.** `marketgate-e2e.onrender.com`(AC-7, SHOULD)은 확인 결과 아직 이 fix가 안 올라가 있음 — 같은 `mg004-prod-verification.spec.js`를 PR #149 Preview CI가 e2e 서비스에 대고 자동 실행해 503으로 재현(`marketgate.onrender.com`과 별개 Render 서비스라 재배포 타이밍이 다름). Preview deployed E2E는 `docs-gate`·`W-020`처럼 필수 체크가 아니라 병합은 진행하되, `marketgate-e2e` 재배포는 별도 후속으로 남김.
 
+- **2026-09-27 회귀:** 운영 `POST /v1/company-verifications`는 회사명과 무관하게 500 `Internal Server Error`이고, 없는 ID의 GET도 500이다. 파일 폴백이면 없는 ID는 404이므로 운영은 DB 조회/쓰기 예외를 삼키지 못하는 코드가 돌고 있다. 격리 `marketgate-e2e.onrender.com`은 503 `verification_store_unavailable`. 인콰이어리 초안 생성은 운영에서 200이라 저장 실패는 기업검증에 한정된다. 로컬 `http://127.0.0.1:5173` + `http://127.0.0.1:8000` MG-004 Playwright는 mock 없이 통과하고 최종 화면은 `기본 확인 완료`. 수정은 PR #166 (`cursor/e2e-company-verification-f9f1`)에 있으며, DB·파일 쓰기 실패 시에도 소유자 GET이 되도록 폴백한다. Render 대시보드가 로그인 벽이라 이 환경에서는 `marketgate`와 `marketgate-e2e`에 배포하지 못했다. 배포 전 운영 REQUEST_SOLVED=NO.
+
 문서의 DONE 표시만 믿지 말고 실제 코드/runtime을 확인한다.
 
 ### 8-5. MUST — 반드시 구현
@@ -1021,6 +1223,154 @@ DEPENDS_ON: 없음. 발송(MG-007)보다 먼저 하는 것이 안전.
 
 ---
 
+## 2026-09-20 TASK REVIEW
+
+검토 결론:
+
+- 현재 MG-007/008은 외부 SMTP·원본 CSV가 필요한 BLOCKED 작업으로 그대로 유지한다.
+- TASK-001의 실제 원천데이터/출처 확인은 신뢰성 기반이므로 선행 우선순위를 높게 유지한다.
+- 현재 제품 로드맵의 K-뷰티 1품목 PoC, 수출마진계산기, 크레딧 과금, Buyer Contact + Deal Tracking이 TASK LIST에 빠져 있어 MG-009~012로 보완한다.
+- 외부 유료 사용은 아직 검증 전이므로 크레딧 과금은 조건부로 둔다.
+- 가짜 buyer/가짜 source/근거 없는 margin 값 생성은 금지한다.
+
+---
+
+## MG-009
+
+### 8-1. 사용자 원문 요청
+
+> 화장품 1품목 PoC로 실제 사용 기준을 검증한다.
+
+### 8-2. 비개발자용 1줄 요약
+
+K-뷰티 1개 품목을 넣어 국가선정부터 바이어 확인까지 실제 한 흐름으로 검증한다.
+
+### 8-3. 최종 결과
+
+- 실제 화장품 1품목 입력
+- 국가/시장 후보 확인
+- 실제 buyer_candidate 기반 바이어 후보 노출
+- 원천데이터/출처 확인
+- 기업/연락처 검증 상태 확인
+- 수출마진 판단에 필요한 기본 입력 연결
+- Deal 후보 생성까지 dry-run
+- 외부 유료 데이터 호출 없이 재현 가능
+
+### 8-5. MUST
+
+- [ ] TASK-001의 실제 source trace와 연결
+- [ ] mock/demo buyer를 실제 데이터처럼 표시하지 않음
+- [ ] 1품목 입력 → 국가 → 바이어 → 검증 → 다음 액션 E2E
+- [ ] buyer 후보와 source_dataset/source_file/source_row_no 추적
+- [ ] 외부 유료 API 없이 가능한 범위부터 검증
+- [ ] 실패/미확인 단계는 REVIEW_REQUIRED로 표시
+
+### 8-8. VERIFY
+
+- [ ] 실제 1품목으로 사용자 E2E 1회
+- [ ] 실제 buyer row 1건 이상 원본 대조
+- [ ] 데이터 없는 단계는 합성하지 않음
+- [ ] 기존 검색/검증 회귀 없음
+
+### 8-9. DONE
+
+REQUEST_SOLVED=NO — 실제 1품목 E2E를 끝까지 재현한 뒤 YES.
+
+---
+
+## MG-010
+
+### 8-1. 사용자 원문 요청
+
+> Wave2 수출마진계산기를 실제 사용 기준으로 만든다.
+
+### 8-2. 비개발자용 1줄 요약
+
+수출 조건을 넣으면 품목별 예상 수익성과 주요 비용을 계산할 수 있게 한다.
+
+### MUST
+
+- [ ] 판매가/매입가/수량/환율/물류/관세·세금/플랫폼·결제/기타비용 입력 구조
+- [ ] 원가·비용·예상매출·예상마진·마진율 계산
+- [ ] 값의 출처/사용자입력/가정 구분
+- [ ] 환율·세율 unknown을 임의 숫자로 확정하지 않음
+- [ ] 시나리오 비교 가능
+- [ ] K-뷰티 1품목 PoC와 연결
+
+### VERIFY
+
+- [ ] 계산식 단위테스트
+- [ ] 0/음수/누락/환율 없음 경계값
+- [ ] 동일 입력 재실행 결과 동일
+- [ ] 실제 1품목 예시 E2E
+
+### DONE
+
+REQUEST_SOLVED=NO — 실제 품목 기준 계산·비교가 재현되면 YES.
+
+---
+
+## MG-011
+
+### 8-1. 사용자 원문 요청
+
+> Wave3 크레딧 과금.
+
+### 8-2. 비개발자용 1줄 요약
+
+외부 유료사용이 검증된 뒤 기능별 크레딧 차감과 사용내역을 안전하게 켠다.
+
+### 현재상태
+
+STATUS=READY_CONDITIONAL
+DEPENDS_ON=외부 유료사용 Go 결정
+
+### MUST
+
+- [ ] 과금 전에 무료/내부 PoC 흐름 유지
+- [ ] 기능별 credit cost 설정 가능
+- [ ] 이중차감 방지/idempotency
+- [ ] 실패 요청은 차감 확정 금지
+- [ ] 사용내역/잔액/환불·보정 audit trail
+- [ ] 실제 결제 연동은 사용자 승인 전 실행 금지
+
+### DONE
+
+REQUEST_SOLVED=NO — 유료사용 Go 이후 별도 승인과 E2E가 있어야 YES.
+
+---
+
+## MG-012
+
+### 8-1. 사용자 원문 요청
+
+> Wave4 Buyer Contact + Deal Tracking.
+
+### 8-2. 비개발자용 1줄 요약
+
+검증된 바이어를 영업대상으로 저장하고 접촉·후속조치·딜 상태를 추적한다.
+
+### MUST
+
+- [ ] buyer_candidate/기업검증 결과에서 deal/contact 시작
+- [ ] 연락처 검증 상태를 함께 표시
+- [ ] contact attempt / response / next_action / deal_stage / notes / updated_at 기록
+- [ ] 동일 buyer 중복 deal 방지
+- [ ] 미확인 연락처 대량발송 금지
+- [ ] MG-007 실제 발송이 BLOCKED여도 수동 접촉/상태관리 dry-run 가능
+
+### VERIFY
+
+- [ ] 실제 buyer 1건 → deal 생성 → 상태변경 → 다음 액션
+- [ ] 동일 buyer 중복생성 방지
+- [ ] 사용자 격리/권한 회귀 없음
+
+### DONE
+
+REQUEST_SOLVED=NO — 실제 buyer 1건의 deal lifecycle을 E2E로 확인한 뒤 YES.
+
+---
+
 ## MG-007
 
 ### 8-1. 사용자 원문 요청
@@ -1039,7 +1389,9 @@ DEPENDS_ON: 없음. 발송(MG-007)보다 먼저 하는 것이 안전.
 ### 8-4. 현재상태
 
 - POST `/v1/inquiries` + `/submit` 이후 고객용 상태/이력 조회와 관리자 dry-run dispatch를 main에 반영했다 (MG-007 merge `91861e25`).
-- 실제 SMTP/provider 발송은 명시적 비운영 dry-run 외에는 fail-closed로 비활성화되어 있으며, 운영 파일럿에는 SMTP와 `ADMIN_EMAILS`가 필요하다.
+- 잔여 브랜치 `codex/mg-007-inquiry-status-rebased` (`6072996`, #143)와 동일 팁 `050a203`인 `codex/mg-007-inquiry-status`, `codex/mg-007-inquiry-status-ready`, `codex/merge/mg-007-inquiry-status`는 inquiry 파일이 main과 같다. 재머지하면 main의 이후 변경이 빠진다. 2026-09-22 재머지 없이 삭제.
+- 실제 SMTP/provider 발송은 명시적 비운영 dry-run 외에는 fail-closed로 비활성화되어 있다. `ADMIN_EMAILS`는 `render.yaml`에 `ekth3691@gmail.com`으로 넣었다. SMTP 비밀번호는 아직 없어 실발송은 그대로 막혀 있다.
+- P2 원본 `tradekorea.csv`, `kita.csv`, `kotra_trade_office.csv`는 git에 없다. `input/p2_optional/`에는 `.csv.example` 헤더만 있다.
 - REQUEST_SOLVED=NO / BLOCKED (운영 발송 자격증명·수신 메일함 미제공).
 
 ### 8-5. MUST
@@ -1076,6 +1428,7 @@ P2 바이어 소스를 CSV로 넣어 실제 검색에 쓰이게 한다
 ### 8-4. 현재상태
 
 - P2 CSV drop-in fail-closed validator와 merge preflight를 main에 반영했다 (MG-008 merge `3909f1b5`).
+- 잔여 브랜치 `codex/merge/mg-008-p2-preflight`와 `codex/mg-008-p2-dropin-preflight` (둘 다 `b2311cd`, #139)는 drop-in 도구가 main과 같다. 재머지하면 main의 이후 변경이 빠진다. 2026-09-22 재머지 없이 삭제.
 - 실제 P2 CSV 원본이 아직 제공되지 않아 검색 데이터 연결은 보류하며, 없는 값을 합성하지 않는다.
 - REQUEST_SOLVED=NO / BLOCKED (사용자가 제공할 라이선스·원본 CSV 필요).
 
@@ -1148,6 +1501,13 @@ DEPENDS_ON: 사용자가 넣을 P2 CSV.
 ### DONE
 
 - REQUEST_SOLVED=YES: 사용자가 화면에서 실제 바이어 결과의 원천데이터를 직접 확인하고 최소 1건을 원본 레코드와 대조할 수 있다
+
+### 상태 (2026-10-06 검증)
+
+- API `/v1/predict` → `buyers.items`에 `source_dataset` / `source_file` / `source_row_no` 전달 확인.
+- `buyer_candidate.csv` 1건 대조: Beauti Control Csmtcs Inc. · ITC_TradeMap_ImportingCompanies · Trade_Map_USA_HS3304_20260506.csv · row 1 일치.
+- BuyerSearch 상세 UI에 데이터 출처·원본 파일·원본 행 번호·원천 추적 상태 표시 코드 존재. 미확인 시 `원천 확인 불가`.
+- 사용자 화면 확인 완료(2026-10-06). REQUEST_SOLVED=YES.
 
 ---
 

@@ -23,7 +23,7 @@ const STATUS_LABELS = {
   CREDIT_CHECK_REQUIRED: '신용조사 필요',
 }
 
-async function installCv04Mocks(page) {
+async function installCv04Mocks(page, { verifyStatus = 200 } = {}) {
   const store = new Map()
   const calls = { login: 0, predict: 0, postVerify: 0, getVerify: 0 }
 
@@ -86,6 +86,9 @@ async function installCv04Mocks(page) {
     }
     if (method === 'POST' && path.endsWith('/v1/company-verifications')) {
       calls.postVerify += 1
+      if (verifyStatus !== 200) {
+        return json(verifyStatus, { detail: 'Not authenticated' })
+      }
       const body = req.postDataJSON() || {}
       if (!body.company_name || !/^[A-Z]{3}$/.test(String(body.country_iso3 || ''))) {
         return json(422, { detail: 'country_iso3 required' })
@@ -151,6 +154,10 @@ test.describe('CV-04 company verification journey', () => {
 
     await page.locator('[data-slot="button"]').filter({ hasText: /^기업 검증$/ }).click()
     await expect(page.getByText(STATUS_LABELS.BASIC_PARTIAL)).toBeVisible()
+    await expect(page.getByTestId('company-verification-sample-note')).toContainText('샘플 검증 데이터')
+    await expect(page.getByTestId('company-verification-sample-note')).toContainText(
+      '실시간 법인 등기 조회 결과가 아닙니다'
+    )
     expect(calls.postVerify).toBe(1)
     expect(calls.getVerify).toBe(1)
 
@@ -168,6 +175,42 @@ test.describe('CV-04 company verification journey', () => {
     )
     await expect(page.locator('a[href*="ksure.go.kr"]')).toHaveCount(0)
     expect(BASIC_STATUSES.has('BASIC_PARTIAL')).toBeTruthy()
+
+    const card = page.getByTestId('company-verification-sample-note').locator('xpath=ancestor::div[contains(@class,"rounded-xl")][1]')
+    await page.getByRole('link', { name: 'D-U-N-S 조회' }).scrollIntoViewIfNeeded()
+    const badge = page.getByText(STATUS_LABELS.BASIC_PARTIAL)
+    const badgeBox = await badge.boundingBox()
+    const viewport = page.viewportSize()
+    expect(badgeBox, 'status badge has a box').toBeTruthy()
+    expect(badgeBox.y).toBeGreaterThanOrEqual(0)
+    expect(badgeBox.y + badgeBox.height).toBeLessThanOrEqual(viewport.height)
+    await card.screenshot({ path: test.info().outputPath('cv04-verification-card.png') })
     await page.screenshot({ path: test.info().outputPath('cv04-verification-result.png'), fullPage: true })
+  })
+
+  test('@journey 미인증 검증 요청은 검증 실패가 아니라 로그인 필요로 표시된다', async ({ page }) => {
+    await installCv04Mocks(page, { verifyStatus: 403 })
+
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: '바이어 검색' }).first().click()
+    await page.locator('input[type="email"]').fill('cv04@example.com')
+    await page.locator('input[type="password"]').fill('Cv04-pass-2026')
+    await page.getByRole('button', { name: '로그인 →' }).click()
+    await expect(
+      page.getByText('위 검색바에 제품 키워드나 HS코드를 입력해 바이어를 찾아보세요')
+    ).toBeVisible()
+
+    await page.getByPlaceholder(/HS|검색|코드/).first().fill('330499')
+    await page.getByRole('button', { name: '검색', exact: true }).click()
+    await expect(page.getByTestId('buyer-search-loading')).toBeHidden({ timeout: 30_000 })
+    await page.getByText('독일').first().click()
+    await page.getByText('Acme Trading GmbH').first().click()
+    await page.getByRole('button', { name: '기업 검증' }).first().click()
+    await page.locator('[data-slot="button"]').filter({ hasText: /^기업 검증$/ }).click()
+
+    await expect(page.getByTestId('company-verification-unauthenticated')).toBeVisible()
+    await expect(page.getByText('로그인 필요')).toBeVisible()
+    await expect(page.getByTestId('company-verification-error')).toHaveCount(0)
+    await expect(page.getByText('검증 실패')).toHaveCount(0)
   })
 })

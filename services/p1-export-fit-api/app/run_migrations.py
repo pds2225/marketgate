@@ -7,9 +7,18 @@ Skips silently if DATABASE_URL is not set (file fallback mode).
 import os
 import sys
 
-_MIGRATIONS_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "..", "db", "migrations"
-)
+def _migrations_dir() -> str:
+    """Prefer the monorepo SQL. Render rootDir is the service folder, so the
+    repo ``db/migrations`` path is absent there and the bundled copy is used.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_dir = os.path.normpath(os.path.join(here, "..", "..", "..", "db", "migrations"))
+    bundled_dir = os.path.normpath(os.path.join(here, "migrations"))
+    if os.path.isfile(os.path.join(repo_dir, "0006_company_registry_checks.sql")):
+        return repo_dir
+    return bundled_dir
+
+
 _MIGRATION_FILES = (
     "0004_auth_users.sql",
     "0005_payment_credits.sql",
@@ -39,8 +48,9 @@ def run():
 
     conn = psycopg2.connect(dsn)
     try:
+        migrations_dir = _migrations_dir()
         for name in _MIGRATION_FILES:
-            path = os.path.join(_MIGRATIONS_DIR, name)
+            path = os.path.join(migrations_dir, name)
             if not os.path.isfile(path):
                 print(f"[migrate] migration file not found: {path}, skipping")
                 continue

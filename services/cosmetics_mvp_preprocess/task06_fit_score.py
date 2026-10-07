@@ -4,6 +4,7 @@ import argparse
 import re
 import sys
 from datetime import date
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -70,6 +71,12 @@ def _keyword_form_compacts(keyword_forms: Mapping[str, str]) -> set[str]:
 
 BLOCKED_KEYWORD_COMPACTS = _keyword_form_compacts(BLOCKED_NON_COSMETICS_KEYWORD_FORMS)
 WEAK_KEYWORD_COMPACTS = _keyword_form_compacts(WEAK_COSMETICS_KEYWORD_FORMS)
+KEYWORD_SPLIT_RE = re.compile(r"[\s_\-\/,&\(\)\[\]]+")
+KEYWORD_COMPACT_RE = re.compile(r"[^0-9a-z가-힣]+")
+BLOCKED_KEYWORD_RE = re.compile("|".join(re.escape(term) for term in sorted(BLOCKED_KEYWORD_COMPACTS) if term))
+EXCLUDED_KEYWORD_RE = re.compile("|".join(
+    re.escape(term) for term in sorted(BLOCKED_KEYWORD_COMPACTS | WEAK_KEYWORD_COMPACTS) if term
+))
 
 
 def _first_non_empty(record: Mapping[str, Any], keys: Iterable[str]) -> str:
@@ -227,30 +234,41 @@ def _build_gate_bundle(
     return target, buyer_gate, opportunity_gate
 
 
-def _keyword_terms(record: Mapping[str, Any], keys: Iterable[str]) -> set[str]:
+@lru_cache(maxsize=65536)
+def _keyword_terms_cached(values: tuple[str, ...]) -> frozenset[str]:
     tokens: set[str] = set()
-    for key in keys:
-        normalized = normalize_keywords(record.get(key))
+    for value in values:
+        normalized = normalize_keywords(value)
         if not normalized:
-            normalized = normalize_keywords(normalize_text(record.get(key)).replace(" ", " | "))
+            normalized = normalize_keywords(value.replace(" ", " | "))
         for token in normalized.split(" | "):
-            raw_candidates = [token.casefold(), *re.split(r"[\s_\-\/,&\(\)\[\]]+", token.casefold())]
+            folded = token.casefold()
+            raw_candidates = [folded, *KEYWORD_SPLIT_RE.split(folded)]
             for candidate in raw_candidates:
-                compact = re.sub(r"[^0-9a-z가-힣]+", "", candidate)
+                compact = KEYWORD_COMPACT_RE.sub("", candidate)
                 if (
                     len(compact) <= 2
                     or compact in KEYWORD_MATCH_STOPWORDS
-                    or any(blocked and blocked in compact for blocked in BLOCKED_KEYWORD_COMPACTS)
-                    or any(weak and weak in compact for weak in WEAK_KEYWORD_COMPACTS)
+                    or EXCLUDED_KEYWORD_RE.search(compact)
                 ):
                     continue
                 tokens.add(compact)
-    return tokens
+    return frozenset(tokens)
 
 
-def _keyword_overlap(buyer: Mapping[str, Any], target: Mapping[str, Any]) -> list[str]:
+def _keyword_terms(record: Mapping[str, Any], keys: Iterable[str]) -> frozenset[str]:
+    # Content keys remain correct when a caller changes a record. Immutable
+    # cached sets cannot be poisoned by later scoring/caller mutations.
+    return _keyword_terms_cached(tuple(normalize_text(record.get(key)) for key in keys))
+
+
+def _keyword_overlap(
+    buyer: Mapping[str, Any], target: Mapping[str, Any],
+    target_terms: frozenset[str] | None = None,
+) -> list[str]:
     buyer_terms = _keyword_terms(buyer, ("keywords_norm", "normalized_name", "title"))
-    target_terms = _keyword_terms(target, ("keywords_norm", "product_name_norm", "title"))
+    if target_terms is None:
+        target_terms = _keyword_terms(target, ("keywords_norm", "product_name_norm", "title"))
     return sorted(buyer_terms & target_terms)
 
 
@@ -261,10 +279,10 @@ def _keyword_hint_regex(supplier_profile: Mapping[str, Any]) -> re.Pattern[str] 
         token = token.strip()
         if len(token) <= 3:
             continue
-        compact = re.sub(r"[^0-9a-z가-힣]+", "", token.casefold())
+        compact = KEYWORD_COMPACT_RE.sub("", token.casefold())
         if compact in KEYWORD_MATCH_STOPWORDS:
             continue
-        if any(blocked and blocked in compact for blocked in BLOCKED_KEYWORD_COMPACTS):
+        if BLOCKED_KEYWORD_RE.search(compact):
             continue
         tokens.append(re.escape(token))
     if not tokens:
@@ -625,6 +643,8 @@ def fit_score_v0(
     opportunity: Mapping[str, Any] | None = None,
     gate_result: Mapping[str, Any] | None = None,
     reference_date: date | None = None,
+    *,
+    _target_keyword_terms: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     normalized_opportunity = _normalized_opportunity(opportunity, reference_date=reference_date)
     target, buyer_gate, opportunity_gate = _build_gate_bundle(
@@ -635,7 +655,7 @@ def fit_score_v0(
         reference_date=reference_date,
     )
     match_result = match_hs_or_keywords(buyer, target)
-    overlap_terms = _keyword_overlap(buyer, target)
+    overlap_terms = _keyword_overlap(buyer, target, _target_keyword_terms)
     required_capacity = _required_capacity(supplier_profile)
     gate_classification = _classify_gate_reasons(
         buyer=buyer,
@@ -717,12 +737,15 @@ def score_buyers(
     reference_date: date | None = None,
 ) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
+    target = _target_context(supplier_profile, _normalized_opportunity(opportunity, reference_date))
+    target_terms = _keyword_terms(target, ("keywords_norm", "product_name_norm", "title"))
     for buyer in buyers:
         result = fit_score_v0(
             buyer=buyer,
             supplier_profile=supplier_profile,
             opportunity=opportunity,
             reference_date=reference_date,
+            _target_keyword_terms=target_terms,
         )
         enriched = dict(result)
         enriched["buyer"] = dict(buyer)

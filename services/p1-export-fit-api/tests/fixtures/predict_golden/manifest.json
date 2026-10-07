@@ -1,0 +1,17 @@
+{
+  "base_sha": "09ae2f7c49da503c9be221e85f885434affb42df",
+  "data_sha256": {
+    "services/cosmetics_mvp_preprocess/output/buyer_candidate.csv": "ecbe5b5b78fb49407f5502d55a99964a4540f725c3f1ffb001307156b697feda",
+    "services/cosmetics_mvp_preprocess/output/opportunity_item.csv": "7837cdecd93a90056375b1179d5edad3b5b923289f606b02f861ca39ff3b2fac",
+    "services/p1-export-fit-api/csv/kotra_export_recommend_all.csv": "0bcd5089e82c9c7226265669e6afb2708b731720f4c5f88fb5211a1d3db05f7c",
+    "services/p1-export-fit-api/csv/외교부_국가표준코드_20251222.csv": "fe4a7241276955e168aab1dd3d0d890b20e9e67fd6bfa4c978056a950903974e",
+    "services/p1-export-fit-api/csv/trade_data.csv": "a2b82f1130ac7a76743a7771a9770ead10d77488b637deca70d797e843217db1",
+    "services/p1-export-fit-api/csv/WB_WDI_NY_GDP_MKTP_CD_define column.csv": "c8de6f5eff5a958fc975e1f5e7029c748a5f720db86114992eda6974580a0f29",
+    "services/p1-export-fit-api/csv/WB_WDI_NY_GDP_MKTP_KD_ZG_define column.csv": "4391a0b59afb1a7e0d07db5cad2afa5a4854796f1377922ee3a65cd41be2cd32",
+    "services/p1-export-fit-api/csv/country_distance.csv": "6eaa0ccf1a675be0b416d5ed69cb1f5c07e84e6ef80e739feb31cca3d6e188b1"
+  },
+  "reference_date": "2026-10-03",
+  "fixture_overrides": {
+    "services/cosmetics_mvp_preprocess/output/opportunity_item.csv": "opportunity_item.csv"
+  }
+}

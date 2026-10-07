@@ -23,6 +23,8 @@ import {
   mapCompanyVerificationHttpError,
   EXTERNAL_LOOKUP_LINKS,
   COMPANY_VERIFICATION_INTRO,
+  COMPANY_VERIFICATION_SAMPLE_NOTE,
+  COMPANY_VERIFICATION_AUTH_MESSAGE,
   CONTACT_STATUS_LABELS,
   TRADE_STATUS_LABELS,
   CREDIT_STATUS_LABELS,
@@ -591,7 +593,10 @@ interface VerificationResult {
   country: string;
   verified_at: string;
   details?: string;
+  sample?: boolean;
 }
+
+type VerificationFailure = { kind: 'error' | 'auth'; message: string };
 
 const VERIFICATION_STATUS_META: Record<VerificationStatus, { label: string; color: string; bg: string; border: string; icon: React.ReactNode }> = {
   BASIC_CONFIRMED:         { label: '기본 확인 완료',     color: 'text-emerald-700', bg: 'bg-emerald-50',   border: 'border-emerald-200',   icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
@@ -606,18 +611,23 @@ const VERIFY_TIMEOUT_MS = 15_000;
 const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<VerificationResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<VerificationFailure | null>(null);
   const [timedOut, setTimedOut] = useState(false);
 
   const handleVerify = async () => {
     setLoading(true);
     setResult(null);
-    setError(null);
+    setFailure(null);
     setTimedOut(false);
 
     const countryIso3 = resolveBuyerCountryIso3(buyer);
     if (!buyer.name?.trim() || !countryIso3) {
-      setError('기업명 또는 국가 코드(ISO3)가 없어 검증할 수 없습니다.');
+      setFailure({ kind: 'error', message: '기업명 또는 국가 코드(ISO3)가 없어 검증할 수 없습니다.' });
+      setLoading(false);
+      return;
+    }
+    if (!localStorage.getItem('access_token')) {
+      setFailure({ kind: 'auth', message: COMPANY_VERIFICATION_AUTH_MESSAGE });
       setLoading(false);
       return;
     }
@@ -635,7 +645,7 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
       );
       const verificationId = created?.verification_id;
       if (!verificationId) {
-        setError('검증 결과를 확인할 수 없습니다.');
+        setFailure({ kind: 'error', message: '검증 결과를 확인할 수 없습니다.' });
         return;
       }
       const { data } = await api.get(
@@ -647,8 +657,10 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
       const mapped = mapCompanyVerificationHttpError(err);
       if (mapped.kind === 'timeout') {
         setTimedOut(true);
+      } else if (mapped.kind === 'auth') {
+        setFailure({ kind: 'auth', message: mapped.message || COMPANY_VERIFICATION_AUTH_MESSAGE });
       } else {
-        setError(mapped.message);
+        setFailure({ kind: 'error', message: mapped.message || '검증 요청에 실패했습니다.' });
       }
     } finally {
       clearTimeout(timer);
@@ -681,7 +693,7 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
       </div>
 
       {/* Verify button — registry check only; never mutates contact/trade/credit axes */}
-      {!result && !error && !timedOut && (
+      {!result && !failure && !timedOut && (
         <Button
           size="sm"
           className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
@@ -715,13 +727,27 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
         </div>
       )}
 
+      {/* Unauthenticated — not a registry failure */}
+      {failure?.kind === 'auth' && !loading && (
+        <div className="mt-3 flex items-start gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2" data-testid="company-verification-unauthenticated">
+          <Info className="h-4 w-4 text-slate-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-xs font-medium text-slate-700">로그인 필요</p>
+            <p className="text-xs text-slate-600 mt-0.5">{failure.message}</p>
+            <Button variant="outline" size="sm" className="mt-2 h-7 text-xs gap-1" onClick={handleVerify}>
+              <RefreshCw className="h-3 w-3" /> 다시 시도
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Error */}
-      {error && !loading && (
-        <div className="mt-3 flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+      {failure?.kind === 'error' && !loading && (
+        <div className="mt-3 flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2" data-testid="company-verification-error">
           <AlertCircle className="h-4 w-4 text-rose-600 mt-0.5 flex-shrink-0" />
           <div>
             <p className="text-xs font-medium text-rose-700">검증 실패</p>
-            <p className="text-xs text-rose-600 mt-0.5">{error}</p>
+            <p className="text-xs text-rose-600 mt-0.5">{failure.message}</p>
             <Button variant="outline" size="sm" className="mt-2 h-7 text-xs gap-1" onClick={handleVerify}>
               <RefreshCw className="h-3 w-3" /> 다시 시도
             </Button>
@@ -732,6 +758,14 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
       {/* Result — registry_check_status badge only (not creditStatus) */}
       {result && !loading && (
         <div className="mt-4 space-y-3">
+          {result.sample && (
+            <p
+              data-testid="company-verification-sample-note"
+              className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed"
+            >
+              {COMPANY_VERIFICATION_SAMPLE_NOTE}
+            </p>
+          )}
           {statusMeta ? (
             <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold border ${statusMeta.bg} ${statusMeta.color} ${statusMeta.border}`}>
               {statusMeta.icon}
@@ -803,7 +837,7 @@ const CompanyBasicVerificationCard: React.FC<{ buyer: Buyer }> = ({ buyer }) => 
       </div>
 
       {/* Empty state (no buyer data to verify) */}
-      {!buyer.name && !resolveBuyerCountryIso3(buyer) && !loading && !result && !error && (
+      {!buyer.name && !resolveBuyerCountryIso3(buyer) && !loading && !result && !failure && (
         <div className="flex flex-col items-center py-6 text-center">
           <Database className="h-6 w-6 text-slate-300 mb-2" />
           <p className="text-xs text-slate-500">기업 정보가 부족하여 검증할 수 없습니다.</p>

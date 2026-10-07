@@ -11,6 +11,7 @@ from app.services.compliance import filter_blocked_results
 from app.services.demo_snapshot import get_demo_snapshot, get_demo_summary, get_demo_buyers
 from app.services.project_snapshot import build_project_snapshot
 from app.services.scoring import recommend_countries
+from app.services.predict_cache import PredictCache
 from app.services.inquiry_service import build_draft
 from app.services.opportunity_browse import list_opportunities
 from app.services.p2_status import get_p2_dropin_status
@@ -29,6 +30,7 @@ from app.routers import company_verification as company_verification_router
 from app.routers import contact_verification as contact_verification_router
 
 app = FastAPI(title="Export Fit Score API(P1)", version="0.0.1")
+_PREDICT_CACHE = PredictCache()
 app.include_router(auth_router.router)
 app.include_router(simulation_router.router)
 app.include_router(subscription_router.router)
@@ -122,20 +124,30 @@ def health_legacy():
 @app.post("/v1/predict", response_model=PredictResponse)
 def predict(req: PredictRequest, user: dict = Depends(get_current_user)):
     request_id = new_request_id()
-    results, input_echo, diagnostics = recommend_countries(req)
-    results = filter_blocked_results(results)
-    buyers = build_buyer_shortlist(req, results)
+
+    def compute_data():
+        results, input_echo, diagnostics = recommend_countries(req)
+        results = filter_blocked_results(results)
+        buyers = build_buyer_shortlist(req, results)
+        return {"input": input_echo, "results": results, "diagnostics": diagnostics, "buyers": buyers}
+
+    def cacheable(data):
+        from app.services.data_loaders import load_datastore
+        buyers = data["buyers"]
+        # Do not retain transient data-load/shortlist failures for five minutes.
+        return (
+            buyers is not None and buyers.status == "ok"
+            and not buyers.meta.get("missing_output")
+            and not load_datastore().load_errors
+        )
+
+    data = _PREDICT_CACHE.get_or_compute(req, user.get("user_id"), compute_data, cacheable)
 
     return {
         "request_id": request_id,
         "status": "ok",
         "timestamp": now_seoul_iso(),
-        "data": {
-            "input": input_echo,
-            "results": results,
-            "diagnostics": diagnostics,
-            "buyers": buyers,
-        },
+        "data": data,
     }
 
 

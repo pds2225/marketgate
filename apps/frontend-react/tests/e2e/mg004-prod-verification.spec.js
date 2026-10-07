@@ -12,11 +12,10 @@ import process from 'node:process'
  * E2E_API_BASE_URL points at the isolated e2e service, otherwise left (prod
  * has no cleanup route and the account is inert e2e-*@example.com).
  *
- * Observed 2026-09-04: navigation + auth + search + detail all PASS on prod
- * (Render is redeployed, routes present). POST /v1/company-verifications
- * returns 503 "verification_store_unavailable" because company_verification_store
- * is DB-only ("DB-only, no file fallback") and Render prod has no DATABASE_URL.
- * This test stays RED until prod gets a Postgres or CV-02 gains a fallback.
+ * The API request context must outlive a Render free-tier cold start.
+ * Playwright's 20s actionTimeout is shorter than that wake-up, so register
+ * sets its own timeout. Company verification must return 200 with a BASIC_*
+ * label; a 500 means the registry store could not be read back.
  */
 const writeEnabled = process.env.E2E_WRITE_ENABLED === 'true'
 const BASIC_LABELS = [
@@ -46,6 +45,32 @@ test.describe('MG-004 production company verification', () => {
 
     const email = runEmail()
     const password = 'MgE2E-2026-safe-password'
+    const shareJwt = String(process.env.E2E_VERCEL_JWT || '')
+    if (shareJwt) {
+      const origin = new URL(String(process.env.E2E_BASE_URL || ''))
+      await page.context().addCookies([
+        {
+          name: '_vercel_jwt',
+          value: shareJwt,
+          domain: origin.hostname,
+          path: '/',
+          secure: true,
+          httpOnly: true,
+          sameSite: 'Lax',
+        },
+      ])
+    }
+    const oidc = String(process.env.VERCEL_OIDC_TOKEN || '')
+    if (oidc) {
+      const pageOrigin = String(process.env.E2E_BASE_URL || '').replace(/\/+$/, '')
+      await page.route('**/*', async (route) => {
+        const headers = { ...route.request().headers() }
+        if (pageOrigin && route.request().url().startsWith(pageOrigin)) {
+          headers['x-vercel-trusted-oidc-idp-token'] = oidc
+        }
+        await route.continue({ headers })
+      })
+    }
     const verifyResponses = []
     page.on('response', (r) => {
       const p = new URL(r.url()).pathname
@@ -54,9 +79,15 @@ test.describe('MG-004 production company verification', () => {
       }
     })
 
-    const api = await requestFactory.newContext({ baseURL: apiBase })
+    const api = await requestFactory.newContext({
+      baseURL: apiBase,
+      timeout: 120_000,
+    })
     try {
-      const reg = await api.post('/v1/auth/register', { data: { email, password } })
+      const reg = await api.post('/v1/auth/register', {
+        data: { email, password },
+        timeout: 120_000,
+      })
       expect(reg.ok(), `register ${reg.status()}`).toBeTruthy()
       const tokens = await reg.json()
 
@@ -129,14 +160,21 @@ test.describe('MG-004 production company verification', () => {
       ).toBe(200)
       expect(seen, `no BASIC_* label; body had: ${body.slice(0, 300)}`).not.toHaveLength(0)
       expect(body.includes('검증 실패')).toBeFalsy()
+      expect(
+        body.includes('샘플 검증 데이터'),
+        'CV-02 is still an OpenCorporates mock; the card must say so'
+      ).toBeTruthy()
 
       for (const name of ['D-U-N-S 조회', 'K-SURE 기업 조회', 'K-SURE 신용조사 신청']) {
         await expect(page.getByRole('link', { name })).toBeVisible()
       }
+      await page.getByRole('link', { name: 'D-U-N-S 조회' }).scrollIntoViewIfNeeded()
 
-      await page.screenshot({
+      const card = page
+        .getByTestId('company-verification-sample-note')
+        .locator('xpath=ancestor::div[contains(@class,"rounded-xl")][1]')
+      await card.screenshot({
         path: test.info().outputPath('mg004-prod-verification.png'),
-        fullPage: true,
       })
     } finally {
       if (adminToken.length >= 32) {

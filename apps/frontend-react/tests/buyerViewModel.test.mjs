@@ -11,6 +11,8 @@ import {
   resolveBuyerCountryIso3,
   mapCompanyVerificationResponse,
   mapCompanyVerificationHttpError,
+  COMPANY_VERIFICATION_SAMPLE_NOTE,
+  COMPANY_VERIFICATION_AUTH_MESSAGE,
   EXTERNAL_LOOKUP_LINKS,
   REGISTRY_CHECK_STATUSES,
   COMPANY_VERIFICATION_INTRO,
@@ -276,6 +278,10 @@ test('L029: mapCompanyVerificationResponse aligns CV-02 API → CV-03 UI fields'
   assert.equal(view.company_name, 'Acme');
   assert.match(view.details, /opencorporates/);
   assert.match(view.details, /자동 신용등급 조회 아님/);
+  assert.equal(view.sample, true);
+  assert.match(COMPANY_VERIFICATION_SAMPLE_NOTE, /샘플 검증 데이터/);
+  assert.match(COMPANY_VERIFICATION_SAMPLE_NOTE, /실시간 법인 등기 조회 결과가 아닙니다/);
+  assert.doesNotMatch(view.details, /\(mock/);
   assert.equal(view.status && view.country && view.verified_at ? 'ok' : 'broken', 'ok');
 });
 
@@ -323,6 +329,27 @@ test('MG-003: unknown registry status maps to 확인 결과 없음 (no fake grad
   assert.doesNotMatch(notFound.message, /CV-02 배포/);
   const storeDown = mapCompanyVerificationHttpError({ response: { status: 503, data: { detail: 'verification_store_unavailable' } } });
   assert.equal(storeDown.kind, 'store');
+});
+
+test('CV-03: mock registry result is sample data, and 401/403 are not 검증 실패', () => {
+  const live = mapCompanyVerificationResponse({
+    registry_check_status: 'BASIC_CONFIRMED',
+    result_json: { provider: 'opencorporates', mock: false },
+  });
+  assert.equal(live.sample, false);
+  const sampledUnknown = mapCompanyVerificationResponse({
+    registry_check_status: 'VERIFIED',
+    result_json: { mock: true },
+  });
+  assert.equal(sampledUnknown.status, null);
+  assert.equal(sampledUnknown.sample, true);
+  const unauth = mapCompanyVerificationHttpError({ response: { status: 401, data: { detail: 'Not authenticated' } } });
+  assert.equal(unauth.kind, 'auth');
+  assert.equal(unauth.message, COMPANY_VERIFICATION_AUTH_MESSAGE);
+  assert.doesNotMatch(unauth.message, /검증 실패/);
+  const forbidden = mapCompanyVerificationHttpError({ response: { status: 403, data: { detail: 'forbidden' } } });
+  assert.equal(forbidden.kind, 'auth');
+  assert.equal(forbidden.message, COMPANY_VERIFICATION_AUTH_MESSAGE);
 });
 
 test('MG-003: D&B/K-SURE links are official lookup pages only', () => {

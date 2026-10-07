@@ -28,7 +28,7 @@
 
 - [x] **[CV-01] 해외기업 기본검증 DB 마이그레이션** — 실제 파일은 `db/migrations/0006_company_registry_checks.sql` (0005는 결제·크레딧). 5개 `registry_check_status`, 기존 인증·결제·크레딧 테이블 비변경. 완료: MG-001 #123.
 - [x] **[CV-02] OpenCorporates Mock 기본검증 API** — `POST /v1/company-verifications`, `GET /v1/company-verifications/{verification_id}`. Mock 시나리오 + `get_current_user` + `user_id` 격리. 완료: #119·#123.
-- [ ] **[CV-03] BuyerSearch 기본검증 카드** — `CompanyBasicVerificationCard`는 main에 있음 (#120·#121). MG-003에서 실제 조회 결과 연결·검수 중.
+- [x] **[CV-03] BuyerSearch 기본검증 카드** — BuyerSearch 상세 「기업 검증」이 `POST /v1/company-verifications` 후 소유자 `GET /v1/company-verifications/{id}` 결과를 표시. `registry_check_status` 5종 한글 라벨, 로딩·검증 실패·로그인 필요를 분리. `result_json.mock`이면 샘플 검증 데이터로 표시(실시간 등기 결과로 단정하지 않음). D-U-N-S·K-SURE는 공식 외부 링크만. OpenCorporates 실연동은 이후 단계. `fitScore`·`creditStatus`·`core.buyers.verification_status`와 혼합하지 않음.
 - [ ] **[CV-04] 기본검증 테스트·회귀검증** — API/Postgres E2E는 있음. 로그인→바이어검색→상세→기본검증 화면 E2E는 MG-003 이후 MG-004.
 - [x] **[CV-05] K-SURE·D&B PRD 정정** — 검증되지 않은 API·등급 자동조회 가정 제거, MVP는 공식 외부 링크로 한정. 완료: #117.
 
