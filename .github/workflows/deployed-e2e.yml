@@ -242,6 +242,8 @@ jobs:
       E2E_API_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.api_base_url || vars.E2E_API_BASE_URL }}
       E2E_WRITE_ENABLED: "true"
       E2E_ADMIN_TOKEN: ${{ secrets.E2E_ADMIN_TOKEN }}
+      # Drive the production UI, but reroute its /api calls to the isolated e2e API (see mg004 spec).
+      E2E_ROUTE_UI_API_TO_E2E: "true"
       VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
     steps:
       - name: Check out deployed commit
