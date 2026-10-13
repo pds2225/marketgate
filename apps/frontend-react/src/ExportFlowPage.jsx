@@ -20,6 +20,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { buildP1Url, ENDPOINTS } from "./config";
 import { displayPhone } from "./lib/phone";
 import { computeProfitability } from "./lib/profitability";
+import { buildDealDraft, sourceTrace } from "./lib/dealDraft";
 import api from "./lib/api";
 import BuyerReport from "./BuyerReport";
 import CreditUnlockPanel from "./components/CreditUnlockPanel";
@@ -212,6 +213,7 @@ function buildBuyerReportFromApi(item, hsLabel) {
   // 리포트 ID는 난수 대신 날짜+바이어명 기반으로 결정적으로 생성 (동일 입력 → 동일 결과)
   const buyerSlug = String(item.buyer_name || "buyer").replace(/[^a-z0-9]/gi, "").slice(0, 6).toUpperCase() || "BUYER";
 
+  const trace = sourceTrace(item);
   return {
     reportId: `#MG-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}-${buyerSlug}`,
     issuedAt: dateStr,
@@ -246,9 +248,9 @@ function buildBuyerReportFromApi(item, hsLabel) {
       : item.explanation_reasons?.length
         ? item.explanation_reasons
         : ["해당 바이어는 추천 점수 기준으로 선정되었습니다."],
-    dataSource: item.source_dataset || "출처 미상",
-    sourceFile: item.source_dataset ? `${item.source_dataset}.csv` : "-",
-    sourceRow: "-",
+    dataSource: trace.sourceDataset,
+    sourceFile: trace.sourceFile,
+    sourceRow: trace.sourceRowNo,
     // 원본에 검증일이 없으므로 오늘 날짜를 검증일로 표기하지 않는다
     lastVerified: "자료 내 확인 불가",
     // 연락처 보유 ≠ 검증 완료 — 상태값을 분리해 전달한다
@@ -542,7 +544,7 @@ function ProfitSimulator({ selectedBuyer, onComplete }) {
           <p className="analysis-kicker">Step 3 — Profit Simulator</p>
           <h2>수출 수익성 검증</h2>
           <p>
-            {selectedBuyer?.buyer_name || "선택된 바이어"}와의 거래 조건을 입력하면 예상 수익을 계산합니다.
+            {selectedBuyer?.buyer_name || "선택된 바이어"}와의 거래 조건을 입력하면 예상 수익을 계산합니다. 관세율과 환율은 공식 값이 아니라 사용자 가정입니다.
           </p>
         </div>
       </div>
@@ -580,7 +582,7 @@ function ProfitSimulator({ selectedBuyer, onComplete }) {
           <input type="number" value={insuranceCost} onChange={(e) => setInsuranceCost(Number(e.target.value))} min={0} />
         </label>
         <label className="analysis-field">
-          <span>관세율 (%)</span>
+          <span>관세율 (%) · 사용자 가정</span>
           <input type="number" value={tariffRate} onChange={(e) => setTariffRate(Number(e.target.value))} min={0} max={100} />
         </label>
         <label className="analysis-field">
@@ -592,7 +594,7 @@ function ProfitSimulator({ selectedBuyer, onComplete }) {
           <input type="number" value={paymentFeeRate} onChange={(e) => setPaymentFeeRate(Number(e.target.value))} min={0} max={100} step={0.1} />
         </label>
         <label className="analysis-field">
-          <span>환율 (KRW/USD)</span>
+          <span>환율 (KRW/USD) · 사용자 가정</span>
           <input type="number" value={exchangeRate} onChange={(e) => setExchangeRate(Number(e.target.value))} min={1} />
         </label>
         <label className="analysis-field">
@@ -813,6 +815,42 @@ function PurchaseOrderGenerator({ selectedBuyer, simulationParams, hsCode, onRes
           새로운 수출 건 시작
         </button>
       </div>
+    </div>
+  );
+}
+
+function DealDraftPanel({ buyer, hsCode, simulation }) {
+  const draft = buildDealDraft({ buyer, hsCode, simulation });
+  const review = draft.reviewStatus === "REVIEW_REQUIRED";
+  return (
+    <div
+      style={{
+        marginBottom: 16,
+        padding: 16,
+        borderRadius: 16,
+        background: "rgba(15,23,42,0.5)",
+        border: `1px solid ${review ? "rgba(251,191,36,0.45)" : "rgba(148,163,184,0.25)"}`,
+      }}
+    >
+      <p className="analysis-kicker">Deal 후보 · 발송하지 않음</p>
+      <h2 style={{ margin: "4px 0 8px", fontSize: 18 }}>
+        {review ? "REVIEW_REQUIRED" : "DRY_RUN"}
+      </h2>
+      <p style={{ margin: "0 0 10px", color: "#cbd5e1", fontSize: 13 }}>
+        {draft.buyerName} · HS {draft.hsCode || "미입력"} · {draft.country}
+      </p>
+      <div className="analysis-detail-grid">
+        <div className="analysis-detail-row"><span>출처</span><strong>{draft.sourceDataset}</strong></div>
+        <div className="analysis-detail-row"><span>원본 파일</span><strong style={{ wordBreak: "break-all" }}>{draft.sourceFile}</strong></div>
+        <div className="analysis-detail-row"><span>원본 행 번호</span><strong>{draft.sourceRowNo}</strong></div>
+        <div className="analysis-detail-row"><span>연락처</span><strong>{draft.contactEmail}</strong></div>
+        <div className="analysis-detail-row"><span>마진</span><strong>{draft.marginSource}{draft.profitUSD == null ? "" : ` · ${draft.profitUSD}`}</strong></div>
+      </div>
+      {review ? (
+        <p style={{ margin: "10px 0 0", color: "#fcd34d", fontSize: 13 }}>{draft.reasons.join(" · ")}</p>
+      ) : (
+        <p style={{ margin: "10px 0 0", color: "#86efac", fontSize: 13 }}>메일은 보내지 않습니다.</p>
+      )}
     </div>
   );
 }
@@ -1234,6 +1272,8 @@ export default function ExportFlowPage({ onBack }) {
                         <p>{(item.explanation_reasons || []).join(" · ") || "추천 사유 없음"}</p>
                         <div className="analysis-detail-grid" style={{ marginTop: 10 }}>
                           <div className="analysis-detail-row"><span>추천 국가</span><strong>{item.source_target_country_name || item.source_target_country_iso3 || "-"}</strong></div>
+                          <div className="analysis-detail-row"><span>원본 파일</span><strong style={{ wordBreak: "break-all" }}>{sourceTrace(item).sourceFile}</strong></div>
+                          <div className="analysis-detail-row"><span>원본 행 번호</span><strong>{sourceTrace(item).sourceRowNo}</strong></div>
                         </div>
                         <div onClick={(e) => e.stopPropagation()}>
                           <CreditUnlockPanel
@@ -1393,6 +1433,7 @@ export default function ExportFlowPage({ onBack }) {
           {/* ===== Step 4: 주문서 생성 ===== */}
           {step === 4 && (
             <motion.div key="step4" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+              <DealDraftPanel buyer={selectedBuyer} hsCode={hsCode} simulation={simulationParams} />
               <PurchaseOrderGenerator
                 selectedBuyer={selectedBuyer}
                 simulationParams={simulationParams}
