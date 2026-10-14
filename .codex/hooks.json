@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'d:\\marketgate\\.codex\\hooks\\session-start.sh'"
+          }
+        ]
+      }
+    ]
+  }
+}
