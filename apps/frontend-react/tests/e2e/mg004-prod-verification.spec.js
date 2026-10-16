@@ -71,6 +71,23 @@ test.describe('MG-004 production company verification', () => {
         await route.continue({ headers })
       })
     }
+    // The deployed UI calls its same-origin /api proxy, which forwards to the
+    // production API. The account above is registered on the isolated e2e API,
+    // so the production API rejects its token (401). When requested, send the
+    // UI's /api/* calls straight to E2E_API_BASE_URL so the whole journey (and
+    // every write) stays on the disposable e2e backend; real user data is never touched.
+    if (process.env.E2E_ROUTE_UI_API_TO_E2E === 'true') {
+      const uiOrigin = new URL(String(process.env.E2E_BASE_URL || '')).origin
+      await page.route(`${uiOrigin}/api/**`, async (route) => {
+        const src = new URL(route.request().url())
+        const upstream = `${apiBase}${src.pathname.replace(/^\/api(\/|$)/, '/')}${src.search}`
+        const headers = { ...route.request().headers() }
+        delete headers.host
+        delete headers['x-vercel-trusted-oidc-idp-token']
+        const response = await route.fetch({ url: upstream, headers, timeout: 300_000 })
+        await route.fulfill({ response })
+      })
+    }
     const verifyResponses = []
     page.on('response', (r) => {
       const p = new URL(r.url()).pathname
