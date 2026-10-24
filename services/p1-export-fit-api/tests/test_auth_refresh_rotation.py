@@ -6,14 +6,18 @@ Regression guards:
 3. POST /v1/auth/logout with refresh_token prevents subsequent refresh.
 4. Concurrent refresh with the same token yields exactly one success (L025).
 5. With DATABASE_URL, consume_jti writes Postgres — not only ephemeral file (L026).
+6. Logout with an expired access token still revokes refresh (post-#152 SPA skip).
 """
 from __future__ import annotations
 
 import sys
 import threading
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import jwt
 import pytest
 from fastapi.testclient import TestClient
 
@@ -21,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.auth_deps import create_access_token, create_refresh_token
+from app.auth_deps import JWT_ALGORITHM, JWT_SECRET, create_access_token, create_refresh_token
 import main as api_main
 
 
@@ -39,6 +43,19 @@ def _user_tokens(user_id: str = "u-l024"):
         "refresh": create_refresh_token(user_id),
         "user_id": user_id,
     }
+
+
+def _expired_access_token(user_id: str) -> str:
+    return jwt.encode(
+        {
+            "sub": user_id,
+            "type": "access",
+            "jti": str(uuid.uuid4()),
+            "exp": datetime.now(timezone.utc) - timedelta(minutes=1),
+        },
+        JWT_SECRET,
+        algorithm=JWT_ALGORITHM,
+    )
 
 
 def test_refresh_rotates_and_rejects_reuse(client):
@@ -76,6 +93,29 @@ def test_logout_revokes_refresh_token(client):
         json={"refresh_token": tokens["refresh"]},
     )
     assert logged_out.status_code == 200, logged_out.text
+
+    revived = client.post(
+        "/v1/auth/refresh", json={"refresh_token": tokens["refresh"]}
+    )
+    assert revived.status_code == 401
+    assert revived.json()["detail"] == "token_revoked"
+
+
+def test_logout_with_expired_access_still_revokes_refresh(client):
+    """SPA skips silent refresh on /v1/auth/logout (#152). Expired access
+    must not prevent refresh revocation — otherwise logout is cosmetic for
+    up to REFRESH_EXPIRE_DAYS.
+    """
+    tokens = _user_tokens("u-logout-expired-access")
+    expired_access = _expired_access_token(tokens["user_id"])
+
+    logged_out = client.post(
+        "/v1/auth/logout",
+        headers={"Authorization": f"Bearer {expired_access}"},
+        json={"refresh_token": tokens["refresh"]},
+    )
+    assert logged_out.status_code == 200, logged_out.text
+    assert logged_out.json()["status"] == "logged_out"
 
     revived = client.post(
         "/v1/auth/refresh", json={"refresh_token": tokens["refresh"]}
