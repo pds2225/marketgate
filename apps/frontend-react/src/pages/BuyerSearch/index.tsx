@@ -866,29 +866,29 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
   ];
 
   return (
-    <div className="flex flex-col h-full bg-white">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-white">
-        <div className="flex items-center gap-2">
+    <div className="flex h-full min-h-0 min-w-0 flex-col bg-white">
+      <div className="flex min-w-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack}><ChevronLeft className="h-4 w-4 text-slate-600" /></Button>
-          <div><h1 className="text-sm font-semibold text-slate-800">{buyer.name}</h1><p className="text-xs text-slate-500">{buyer.country} · {buyer.industry}</p></div>
+          <div className="min-w-0"><h1 className="break-words text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">{buyer.name}</h1><p className="text-xs text-slate-500">{buyer.country} · {buyer.industry}</p></div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-blue-600" onClick={handleShare}><Share2 className="h-4 w-4" /></Button>
           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:text-blue-600" onClick={handleDownloadPDF}><Download className="h-4 w-4" /></Button>
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="px-5 py-5 max-w-3xl mx-auto">
+      <ScrollArea className="min-h-0 min-w-0 flex-1">
+        <div className="mx-auto w-full min-w-0 max-w-3xl px-4 py-5 sm:px-5">
           <div className="bg-slate-900 text-white rounded-xl px-5 py-4 mb-5">
-            <div className="flex items-center justify-between mb-2">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-blue-300" /><span className="text-xs font-bold tracking-wider text-blue-200">BUYER DETAIL REPORT</span></div>
-              <span className="text-xs text-slate-400">리포트 ID: #{buyer.id}</span>
+              <span className="break-all text-xs text-slate-400">리포트 ID: #{buyer.id}</span>
             </div>
-            <div className="grid grid-cols-2 gap-y-1 gap-x-4 text-xs text-slate-300 mt-2">
+            <div className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-slate-300 sm:grid-cols-2">
               <div><span className="text-slate-500">발행일:</span> {formatDate()}</div>
               <div><span className="text-slate-500">원본 기준일:</span> {buyer.dataDate || '자료 내 확인 불가'}</div>
-              <div className="col-span-2"><span className="text-slate-500">분석 대상:</span> {buyer.country} · HS {buyer.hsCode} ({buyer.hsLabel})</div>
+              <div className="sm:col-span-2"><span className="text-slate-500">분석 대상:</span> {buyer.country} · HS {buyer.hsCode} ({buyer.hsLabel})</div>
             </div>
           </div>
 
@@ -896,8 +896,8 @@ const BuyerDetailPanel: React.FC<{ buyer: Buyer; onBack: () => void; inputHsCode
 
           {isMismatch && <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-5"><AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" /><div className="text-xs text-amber-800 leading-relaxed"><span className="font-semibold">입력하신 {inputHsCode}과(와) 유사한 HS 코드 {buyer.hsCode}({buyer.hsLabel})의 결과입니다.</span><br />해당 코드는 동일 카테고리({buyer.hsLabel}) 내 유사 품목으로 매칭되었습니다.</div></div>}
 
-          <div className="flex gap-1 mb-4 overflow-x-auto pb-1">
-            {tabs.map((t) => <button key={t.key} onClick={() => setActiveTab(t.key)} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${activeTab === t.key ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>{t.icon} {t.label}</button>)}
+          <div className="mb-4 flex w-full min-w-0 gap-1 overflow-x-auto pb-1">
+            {tabs.map((t) => <button key={t.key} onClick={() => setActiveTab(t.key)} className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${activeTab === t.key ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>{t.icon} {t.label}</button>)}
           </div>
 
           {activeTab === 'profile' && (
@@ -1326,7 +1326,7 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-slate-50">
+    <div className="flex h-dvh min-h-0 w-full min-w-0 flex-col overflow-hidden bg-slate-50">
       <Toaster position="top-center" richColors />
       <header className="bg-white border-b border-slate-200 flex-shrink-0">
         <div className="h-12 flex items-center justify-between px-4">
@@ -1356,7 +1356,7 @@ export default function BuyerSearchPage({ onClose, onOpenFormMode }: BuyerSearch
         </div>
         <SearchBar onSearch={handleSearch} activeCategory={currentCategory} loading={loading} initialQuery={seedQuery} />
       </header>
-      <div className="flex-1 overflow-hidden relative">
+      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
         {loading && (
           <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center" data-testid="buyer-search-loading">
             <Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-3" />

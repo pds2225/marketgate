@@ -97,6 +97,7 @@ REQUEST_SOLVED=YES가 아닌 작업은 완료 표시 금지.
 [x] MG-013 | TASK.md를 단일 작업 SSOT로 고정하고 Codex·Claude 시작 순서를 통일한다
 [x] MG-014 | Vercel Node 20 지원 종료에 대응해 Node 24로 빌드·검증하고 PR을 연다
 [x] MG-015 | 바이어 검색 결과를 유지하며 CPU 반복 연산과 요청 시간을 줄이고 성능 PR을 연다
+[~] MG-016 | 바이어 상세보고서의 세로·가로 화면 잘림을 최소 레이아웃 수정으로 방지한다
 [x] T-20260814-01 | 코드 머지 전에 제품 테스트가 통과해야 한다
 [x] TASK-001 | 바이어 검색 결과에서 실제 원천데이터와 출처를 확인할 수 있게 한다
 
@@ -342,6 +343,25 @@ TASK-A
 ---
 
 # 8. TASK DETAILS
+
+## MG-016
+
+### 사용자 요청 / MUST
+- 2026-10-28 바이어 상세보고서 스크린샷의 화면 잘림 개선. 관련 PR 조회 후 기존 코드에서 최소 수정.
+- `apps/frontend-react/src/pages/BuyerSearch/index.tsx`의 뷰포트 높이·스크롤·가로 넘침 보정.
+- 사용자 명시 지시: 회귀테스트 실행 금지.
+
+### KEEP / FORBIDDEN
+- 바이어 데이터, 점수 산식, API, 인증, 검색·탭 기능, 운영 설정 및 사용자 변경 보존.
+- main 직접 push 및 병합 금지. 독립 브랜치 + Draft PR.
+
+### CHECKPOINT / VERIFY
+- 1691×626 화면의 `BuyerDetailPanel` 구조와 `h-screen w-screen overflow-hidden` 및 중첩 `ScrollArea` 코드를 조사함.
+- 수정 전후 코드 경로·diff만 확인. 회귀테스트, 빌드, 브라우저 실기기 검증은 실행하지 않음.
+- 실제 화면에서 스크롤·잘림 해소는 미확인. 운영 병합·배포 미수행.
+
+### 상태
+REQUEST_SOLVED=NO — 브랜치에 최소 수정, 실제 사용 화면 검증 전 DONE 금지.
 
 ## MG-015
 
