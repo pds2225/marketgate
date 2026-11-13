@@ -1369,6 +1369,14 @@ REQUEST_SOLVED=NO — 유료사용 Go 이후 별도 승인과 E2E가 있어야 Y
 
 REQUEST_SOLVED=NO — 실제 buyer 1건의 deal lifecycle을 E2E로 확인한 뒤 YES.
 
+### v1.1 후처리 연계 구현계획 (2026-11-13, 계획만)
+
+- DEPENDS_ON: MG-008의 허가된 원본 반입·기업 식별·필드별 증거·기존 검색 연결. MG-006의 기존 연락처 소유 검증 로직 재사용.
+- 연락처는 `secure_contact_ref`를 보호 채널에서 해석할 수 있는 경우에만 Vault Broker로 전달. 존재/기술적 유효성/소유권/발송 허가/고객 공개 허가를 구분하고 `has_contact_point` TRUE/FALSE/NULL 의미 유지. 기업 홈페이지 URL만으로 TRUE 금지. 평문 연락처의 일반 CSV·core DB·로그 노출 금지.
+- 국내 셀러의 기존 테넌트·제품/규격/거래조건을 해외 바이어의 제품·실수입·조달 수요와 증거 기반으로 매칭. 신규 셀러 마스터·거래 마스터 중복 생성 금지; 근거 없는 MOQ·가격·구매의향 채우지 않음.
+- 기존 `core.matches`와 Contact/Deal Tracking을 이용해 buyer 1건→contact/deal 생성→후속액션→견적/응답 상태변경→조회, 중복 생성 방지·고객 간 격리 회귀 검증. 조달 낙찰은 플랫폼 성사 거래로 계산 금지.
+- 완료 조건/미착수 상태 변경 없음. MG-007 실제 발송은 후속 별도 승인.
+
 ---
 
 ## MG-007
@@ -1408,6 +1416,12 @@ REQUEST_SOLVED=NO — 실제 buyer 1건의 deal lifecycle을 E2E로 확인한 �
 
 DEPENDS_ON: MG-006 권장. 운영 SMTP/`ADMIN_EMAILS`.
 
+### 8-10. 외부 수집 ↔ 후처리 v1.1 후속 발송 경계 (2026-11-13, 계획만)
+
+- 후처리된 연락처/매칭 결과는 발송 명령이나 발송 동의가 아님. MG-008 반입·MG-012 연락처/딜 연결 후에도 기존 MG-006 소유 확인, Vault Legal Basis, source_registry 사용권, Suppression, 캠페인 승인 및 국가별 법규를 모두 검증해야 함.
+- 기존 MG-007 승인·상태/발송 경로만 재사용; 새로운 발송기/SMTP 설정/자동 대량발송을 이번 후처리 범위에 신설하지 않음.
+- 현재 실제 발송 장애(자격증명/승인/서비스 상태)는 읽기 전용 기록만 있으며 해소 미확인. 별도 명시적 실제 발송 승인 전 외부 발송 금지. 기존 BLOCKED/REQUEST_SOLVED=NO 유지.
+
 ---
 
 ## MG-008
@@ -1445,6 +1459,19 @@ P2 바이어 소스를 CSV로 넣어 실제 검색에 쓰이게 한다
 ### 8-9. 선행조건·의존성
 
 DEPENDS_ON: 사용자가 넣을 P2 CSV.
+
+### 8-10. 외부 수집 ↔ MG 후처리 계약 v1.1 구현계획 (2026-11-13, 계획만)
+
+- 기준 문서: `MarketGate_Final_Interface_Contract_v1.1.md` (상위 `MarketGate_Data_Collection_DB_Spec_v1_3_Integrated_Operations.md` 정책 우선). 본 v1.1 원문은 대화 산출물이며 이 저장소에 저장됐는지 **미확인**이므로 개발 착수 전 동일본의 접근 가능 여부 확인. 이전 `mg-collector/1.0`/`1.0.1`은 자동 호환 취급 금지.
+- 기존 P2 CSV drop-in 요구·BLOCKED 상태를 보존하면서 외부 수집 완료 데이터의 MG 후처리만 확장함. **외부 수집 시스템이** Overture/기업등록/조달/홈페이지/원본·필드 근거·라이선스를 확보·전달하며, MG는 사이트 크롤러·Overture 다운로드·유료 무역원장 구매·외부 수집 스케줄러를 추가하지 않음.
+- **P0-A 사전 점검(읽기 전용):** 운영 PostgreSQL 실제 스키마·권한·`core.source_registry.policy`·마이그레이션·검색/원본 보관 상태와 기존 데이터/소스 보유량 확인. 기존 `core.buyers`, `buyer_identifiers`, `buyer_signals`, Vault를 중복 신설하지 않음. 기존 `tools/validate_p2_dropins.py`는 CSV용, `preprocess_cosmetics.py`는 화장품 전용 필터 제외 후 중립 변환만 검토, `tools/buyer_master/merge.py`는 원본 제외·치환하므로 통째 실행 금지. `pds2225/MG` SQLite DB를 운영 PostgreSQL과 직접 동기화 금지.
+- **P0-B 입력 게이트:** `mg-collector/1.1`의 비공개 `manifest.json`+`records.jsonl` 및 보호 원본 참조 인수; `(producer,batch_id)`, 안정적 원천 ID·버전·SHA-256 원본 바이트, 상대경로/심볼릭링크/임의 URL 방어, 필드별 출처·교차 원천 권리 검증. `UNKNOWN/PROHIBITED` 권리 및 보호 연락처 채널 부재는 운영 적재/발송 금지(default-deny). 실제 전송·인증·저장소는 운영환경 확인 후 결정하고 현재 공개 API 계약은 유지.
+- **P0-C 후처리:** 권리 허용 원본 스냅샷·필드별 증거·대표값 결정·변경 이력 보존. 날짜·국가·통화·단위·HS 2/4/6(선행 0/개정판) 표준화, 4자리에서 6자리 추정 금지. 관할 등록번호·도메인·주소 등으로 기업 동일성 검토; 정규화 이름만으로 자동 병합 금지. 법인/사업장/건물 구별. 실제 수입 `TRADE`와 `PROCUREMENT` 낙찰/제조사 표기를 분리하고 국가·HS 집계 무역통계 적재 금지. 기존 검색·TASK-001 출처 조회 경로로 근거 연결.
+- **P0-D 처리 결과/복구:** `mg-result/1.1`의 `batch_result.json`+`record_results.jsonl`, 행 결과 `CREATED/LINKED_EXISTING/NOOP_DUPLICATE/REVIEW_REQUIRED/QUARANTINED/FAILED` 6종. 부분 처리 `input_count=processed_count+pending_count`, terminal outcome 합계=`processed_count`. 동일 배치 ID·다른 파일 해시는 `BATCH_CONTENT_CONFLICT`/REJECTED, 부분 실패 체크포인트 재개, 원본·기존 ID 보존 및 멱등 처리.
+- **필수 검증:** 계약 CT-01~CT-22 중 영향 항목(해시, 권리, HS, 기업 오병합, 조달≠실수입, 연락처 보호, 중복 재실행, 10건 중 4건 처리·6건 재개)을 직접 검증. 권리 허가된 실제 외부 파일 1배치→반입→운영 대상과 분리된 검증환경 DB 저장→기존 검색·출처 근거 조회→같은 배치 재실행/변경 이력 조회 E2E 및 MG-004 인증·사용자 격리 회귀. mock-only 또는 단위테스트 PASS로 DONE 처리 금지.
+- **선행 BLOCKED_INPUT(2026-11-13 읽기 전용 확인):** 실제 외부 수집 배치와 원천 사용권/원본 접근 미확인, 운영 PostgreSQL 마이그레이션·Vault 보호 전송 경로 미확인. 현재 main의 MG-008는 원본 P2 CSV 부재로 BLOCKED 표기되어 있으며 본 계획 등록만으로 해소되지 않음. 기존 MG-004 운영/배포 E2E 이력은 상충 시점이 있어 최신 실환경 재검증 필요. `TASK.md`에 영향을 주는 별도 공개 PR #158, #179 존재(해당 PR을 임의 병합·폐기 금지).
+- **연결 작업:** MG-008 P0 입력/원본·증거·정규화/검색 → MG-012 P1 Vault·셀러매칭·딜 추적 → MG-004 연계 실제 사용자 E2E → MG-007 별도 승인 기반 발송. 기존 TASK LIST 상태와 원문·완료조건은 변경하지 않음. 신규 품질 등급제·수치형 KPI·외부 크롤러 생성 금지.
+- 상태: **계획 등록만, 구현/운영 DB/외부 발송 없음. REQUEST_SOLVED=NO.**
 
 ---
 
