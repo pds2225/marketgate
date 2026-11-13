@@ -1470,6 +1470,7 @@ DEPENDS_ON: 사용자가 넣을 P2 CSV.
 - **P0-D 처리 결과/복구:** `mg-result/1.1`의 `batch_result.json`+`record_results.jsonl`, 행 결과 `CREATED/LINKED_EXISTING/NOOP_DUPLICATE/REVIEW_REQUIRED/QUARANTINED/FAILED` 6종. 부분 처리 `input_count=processed_count+pending_count`, terminal outcome 합계=`processed_count`. 동일 배치 ID·다른 파일 해시는 `BATCH_CONTENT_CONFLICT`/REJECTED, 부분 실패 체크포인트 재개, 원본·기존 ID 보존 및 멱등 처리.
 - **필수 검증:** 계약 CT-01~CT-22 중 영향 항목(해시, 권리, HS, 기업 오병합, 조달≠실수입, 연락처 보호, 중복 재실행, 10건 중 4건 처리·6건 재개)을 직접 검증. 권리 허가된 실제 외부 파일 1배치→반입→운영 대상과 분리된 검증환경 DB 저장→기존 검색·출처 근거 조회→같은 배치 재실행/변경 이력 조회 E2E 및 MG-004 인증·사용자 격리 회귀. mock-only 또는 단위테스트 PASS로 DONE 처리 금지.
 - **선행 BLOCKED_INPUT(2026-11-13 읽기 전용 확인):** 실제 외부 수집 배치와 원천 사용권/원본 접근 미확인, 운영 PostgreSQL 마이그레이션·Vault 보호 전송 경로 미확인. 현재 main의 MG-008는 원본 P2 CSV 부재로 BLOCKED 표기되어 있으며 본 계획 등록만으로 해소되지 않음. 기존 MG-004 운영/배포 E2E 이력은 상충 시점이 있어 최신 실환경 재검증 필요. `TASK.md`에 영향을 주는 별도 공개 PR #158, #179 존재(해당 PR을 임의 병합·폐기 금지).
+- **운영 DB/저장소 경계 추가 확인:** 본 레포 `pds2225/marketgate`의 논리 계약은 PostgreSQL `core`/`vault` 기준이나, 별도 `pds2225/MG`의 `README.md`는 Next.js + Auth0 + Cloudflare D1/R2 구조를 설명함(2026-11-13 읽기 전용 확인). 실제 운영서비스·데이터 SSOT가 어느 저장소/DB인지, 두 계층의 연계 여부는 **미확인**. 이 판단 없이 PostgreSQL/D1 어느 쪽에도 신규 운영 적재·동기화·마이그레이션을 실행하지 않음.
 - **연결 작업:** MG-008 P0 입력/원본·증거·정규화/검색 → MG-012 P1 Vault·셀러매칭·딜 추적 → MG-004 연계 실제 사용자 E2E → MG-007 별도 승인 기반 발송. 기존 TASK LIST 상태와 원문·완료조건은 변경하지 않음. 신규 품질 등급제·수치형 KPI·외부 크롤러 생성 금지.
 - 상태: **계획 등록만, 구현/운영 DB/외부 발송 없음. REQUEST_SOLVED=NO.**
 
